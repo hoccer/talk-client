@@ -29,6 +29,21 @@
       <artifactId>jetty-websocket</artifactId>
       <version>${jetty.version}</version>
     </dependency>
+    <dependency>
+      <groupId>better</groupId>
+      <artifactId>better-jsonrpc-common</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>better</groupId>
+      <artifactId>better-jsonrpc-ws-client</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>hoccer</groupId>
+      <artifactId>hoccer-talk-common</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
   </dependencies>
   
   <build>
