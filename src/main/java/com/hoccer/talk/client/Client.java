@@ -1,21 +1,20 @@
 package com.hoccer.talk.client;
 
-import org.apache.log4j.Logger;
+import java.util.logging.Logger;
+
+import better.jsonrpc.core.JsonRpcConnection;
+import better.jsonrpc.util.ProxyUtil;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoccer.talk.logging.HoccerLoggers;
 import com.hoccer.talk.model.TalkDelivery;
 import com.hoccer.talk.model.TalkMessage;
 import com.hoccer.talk.rpc.TalkRpcClient;
 import com.hoccer.talk.rpc.TalkRpcServer;
 
-import better.jsonrpc.annotations.JsonRpcNotification;
-import better.jsonrpc.core.JsonRpcConnection;
-import better.jsonrpc.util.ProxyUtil;
-import better.jsonrpc.websocket.JsonRpcWsClient;
-
 public class Client implements JsonRpcConnection.Listener {
 
-	private static final Logger log = Logger.getLogger(Client.class);
+	private static final Logger log = HoccerLoggers.getLogger(Client.class);
 	
 	JsonRpcConnection mConnection;
 	
