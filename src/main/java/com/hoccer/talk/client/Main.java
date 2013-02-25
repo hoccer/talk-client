@@ -27,37 +27,19 @@ public class Main {
 			
 			JsonRpcWsClient connection = new JsonRpcWsClient(
 					f, new ObjectMapper(), new URI("ws://localhost:8080/"));
+			
+			Client c = new Client(connection);
+
 			JsonRpcServer srv = new JsonRpcServer(TalkRpcClient.class);
-			connection.setHandler(new TalkRpcClient() {
-				@Override
-				public void outgoingDelivery(TalkDelivery d) {
-					log.info("outgoing delivery");
-				}
-				@Override
-				public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-					log.info("incoming delivery");
-				}
-			});
+			connection.setHandler(c.getHandler());
+			connection.addListener(c);
 			connection.setServer(srv);
+			
 			connection.connect();
-			
-			TalkRpcServer server = (TalkRpcServer)	
-					ProxyUtil.createClientProxy(
-							Main.class.getClassLoader(),
-							TalkRpcServer.class, connection);
-			
-			Thread.sleep(1000);
-			
-			for(int i = 0; i < 10; i++) {
-				server.deliveryConfirm(new TalkDelivery());
-				Thread.sleep(1000);
-			}
-			
-			Thread.sleep(500);
+						
+			Thread.sleep(5000);
 			
 			connection.disconnect();
-			
-			Thread.sleep(500);
 			
 			System.exit(0);
 			
