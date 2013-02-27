@@ -12,9 +12,9 @@ import com.hoccer.talk.model.TalkMessage;
 import com.hoccer.talk.rpc.TalkRpcClient;
 import com.hoccer.talk.rpc.TalkRpcServer;
 
-public class Client implements JsonRpcConnection.Listener {
+public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
-	private static final Logger log = HoccerLoggers.getLogger(Client.class);
+	private static final Logger log = HoccerLoggers.getLogger(HoccerTalkClient.class);
 	
 	JsonRpcConnection mConnection;
 	
@@ -22,13 +22,17 @@ public class Client implements JsonRpcConnection.Listener {
 	
 	TalkRpcServer mServerRpc;
 	
-	Client(JsonRpcConnection connection) {
+	HoccerTalkClient(JsonRpcConnection connection) {
 		mConnection = connection;
 		mHandler = new TalkRpcClientImpl();
 		mServerRpc = ProxyUtil.createClientProxy(
 				this.getClass().getClassLoader(),
 				TalkRpcServer.class,
 				mConnection);
+	}
+	
+	public TalkRpcServer getServerRpc() {
+		return mServerRpc;
 	}
 	
 	public TalkRpcClient getHandler() {
@@ -47,22 +51,24 @@ public class Client implements JsonRpcConnection.Listener {
 	
 	@Override
 	public void onMessageSent(JsonRpcConnection connection, ObjectNode message) {
+		log.info("sent: " + message.toString());
 	}
 
 	@Override
 	public void onMessageReceived(JsonRpcConnection connection, ObjectNode message) {
+		log.info("received: " + message.toString());
 	}
 	
 	public class TalkRpcClientImpl implements TalkRpcClient {
 
 		@Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-			
+			log.info("call incomingDelivery()");
 		}
 
 		@Override
 		public void outgoingDelivery(TalkDelivery d) {
-			
+			log.info("call outgoingDelivery()");
 		}
 		
 	}
