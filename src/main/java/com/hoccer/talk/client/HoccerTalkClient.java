@@ -49,16 +49,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 		log.info("connection closed");
 	}
 	
-	@Override
-	public void onMessageSent(JsonRpcConnection connection, ObjectNode message) {
-		log.info("sent: " + message.toString());
-	}
-
-	@Override
-	public void onMessageReceived(JsonRpcConnection connection, ObjectNode message) {
-		log.info("received: " + message.toString());
-	}
-	
 	public class TalkRpcClientImpl implements TalkRpcClient {
 
 		@Override
