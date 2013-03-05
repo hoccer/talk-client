@@ -1,7 +1,10 @@
 package com.hoccer.talk.client;
 
 import java.net.URI;
+import java.util.UUID;
+import java.util.logging.Logger;
 
+import com.hoccer.talk.model.TalkClient;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
 import better.jsonrpc.server.JsonRpcServer;
@@ -9,35 +12,38 @@ import better.jsonrpc.websocket.JsonRpcWsClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.rpc.TalkRpcClient;
+import com.hoccer.talk.rpc.TalkRpcServer;
 
 public class Main {
 	
+	private static final Logger LOG = Logger.getLogger(Main.class.getSimpleName());
+
+    private static class DummyDatabase implements HoccerTalkDatabase {
+
+        TalkClient mOwnClient;
+
+        DummyDatabase() {
+            mOwnClient = new TalkClient(UUID.randomUUID().toString());
+        }
+
+        @Override
+        public TalkClient getClient() {
+            return mOwnClient;
+        }
+    }
+
 	public static void main(String[] args) {
 		try {
-			WebSocketClientFactory f = new WebSocketClientFactory();
-			f.start();
-			
-			JsonRpcWsClient connection = new JsonRpcWsClient(
-					f, new ObjectMapper(), new URI("ws://localhost:8080/"));
-			
-			Client c = new Client(connection);
+			HoccerTalkClient c = new HoccerTalkClient(new DummyDatabase());
 
-			JsonRpcServer srv = new JsonRpcServer(TalkRpcClient.class);
-			connection.setHandler(c.getHandler());
-			connection.addListener(c);
-			connection.setServer(srv);
-			
-			connection.connect();
-						
-			Thread.sleep(5000);
-			
-			connection.disconnect();
-			
+            Thread.sleep(120000);
+
 			System.exit(0);
 			
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+
 	}
 
 }
