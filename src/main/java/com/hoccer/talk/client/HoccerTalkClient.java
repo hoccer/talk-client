@@ -11,6 +11,7 @@ import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.util.ProxyUtil;
 
 import better.jsonrpc.websocket.JsonRpcWsClient;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.logging.HoccerLoggers;
 import com.hoccer.talk.model.TalkDelivery;
@@ -39,12 +40,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      * Create a Hoccer Talk client using the given client database
      * @param database
      */
-	public HoccerTalkClient(HoccerTalkDatabase database) {
-        // remember client database
+	public HoccerTalkClient(Executor backgroundExecutor, HoccerTalkDatabase database) {
+        // remember client database and background executor
+        mExecutor = backgroundExecutor;
         mDatabase = database;
-
-        // create background executor
-        mExecutor = Executors.newSingleThreadScheduledExecutor();
 
         // create URI object referencing the server
         URI uri = null;
@@ -65,7 +64,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // create JSON-RPC client
         mConnection = new JsonRpcWsClient(
                 mClientFactory,
-                new ObjectMapper(),
+                createObjectMapper(),
                 uri);
 
         // create client-side RPC handler object
@@ -86,6 +85,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // XXX this should really be done by the class user
         tryToConnect();
 	}
+
+    private ObjectMapper createObjectMapper() {
+        ObjectMapper result = new ObjectMapper();
+        // XXX this breaks requests with no params
+        //result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        return result;
+    }
 
     /**
      * Get the RPC interface to the server
@@ -113,7 +119,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                LOG.info("logging in");
                 mServerRpc.identify(mDatabase.getClient().getClientId());
+
+                LOG.info("fetching client list");
+                String[] clnts = mServerRpc.getAllClients();
+                LOG.info("found " + clnts.length + " clients: " + clnts);
             }
         });
 	}
@@ -137,6 +148,35 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 mConnection.connect();
             }
         });
+    }
+
+    /**
+     *
+     */
+    public void tryToDeliver(final String messageTag) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                TalkMessage m = null;
+                TalkDelivery[] d = null;
+                try {
+                    m = mDatabase.getMessageByTag(messageTag);
+                    d = mDatabase.getDeliveriesByTag(messageTag);
+                } catch (Exception e) {
+                    // XXX fail horribly
+                    e.printStackTrace();
+                    return;
+                }
+                mServerRpc.deliveryRequest(m, d);
+            }
+        });
+    }
+
+    /**
+     * Listener interface for library users
+     */
+    public interface Listener {
+        void onConnectionStateChanged(boolean connected);
     }
 
     /**
