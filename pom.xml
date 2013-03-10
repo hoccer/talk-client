@@ -31,7 +31,7 @@
     </dependency>
     <dependency>
       <groupId>better</groupId>
-      <artifactId>better-jsonrpc-ws-client</artifactId>
+      <artifactId>better-jsonrpc-websocket</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
     <dependency>
