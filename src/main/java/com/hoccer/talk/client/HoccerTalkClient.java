@@ -3,7 +3,6 @@ package com.hoccer.talk.client;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 
 import better.jsonrpc.core.JsonRpcConnection;
@@ -16,8 +15,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.logging.HoccerLoggers;
 import com.hoccer.talk.model.TalkDelivery;
 import com.hoccer.talk.model.TalkMessage;
-import com.hoccer.talk.rpc.TalkRpcClient;
-import com.hoccer.talk.rpc.TalkRpcServer;
+import com.hoccer.talk.rpc.ITalkRpcClient;
+import com.hoccer.talk.rpc.ITalkRpcServer;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
@@ -32,7 +31,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 	
 	TalkRpcClientImpl mHandler;
 	
-	TalkRpcServer mServerRpc;
+	ITalkRpcServer mServerRpc;
 
     Executor mExecutor;
 
@@ -71,15 +70,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mHandler = new TalkRpcClientImpl();
 
         // create JSON-RPC server object
-        JsonRpcServer srv = new JsonRpcServer(TalkRpcClient.class);
+        JsonRpcServer srv = new JsonRpcServer(ITalkRpcClient.class);
         mConnection.setHandler(getHandler());
         mConnection.addListener(this);
         mConnection.setServer(srv);
 
         // create RPC proxy
 		mServerRpc = ProxyUtil.createClientProxy(
-				TalkRpcServer.class.getClassLoader(),
-				TalkRpcServer.class,
+				ITalkRpcServer.class.getClassLoader(),
+				ITalkRpcServer.class,
 				mConnection);
 
         // XXX this should really be done by the class user
@@ -96,7 +95,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      * Get the RPC interface to the server
      * @return
      */
-	public TalkRpcServer getServerRpc() {
+	public ITalkRpcServer getServerRpc() {
 		return mServerRpc;
 	}
 
@@ -104,7 +103,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      * Get the handler object implementing the client RPC interface
      * @return
      */
-	public TalkRpcClient getHandler() {
+	public ITalkRpcClient getHandler() {
 		return mHandler;
 	}
 
@@ -181,7 +180,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     /**
      * Client-side RPC implementation
      */
-	public class TalkRpcClientImpl implements TalkRpcClient {
+	public class TalkRpcClientImpl implements ITalkRpcClient {
 
 		@Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
