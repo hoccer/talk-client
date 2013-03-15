@@ -88,8 +88,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private ObjectMapper createObjectMapper() {
         ObjectMapper result = new ObjectMapper();
-        // XXX this breaks requests with no params
-        //result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         return result;
     }
 
