@@ -2,7 +2,10 @@ package com.hoccer.talk.client;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.Executor;
+import java.util.Vector;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import better.jsonrpc.core.JsonRpcConnection;
@@ -27,19 +30,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
 	JsonRpcWsClient mConnection;
 
-    HoccerTalkDatabase mDatabase;
+    ITalkClientDatabase mDatabase;
 	
 	TalkRpcClientImpl mHandler;
 	
 	ITalkRpcServer mServerRpc;
 
-    Executor mExecutor;
+    ScheduledExecutorService mExecutor;
+
+    ScheduledFuture<?> mDisconnectFuture;
+
+    Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
 
     /**
      * Create a Hoccer Talk client using the given client database
      * @param database
      */
-	public HoccerTalkClient(Executor backgroundExecutor, HoccerTalkDatabase database) {
+	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor, ITalkClientDatabase database) {
         // remember client database and background executor
         mExecutor = backgroundExecutor;
         mDatabase = database;
@@ -47,7 +54,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // create URI object referencing the server
         URI uri = null;
         try {
-            uri = new URI("ws://192.168.2.41:8080/");
+            uri = new URI("ws://192.168.2.65:8080/");
         } catch (URISyntaxException e) {
             // won't happen
         }
@@ -107,6 +114,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 		return mHandler;
 	}
 
+    public void registerListener(ITalkClientListener listener) {
+        mListeners.add(listener);
+    }
+
+    public void unregisterListener(ITalkClientListener listener) {
+        mListeners.remove(listener);
+    }
+
     /**
      * Called when the connection is opened
      * @param connection
@@ -114,6 +129,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 	@Override
 	public void onOpen(JsonRpcConnection connection) {
 		LOG.info("connection opened");
+        rescheduleAutomaticDisconnect();
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
@@ -134,23 +150,45 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 	@Override
 	public void onClose(JsonRpcConnection connection) {
 		LOG.info("connection closed");
+        shutdownAutomaticDisconnect();
 	}
 
-    /**
-     *
-     */
+    private void doConnect() {
+        LOG.info("performing connect");
+        mConnection.connect();
+    }
+
+    private void doDisconnect() {
+        LOG.info("performing disconnect");
+        mConnection.disconnect();
+    }
+
+    private void shutdownAutomaticDisconnect() {
+        if(mDisconnectFuture != null) {
+            mDisconnectFuture.cancel(false);
+            mDisconnectFuture = null;
+        }
+    }
+
+    private void rescheduleAutomaticDisconnect() {
+        shutdownAutomaticDisconnect();
+        mDisconnectFuture = mExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                doDisconnect();
+            }
+        }, 60, TimeUnit.SECONDS);
+    }
+
     private void tryToConnect() {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                mConnection.connect();
+                doConnect();
             }
         });
     }
 
-    /**
-     *
-     */
     public void tryToDeliver(final String messageTag) {
         mExecutor.execute(new Runnable() {
             @Override
@@ -168,13 +206,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 mServerRpc.deliveryRequest(m, d);
             }
         });
-    }
-
-    /**
-     * Listener interface for library users
-     */
-    public interface Listener {
-        void onConnectionStateChanged(boolean connected);
     }
 
     /**
