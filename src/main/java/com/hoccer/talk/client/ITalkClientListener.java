@@ -1,5 +1,5 @@
 package com.hoccer.talk.client;
 
 public interface ITalkClientListener {
-    void onConnectionStateChanged(boolean connected);
+    void onClientStateChange(HoccerTalkClient client, int state);
 }

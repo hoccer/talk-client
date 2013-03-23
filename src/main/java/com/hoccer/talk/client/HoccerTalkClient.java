@@ -1,11 +1,13 @@
 package com.hoccer.talk.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
 
 import better.jsonrpc.core.JsonRpcConnection;
@@ -24,7 +26,33 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
-	private static final Logger LOG = HoccerLoggers.getLogger(HoccerTalkClient.class);
+    private static final Logger LOG = HoccerLoggers.getLogger(HoccerTalkClient.class);
+
+    /** State in which the client does not attempt any communication */
+    public static final int STATE_INACTIVE = 0;
+    /** State in which the client is ready to connect if awakened */
+    public static final int STATE_IDLE = 1;
+    /** State while establishing connection */
+    public static final int STATE_CONNECTING = 2;
+    /** State after connection is established (login/registration) */
+    public static final int STATE_CONNECTED = 3;
+    /** State while there is an active connection */
+    public static final int STATE_ACTIVE = 4;
+
+    /** Names of our states for debugging */
+    private static final String[] STATE_NAMES = {
+            "inactive", "idle", "connecting", "connected", "active"
+    };
+
+    /** Return the name of the given state */
+    public static final String stateToString(int state) {
+        if(state > 0 && state < STATE_NAMES.length) {
+            return STATE_NAMES[state];
+        } else {
+            return "INVALID(" + state + ")";
+        }
+    }
+
 
     WebSocketClientFactory mClientFactory;
 
@@ -38,9 +66,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     ScheduledExecutorService mExecutor;
 
+    ScheduledFuture<?> mLoginFuture;
+    ScheduledFuture<?> mConnectFuture;
     ScheduledFuture<?> mDisconnectFuture;
+    ScheduledFuture<?> mAutoDisconnectFuture;
 
     Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
+
+    int mState = STATE_INACTIVE;
+
+    int mConnectionFailures = 0;
 
     /**
      * Create a Hoccer Talk client using the given client database
@@ -54,7 +89,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // create URI object referencing the server
         URI uri = null;
         try {
-            uri = new URI("ws://192.168.2.65:8080/");
+            uri = new URI("ws://10.86.1.42:8080/");
         } catch (URISyntaxException e) {
             // won't happen
         }
@@ -87,32 +122,24 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 				ITalkRpcServer.class.getClassLoader(),
 				ITalkRpcServer.class,
 				mConnection);
-
-        // XXX this should really be done by the class user
-        tryToConnect();
 	}
 
-    private ObjectMapper createObjectMapper() {
-        ObjectMapper result = new ObjectMapper();
-        result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        return result;
-    }
 
     /**
      * Get the RPC interface to the server
      * @return
      */
-	public ITalkRpcServer getServerRpc() {
-		return mServerRpc;
-	}
+    public ITalkRpcServer getServerRpc() {
+        return mServerRpc;
+    }
 
     /**
      * Get the handler object implementing the client RPC interface
      * @return
      */
-	public ITalkRpcClient getHandler() {
-		return mHandler;
-	}
+    public ITalkRpcClient getHandler() {
+        return mHandler;
+    }
 
     public void registerListener(ITalkClientListener listener) {
         mListeners.add(listener);
@@ -122,25 +149,125 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mListeners.remove(listener);
     }
 
+    public boolean isActivated() {
+        return mState > STATE_INACTIVE;
+    }
+
+    public void activate() {
+        LOG.info("client: activate()");
+        if(mState == STATE_INACTIVE) {
+            switchState(STATE_IDLE, "client activated");
+        }
+    }
+
+    public void deactivate() {
+        LOG.info("client: deactivate()");
+        if(mState != STATE_INACTIVE) {
+            switchState(STATE_INACTIVE, "client deactivated");
+        }
+    }
+
+    public boolean isAwake() {
+        return mState > STATE_IDLE;
+    }
+
+    public void wake() {
+        LOG.info("client: wake()");
+        switch(mState) {
+        case STATE_INACTIVE:
+            break;
+        case STATE_IDLE:
+            switchState(STATE_CONNECTING, "client woken");
+            break;
+        default:
+            scheduleAutomaticDisconnect();
+            break;
+        }
+    }
+
+    public void deactivateNow() {
+        LOG.info("client: deactivateNow()");
+        doDisconnect();
+        mState = STATE_INACTIVE;
+    }
+
+    private ObjectMapper createObjectMapper() {
+        ObjectMapper result = new ObjectMapper();
+        result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        return result;
+    }
+
+    private void switchState(int newState, String message) {
+        // only switch of there really was a change
+        if(mState == newState) {
+            LOG.info("state remains " + STATE_NAMES[mState] + " (" + message + ")");
+            return;
+        }
+
+        // log about it
+        LOG.info("state " + STATE_NAMES[mState] + " -> " + STATE_NAMES[newState] + " (" + message + ")");
+
+        // perform transition
+        mState = newState;
+
+        if(mState == STATE_IDLE || mState == STATE_INACTIVE) {
+            // perform immediate disconnect
+            scheduleDisconnect();
+        }
+        if(mState == STATE_CONNECTING) {
+            // reset failure counter for backoff
+            mConnectionFailures = 0;
+            // schedule immediate connection attempt
+            scheduleConnect(false);
+        }
+        if(mState == STATE_CONNECTED) {
+            // proceed with login
+            scheduleLogin();
+        }
+        if(mState == STATE_ACTIVE) {
+            mConnectionFailures = 0;
+            // start talking
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    LOG.info("fetching client list");
+                    String[] clnts = mServerRpc.getAllClients();
+                    LOG.info("found " + clnts.length + " clients: " + clnts);
+                }
+            });
+        }
+
+        // call listeners
+        for(ITalkClientListener listener: mListeners) {
+            listener.onClientStateChange(this, newState);
+        }
+    }
+
+    private void handleDisconnect() {
+        switch(mState) {
+            case STATE_INACTIVE:
+            case STATE_IDLE:
+                // we are supposed to be disconnected, things are fine
+                break;
+            case STATE_CONNECTING:
+            case STATE_CONNECTED:
+            case STATE_ACTIVE:
+                // disconnected while be should be connected - try to reconnect
+                scheduleConnect(true);
+                mConnectionFailures++;
+                break;
+        }
+    }
+
     /**
      * Called when the connection is opened
      * @param connection
      */
 	@Override
 	public void onOpen(JsonRpcConnection connection) {
-		LOG.info("connection opened");
-        rescheduleAutomaticDisconnect();
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                LOG.info("logging in");
-                mServerRpc.identify(mDatabase.getClient().getClientId());
-
-                LOG.info("fetching client list");
-                String[] clnts = mServerRpc.getAllClients();
-                LOG.info("found " + clnts.length + " clients: " + clnts);
-            }
-        });
+        LOG.info("onOpen()");
+        scheduleAutomaticDisconnect();
+        switchState(STATE_CONNECTED, "connection opened");
 	}
 
     /**
@@ -149,13 +276,19 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
 	@Override
 	public void onClose(JsonRpcConnection connection) {
-		LOG.info("connection closed");
+        LOG.info("onClose()");
         shutdownAutomaticDisconnect();
+        handleDisconnect();
 	}
 
     private void doConnect() {
         LOG.info("performing connect");
-        mConnection.connect();
+        try {
+            mConnection.connect(TalkClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            LOG.info("exception while connecting: " + e.getMessage());
+            scheduleConnect(true);
+        }
     }
 
     private void doDisconnect() {
@@ -164,30 +297,83 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void shutdownAutomaticDisconnect() {
-        if(mDisconnectFuture != null) {
-            mDisconnectFuture.cancel(false);
-            mDisconnectFuture = null;
+        if(mAutoDisconnectFuture != null) {
+            mAutoDisconnectFuture.cancel(false);
+            mAutoDisconnectFuture = null;
         }
     }
 
-    private void rescheduleAutomaticDisconnect() {
+    private void scheduleAutomaticDisconnect() {
+        LOG.info("scheduleAutomaticDisconnect()");
         shutdownAutomaticDisconnect();
+        mAutoDisconnectFuture = mExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                switchState(STATE_IDLE, "activity timeout");
+                mAutoDisconnectFuture = null;
+            }
+        }, TalkClientConfiguration.IDLE_TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    private void scheduleConnect(boolean isReconnect) {
+        LOG.finer("scheduleConnect()");
+
+        int backoffDelay = 0;
+
+        if(isReconnect) {
+            // compute the backoff factor
+            int variableFactor = 1 << mConnectionFailures;
+
+            // compute variable backoff component
+            double variableTime =
+                Math.random() * Math.min(
+                    TalkClientConfiguration.RECONNECT_BACKOFF_VARIABLE_MAXIMUM,
+                    variableFactor * TalkClientConfiguration.RECONNECT_BACKOFF_VARIABLE_FACTOR);
+
+            // compute total backoff
+            double totalTime = TalkClientConfiguration.RECONNECT_BACKOFF_FIXED_DELAY + variableTime;
+
+            // convert to msecs
+            backoffDelay = (int) Math.round(1000.0 * totalTime);
+
+            LOG.info("connection attempt backed off by " + totalTime + " seconds");
+        }
+
+        // schedule the attempt
+        mConnectFuture = mExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                doConnect();
+                mConnectFuture = null;
+            }
+        }, backoffDelay, TimeUnit.MILLISECONDS);
+    }
+
+    private void scheduleLogin() {
+        LOG.finer("scheduleLogin()");
+        mLoginFuture = mExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.identify(mDatabase.getClient().getClientId());
+                switchState(STATE_ACTIVE, "login successful");
+                mLoginFuture = null;
+            }
+        }, 0, TimeUnit.SECONDS);
+    }
+
+    private void scheduleDisconnect() {
+        LOG.finer("scheduleDisconnect()");
         mDisconnectFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
                 doDisconnect();
+                mDisconnectFuture = null;
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 0, TimeUnit.SECONDS);
     }
 
-    private void tryToConnect() {
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                doConnect();
-            }
-        });
-    }
+
+
 
     public void tryToDeliver(final String messageTag) {
         mExecutor.execute(new Runnable() {
@@ -215,12 +401,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
 		@Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-			LOG.info("call incomingDelivery()");
+			LOG.info("server: incomingDelivery()");
 		}
 
 		@Override
 		public void outgoingDelivery(TalkDelivery d) {
-			LOG.info("call outgoingDelivery()");
+			LOG.info("server: outgoingDelivery()");
 		}
 		
 	}
