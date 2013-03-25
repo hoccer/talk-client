@@ -77,6 +77,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     int mConnectionFailures = 0;
 
+    private String[] mAllClients = new String[0];
+
     /**
      * Create a Hoccer Talk client using the given client database
      * @param database
@@ -89,7 +91,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // create URI object referencing the server
         URI uri = null;
         try {
-            uri = new URI("ws://10.86.1.42:8080/");
+            uri = new URI(TalkClientConfiguration.SERVER_URI);
         } catch (URISyntaxException e) {
             // won't happen
         }
@@ -233,6 +235,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     LOG.info("fetching client list");
                     String[] clnts = mServerRpc.getAllClients();
                     LOG.info("found " + clnts.length + " clients: " + clnts);
+                    mAllClients = clnts;
                 }
             });
         }
@@ -373,25 +376,40 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
 
-
+    private void performDelivery(String messageTag) {
+        LOG.info("performDelivery(" + messageTag + ")");
+        TalkMessage m = null;
+        TalkDelivery[] d = new TalkDelivery[mAllClients.length];
+        try {
+            m = mDatabase.getMessageByTag(messageTag);
+            //d = mDatabase.getDeliveriesByTag(messageTag);
+        } catch (Exception e) {
+            // XXX fail horribly
+            e.printStackTrace();
+            LOG.info("fetch failed");
+            return;
+        }
+        for(int i = 0; i < d.length; i++) {
+            TalkDelivery id = new TalkDelivery();
+            id.setMessageId(m.getMessageId());
+            id.setReceiverId(mAllClients[i]);
+            d[i] = id;
+        }
+        LOG.info("requesting delivery");
+        mServerRpc.deliveryRequest(m, d);
+    }
 
     public void tryToDeliver(final String messageTag) {
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                TalkMessage m = null;
-                TalkDelivery[] d = null;
-                try {
-                    m = mDatabase.getMessageByTag(messageTag);
-                    d = mDatabase.getDeliveriesByTag(messageTag);
-                } catch (Exception e) {
-                    // XXX fail horribly
-                    e.printStackTrace();
-                    return;
+        LOG.info("tryToDeliver(" + messageTag + ")");
+        wake();
+        if(mState == STATE_ACTIVE) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    performDelivery(messageTag);
                 }
-                mServerRpc.deliveryRequest(m, d);
-            }
-        });
+            });
+        }
     }
 
     /**

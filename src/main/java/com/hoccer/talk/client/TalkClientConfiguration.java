@@ -2,6 +2,8 @@ package com.hoccer.talk.client;
 
 public class TalkClientConfiguration {
 
+    public static final String SERVER_URI = "ws://192.168.2.65:8080/";
+
     /** Connection timeout (seconds) */
     public static final int CONNECT_TIMEOUT = 10;
 
