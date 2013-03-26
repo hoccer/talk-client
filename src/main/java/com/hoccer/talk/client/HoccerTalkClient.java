@@ -193,6 +193,24 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mState = STATE_INACTIVE;
     }
 
+    public void registerGcm(final String packageName, final String registrationId) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.registerGcm(packageName, registrationId);
+            }
+        });
+    }
+
+    public void unregisterGcm() {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.unregisterGcm();
+            }
+        });
+    }
+
     private ObjectMapper createObjectMapper() {
         ObjectMapper result = new ObjectMapper();
         result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -289,7 +307,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             mConnection.connect(TalkClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            LOG.info("exception while connecting: " + e.getMessage());
+            LOG.info("exception while connecting: " + e.toString());
             scheduleConnect(true);
         }
     }
