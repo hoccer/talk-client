@@ -435,7 +435,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
 	public class TalkRpcClientImpl implements ITalkRpcClient {
 
-		@Override
+        @Override
+        public void pushNotRegistered() {
+        }
+
+        @Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
 			LOG.info("server: incomingDelivery()");
 		}
