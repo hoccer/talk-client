@@ -437,6 +437,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void pushNotRegistered() {
+            LOG.info("server: pushNotRegistered()");
         }
 
         @Override
@@ -448,7 +449,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 		public void outgoingDelivery(TalkDelivery d) {
 			LOG.info("server: outgoingDelivery()");
 		}
-		
-	}
+
+        @Override
+        public void presenceUpdated(TalkPresence presence) {
+            LOG.info("presenceUpdated(" + presence.getClientId() + ")");
+        }
+    }
 	
 }
