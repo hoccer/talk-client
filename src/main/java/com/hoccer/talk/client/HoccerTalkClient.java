@@ -1,15 +1,14 @@
 package com.hoccer.talk.client;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
 
+import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.util.ProxyUtil;
@@ -20,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.logging.HoccerLoggers;
 import com.hoccer.talk.model.TalkDelivery;
 import com.hoccer.talk.model.TalkMessage;
+import com.hoccer.talk.model.TalkPresence;
+import com.hoccer.talk.model.TalkToken;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
@@ -107,17 +108,24 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // create JSON-RPC client
         mConnection = new JsonRpcWsClient(
                 mClientFactory,
-                createObjectMapper(),
                 uri);
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
 
-        // create JSON-RPC server object
-        JsonRpcServer srv = new JsonRpcServer(ITalkRpcClient.class);
-        mConnection.setHandler(getHandler());
+        // create common object mapper
+        ObjectMapper mapper = createObjectMapper();
+
+        // configure JSON-RPC client
+        JsonRpcClient clt = new JsonRpcClient(mapper);
+        mConnection.bindClient(clt);
+
+        // configure JSON-RPC server object
+        JsonRpcServer srv = new JsonRpcServer(mapper, ITalkRpcClient.class);
+        mConnection.bindServer(srv, getHandler());
+
+        // listen for connection state changes
         mConnection.addListener(this);
-        mConnection.setServer(srv);
 
         // create RPC proxy
 		mServerRpc = ProxyUtil.createClientProxy(
