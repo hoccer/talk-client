@@ -47,7 +47,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     /** Return the name of the given state */
     public static final String stateToString(int state) {
-        if(state > 0 && state < STATE_NAMES.length) {
+        if(state >= 0 && state < STATE_NAMES.length) {
             return STATE_NAMES[state];
         } else {
             return "INVALID(" + state + ")";
@@ -149,6 +149,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
     public ITalkRpcClient getHandler() {
         return mHandler;
+    }
+
+    public int getState() {
+        return mState;
+    }
+
+    public String getStateString() {
+        return stateToString(mState);
     }
 
     public void registerListener(ITalkClientListener listener) {
