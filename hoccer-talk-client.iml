@@ -22,6 +22,8 @@
     <orderEntry type="module" module-name="better-jsonrpc-websocket" />
     <orderEntry type="module" module-name="hoccer-talk-common" />
     <orderEntry type="library" name="Maven: com.j256.ormlite:ormlite-core:4.43" level="project" />
+    <orderEntry type="library" name="Maven: org.bouncycastle:bcprov-jdk15on:1.48" level="project" />
+    <orderEntry type="module" module-name="hoccer-talk-srp" />
   </component>
 </module>
 
