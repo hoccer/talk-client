@@ -21,6 +21,7 @@ import com.hoccer.talk.model.TalkDelivery;
 import com.hoccer.talk.model.TalkMessage;
 import com.hoccer.talk.model.TalkPresence;
 import com.hoccer.talk.model.TalkToken;
+import com.hoccer.talk.model.TalkRelationship;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
@@ -466,6 +467,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         @Override
         public void presenceUpdated(TalkPresence presence) {
             LOG.info("presenceUpdated(" + presence.getClientId() + ")");
+        }
+
+        @Override
+        public void relationshipUpdated(TalkRelationship relationship) {
+            LOG.info("relationshipUpdated(" + relationship.getOtherClientId() + ")");
         }
     }
 	
