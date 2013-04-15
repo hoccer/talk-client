@@ -258,10 +258,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.info("fetching client list");
-                    String[] clnts = mServerRpc.getAllClients();
-                    LOG.info("found " + clnts.length + " clients: " + clnts);
-                    mAllClients = clnts;
+                    LOG.info("ready for action");
                 }
             });
         }
