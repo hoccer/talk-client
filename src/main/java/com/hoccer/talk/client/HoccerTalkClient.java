@@ -456,6 +456,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 	public class TalkRpcClientImpl implements ITalkRpcClient {
 
         @Override
+        public void ping() {
+            LOG.info("server: ping()");
+        }
+
+        @Override
         public void pushNotRegistered() {
             LOG.info("server: pushNotRegistered()");
         }
