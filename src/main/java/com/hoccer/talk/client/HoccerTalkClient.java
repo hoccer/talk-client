@@ -466,12 +466,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
-            LOG.info("presenceUpdated(" + presence.getClientId() + ")");
+            LOG.info("server: presenceUpdated(" + presence.getClientId() + ")");
         }
 
         @Override
         public void relationshipUpdated(TalkRelationship relationship) {
-            LOG.info("relationshipUpdated(" + relationship.getOtherClientId() + ")");
+            LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
         }
     }
 	
