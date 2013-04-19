@@ -24,6 +24,7 @@ import com.hoccer.talk.model.TalkToken;
 import com.hoccer.talk.model.TalkRelationship;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
+import org.eclipse.jetty.websocket.WebSocketClient;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
@@ -110,6 +111,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mConnection = new JsonRpcWsClient(
                 mClientFactory,
                 uri);
+        WebSocketClient wsClient = mConnection.getWebSocketClient();
+        wsClient.setProtocol(TalkClientConfiguration.PROTOCOL_STRING);
+        wsClient.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
+        wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
+        wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
