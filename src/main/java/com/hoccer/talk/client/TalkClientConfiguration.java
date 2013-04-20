@@ -12,8 +12,8 @@ public class TalkClientConfiguration {
     /** Idle timeout for server connection (seconds) */
     public static final int IDLE_TIMEOUT = 60;
 
-    /** WS connection idle timeout */
-    public static final int CONNECTION_IDLE_TIMEOUT = 1800;
+    /** WS connection idle timeout (msecs) */
+    public static final int CONNECTION_IDLE_TIMEOUT = 1800 * 1000;
 
     /** WS connection max text message size */
     public static final int CONNECTION_MAX_TEXT_SIZE = 2 ^ 16;
