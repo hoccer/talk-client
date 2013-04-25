@@ -7,6 +7,7 @@ import com.hoccer.talk.model.TalkMessage;
 public interface ITalkClientDatabase {
 
     public TalkClient getClient();
+    public void saveClient(TalkClient client);
 
     public TalkMessage getMessageByTag(String messageTag) throws Exception;
     public TalkDelivery[] getDeliveriesByTag(String messageTag) throws Exception;
