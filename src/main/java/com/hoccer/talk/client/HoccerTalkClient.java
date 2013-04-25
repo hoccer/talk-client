@@ -1,7 +1,9 @@
 package com.hoccer.talk.client;
 
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.SecureRandom;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -17,13 +19,15 @@ import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.logging.HoccerLoggers;
-import com.hoccer.talk.model.TalkDelivery;
-import com.hoccer.talk.model.TalkMessage;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkToken;
-import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
+import com.hoccer.talk.srp.SRP6Parameters;
+import com.hoccer.talk.srp.SRP6VerifyingClient;
+import org.bouncycastle.crypto.CryptoException;
+import org.bouncycastle.crypto.Digest;
+import org.bouncycastle.crypto.agreement.srp.SRP6VerifierGenerator;
+import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.eclipse.jetty.websocket.WebSocketClient;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
@@ -41,6 +45,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     public static final int STATE_CONNECTED = 3;
     /** State while there is an active connection */
     public static final int STATE_ACTIVE = 4;
+
+    /** Digest instance used for SRP auth */
+    private final Digest SRP_DIGEST = new SHA256Digest();
+    /** RNG used for SRP auth */
+    private static final SecureRandom SRP_RANDOM = new SecureRandom();
+    /** Constant SRP parameters */
+    private static final SRP6Parameters SRP_PARAMETERS = SRP6Parameters.CONSTANTS_1024;
 
     /** Names of our states for debugging */
     private static final String[] STATE_NAMES = {
@@ -114,8 +125,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         WebSocketClient wsClient = mConnection.getWebSocketClient();
         wsClient.setProtocol(TalkClientConfiguration.PROTOCOL_STRING);
         wsClient.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
-        wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
-        wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
+        //wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
+        //wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
@@ -395,9 +406,65 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mLoginFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
-                mServerRpc.identify(mDatabase.getClient().getClientId());
+                try {
+                TalkClient client = mDatabase.getClient();
+                Digest digest = SRP_DIGEST;
+
+                // do we need to register?
+                if(client == null) {
+                    byte[] salt = new byte[digest.getDigestSize()];
+                    byte[] secret = new byte[digest.getDigestSize()];
+                    SRP6VerifierGenerator vg = new SRP6VerifierGenerator();
+
+                    vg.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest);
+
+                    SRP_RANDOM.nextBytes(salt);
+                    SRP_RANDOM.nextBytes(secret);
+
+                    String saltString = bytesToHex(salt);
+                    String secretString = bytesToHex(secret);
+
+                    String clientId = mServerRpc.generateId();
+
+                    BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
+
+                    mServerRpc.srpRegister(verifier.toString(16), bytesToHex(salt));
+
+                    client = new TalkClient(clientId);
+                    client.setSrpSalt(saltString);
+                    client.setSrpSecret(secretString);
+
+                    mDatabase.saveClient(client);
+                }
+
+                String id = client.getClientId();
+
+                SRP6VerifyingClient vc = new SRP6VerifyingClient();
+                vc.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest, SRP_RANDOM);
+
+                byte[] loginId = id.getBytes();
+                byte[] loginSalt = fromHexString(client.getSrpSalt());
+                byte[] loginSecret = fromHexString(client.getSrpSecret());
+                BigInteger A = vc.generateClientCredentials(loginSalt, loginId, loginSecret);
+
+                String Bs = mServerRpc.srpPhase1(id,  A.toString(16));
+                try {
+                    vc.calculateSecret(new BigInteger(Bs, 16));
+                } catch (CryptoException e) {
+                    e.printStackTrace();
+                }
+
+                String Vc = bytesToHex(vc.calculateVerifier());
+                String Vs = mServerRpc.srpPhase2(Vc);
+                if(!vc.verifyServer(fromHexString(Vs))) {
+                    throw new RuntimeException("Could not verify server");
+                }
+
                 switchState(STATE_ACTIVE, "login successful");
                 mLoginFuture = null;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }, 0, TimeUnit.SECONDS);
     }
@@ -484,6 +551,34 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         public void relationshipUpdated(TalkRelationship relationship) {
             LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
         }
+    }
+
+    /** XXX junk */
+    private static String bytesToHex(byte[] bytes) {
+        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        char[] hexChars = new char[bytes.length * 2];
+        int v;
+        for ( int j = 0; j < bytes.length; j++ ) {
+            v = bytes[j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
+    private static byte[] fromHexString(final String encoded) {
+        if ((encoded.length() % 2) != 0) {
+            throw new IllegalArgumentException("Input string must contain an even number of characters");
+        }
+
+        final byte result[] = new byte[encoded.length()/2];
+        final char enc[] = encoded.toCharArray();
+        for (int i = 0; i < enc.length; i += 2) {
+            StringBuilder curr = new StringBuilder(2);
+            curr.append(enc[i]).append(enc[i + 1]);
+            result[i/2] = (byte) Integer.parseInt(curr.toString(), 16);
+        }
+        return result;
     }
 	
 }
