@@ -146,10 +146,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mConnection.addListener(this);
 
         // create RPC proxy
-		mServerRpc = ProxyUtil.createClientProxy(
-				ITalkRpcServer.class.getClassLoader(),
-				ITalkRpcServer.class,
-				mConnection);
+		mServerRpc = (ITalkRpcServer)mConnection.makeProxy(ITalkRpcServer.class);
 	}
 
 
