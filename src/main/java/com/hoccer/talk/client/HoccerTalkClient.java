@@ -548,6 +548,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         public void relationshipUpdated(TalkRelationship relationship) {
             LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
         }
+
+        @Override
+        public void groupMemberUpdated(TalkGroupMember member) {
+            LOG.info("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
+        }
+
     }
 
     /** XXX junk */
