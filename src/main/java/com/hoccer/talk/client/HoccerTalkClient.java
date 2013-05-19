@@ -110,20 +110,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             // won't happen
         }
 
-        // create superfluous client factory
-        mClientFactory = new WebSocketClientFactory();
-        try {
-            mClientFactory.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         // create JSON-RPC client
-        mConnection = new JsonRpcWsClient(
-                mClientFactory,
-                uri);
+        mConnection = new JsonRpcWsClient(uri, TalkClientConfiguration.PROTOCOL_STRING);
         WebSocketClient wsClient = mConnection.getWebSocketClient();
-        wsClient.setProtocol(TalkClientConfiguration.PROTOCOL_STRING);
         wsClient.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
         //wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
         //wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
@@ -135,11 +124,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         ObjectMapper mapper = createObjectMapper();
 
         // configure JSON-RPC client
-        JsonRpcClient clt = new JsonRpcClient(mapper);
+        JsonRpcClient clt = new JsonRpcClient();
         mConnection.bindClient(clt);
 
         // configure JSON-RPC server object
-        JsonRpcServer srv = new JsonRpcServer(mapper, ITalkRpcClient.class);
+        JsonRpcServer srv = new JsonRpcServer(ITalkRpcClient.class);
         mConnection.bindServer(srv, getHandler());
 
         // listen for connection state changes
