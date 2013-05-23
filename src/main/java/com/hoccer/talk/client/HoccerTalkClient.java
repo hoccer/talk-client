@@ -483,6 +483,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void scheduleDisconnect() {
         LOG.info("scheduleDisconnect()");
+        shutdownDisconnect();
         mDisconnectFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
