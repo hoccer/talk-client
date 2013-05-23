@@ -20,11 +20,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.eclipse.jetty</groupId>
-      <artifactId>jetty-websocket</artifactId>
-      <version>${jetty.version}</version>
-    </dependency>
-    <dependency>
       <groupId>better</groupId>
       <artifactId>better-jsonrpc-common</artifactId>
       <version>0.0.1-SNAPSHOT</version>
@@ -43,6 +38,12 @@
       <groupId>hoccer</groupId>
       <artifactId>hoccer-talk-srp</artifactId>
       <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <!-- Logging -->
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>${log4j.version}</version>
     </dependency>
   </dependencies>
   

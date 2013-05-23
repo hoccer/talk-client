@@ -8,22 +8,20 @@ import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
-import better.jsonrpc.util.ProxyUtil;
 
 import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hoccer.talk.logging.HoccerLoggers;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
 import com.hoccer.talk.srp.SRP6VerifyingClient;
+import org.apache.log4j.Logger;
 import org.bouncycastle.crypto.CryptoException;
 import org.bouncycastle.crypto.Digest;
 import org.bouncycastle.crypto.agreement.srp.SRP6VerifierGenerator;
@@ -33,7 +31,7 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
-    private static final Logger LOG = HoccerLoggers.getLogger(HoccerTalkClient.class);
+    private static final Logger LOG = Logger.getLogger(HoccerTalkClient.class);
 
     /** State in which the client does not attempt any communication */
     public static final int STATE_INACTIVE = 0;
@@ -354,7 +352,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleConnect(boolean isReconnect) {
-        LOG.finer("scheduleConnect()");
+        LOG.debug("scheduleConnect()");
 
         int backoffDelay = 0;
 
@@ -388,7 +386,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleLogin() {
-        LOG.finer("scheduleLogin()");
+        LOG.debug("scheduleLogin()");
         mLoginFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
@@ -456,7 +454,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleDisconnect() {
-        LOG.finer("scheduleDisconnect()");
+        LOG.debug("scheduleDisconnect()");
         mDisconnectFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
