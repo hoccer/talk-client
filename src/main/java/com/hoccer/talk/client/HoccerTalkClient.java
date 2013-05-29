@@ -4,6 +4,8 @@ import java.math.BigInteger;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.SecureRandom;
+import java.sql.SQLException;
+import java.util.Date;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -16,6 +18,8 @@ import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
@@ -41,8 +45,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     public static final int STATE_CONNECTING = 2;
     /** State after connection is established (login/registration) */
     public static final int STATE_CONNECTED = 3;
+    /** State of synchronization after login */
+    public static final int STATE_SYNCING = 4;
     /** State while there is an active connection */
-    public static final int STATE_ACTIVE = 4;
+    public static final int STATE_ACTIVE = 5;
 
     /** Digest instance used for SRP auth */
     private final Digest SRP_DIGEST = new SHA256Digest();
@@ -53,7 +59,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     /** Names of our states for debugging */
     private static final String[] STATE_NAMES = {
-            "inactive", "idle", "connecting", "connected", "active"
+            "inactive", "idle", "connecting", "connected", "syncing", "active"
     };
 
     /** Return the name of the given state */
@@ -70,7 +76,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
 	JsonRpcWsClient mConnection;
 
-    ITalkClientDatabase mDatabase;
+    ITalkClientDatabaseBackend mDatabaseBackend;
+    TalkClientDatabase mDatabase;
 	
 	TalkRpcClientImpl mHandler;
 	
@@ -93,12 +100,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     /**
      * Create a Hoccer Talk client using the given client database
-     * @param database
      */
-	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor, ITalkClientDatabase database) {
+	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor, ITalkClientDatabaseBackend databaseBackend) {
         // remember client database and background executor
         mExecutor = backgroundExecutor;
-        mDatabase = database;
+        mDatabaseBackend = databaseBackend;
+
+        mDatabase = new TalkClientDatabase(mDatabaseBackend);
+        try {
+            mDatabase.initialize();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
         // create URI object referencing the server
         URI uri = null;
@@ -136,6 +149,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 		mServerRpc = (ITalkRpcServer)mConnection.makeProxy(ITalkRpcServer.class);
 	}
 
+    public TalkClientDatabase getDatabase() {
+        return mDatabase;
+    }
 
     /**
      * Get the RPC interface to the server
@@ -178,21 +194,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void activate() {
-        LOG.info("client: activate()");
+        LOG.debug("client: activate()");
         if(mState == STATE_INACTIVE) {
             switchState(STATE_IDLE, "client activated");
         }
     }
 
     public void deactivate() {
-        LOG.info("client: deactivate()");
+        LOG.debug("client: deactivate()");
         if(mState != STATE_INACTIVE) {
             switchState(STATE_INACTIVE, "client deactivated");
         }
     }
 
     public void wake() {
-        LOG.info("client: wake()");
+        LOG.debug("client: wake()");
         switch(mState) {
         case STATE_INACTIVE:
             break;
@@ -206,7 +222,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void deactivateNow() {
-        LOG.info("client: deactivateNow()");
+        LOG.debug("client: deactivateNow()");
         mAutoDisconnectFuture.cancel(true);
         mLoginFuture.cancel(true);
         mConnectFuture.cancel(true);
@@ -232,6 +248,19 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
+    public String requestPairingToken() {
+        String tokenPurpose = TalkToken.PURPOSE_PAIRING;
+        int tokenLifetime = 7 * 24 * 3600;
+        String token = mServerRpc.generateToken(tokenPurpose, tokenLifetime);
+        LOG.info("got pairing token " + token);
+        return token;
+    }
+
+    public void performTokenPairing(String token) {
+        LOG.info("trying to pair using token " + token);
+        mServerRpc.pairByToken(token);
+    }
+
     private ObjectMapper createObjectMapper() {
         ObjectMapper result = new ObjectMapper();
         result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -241,7 +270,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     private void switchState(int newState, String message) {
         // only switch of there really was a change
         if(mState == newState) {
-            LOG.info("state remains " + STATE_NAMES[mState] + " (" + message + ")");
+            LOG.debug("state remains " + STATE_NAMES[mState] + " (" + message + ")");
             return;
         }
 
@@ -265,13 +294,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             // proceed with login
             scheduleLogin();
         }
+        if(mState == STATE_SYNCING) {
+            scheduleSync();
+        }
         if(mState == STATE_ACTIVE) {
             mConnectionFailures = 0;
             // start talking
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.info("ready for action");
+                    LOG.info("connected and ready");
                 }
             });
         }
@@ -283,17 +315,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void handleDisconnect() {
-        LOG.info("handleDisconnect()");
+        LOG.debug("handleDisconnect()");
         switch(mState) {
             case STATE_INACTIVE:
             case STATE_IDLE:
-                LOG.info("supposed to be disconnected");
+                LOG.debug("supposed to be disconnected");
                 // we are supposed to be disconnected, things are fine
                 break;
             case STATE_CONNECTING:
             case STATE_CONNECTED:
             case STATE_ACTIVE:
-                LOG.info("supposed to be connected - scheduling connect");
+                LOG.debug("supposed to be connected - scheduling connect");
                 // disconnected while be should be connected - try to reconnect
                 scheduleConnect(true);
                 mConnectionFailures++;
@@ -307,7 +339,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
 	@Override
 	public void onOpen(JsonRpcConnection connection) {
-        LOG.info("onOpen()");
+        LOG.debug("onOpen()");
         scheduleAutomaticDisconnect();
         switchState(STATE_CONNECTED, "connection opened");
 	}
@@ -318,13 +350,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
 	@Override
 	public void onClose(JsonRpcConnection connection) {
-        LOG.info("onClose()");
+        LOG.debug("onClose()");
         shutdownAutomaticDisconnect();
         handleDisconnect();
 	}
 
     private void doConnect() {
-        LOG.info("performing connect");
+        LOG.debug("performing connect");
         try {
             mConnection.connect(TalkClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -333,7 +365,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void doDisconnect() {
-        LOG.info("performing disconnect");
+        LOG.debug("performing disconnect");
         mConnection.disconnect();
     }
 
@@ -345,7 +377,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleAutomaticDisconnect() {
-        LOG.info("scheduleAutomaticDisconnect()");
+        LOG.debug("scheduleAutomaticDisconnect()");
         shutdownAutomaticDisconnect();
         mAutoDisconnectFuture = mExecutor.schedule(new Runnable() {
             @Override
@@ -364,7 +396,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleConnect(boolean isReconnect) {
-        LOG.info("scheduleConnect()");
+        LOG.debug("scheduleConnect()");
         shutdownConnect();
 
         int backoffDelay = 0;
@@ -385,7 +417,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             // convert to msecs
             backoffDelay = (int) Math.round(1000.0 * totalTime);
 
-            LOG.info("connection attempt backed off by " + totalTime + " seconds");
+            LOG.debug("connection attempt backed off by " + totalTime + " seconds");
         }
 
         // schedule the attempt
@@ -406,72 +438,61 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleLogin() {
-        LOG.info("scheduleLogin()");
+        LOG.debug("scheduleLogin()");
         shutdownLogin();
         mLoginFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
                 try {
-                TalkClient client = mDatabase.getClient();
-                Digest digest = SRP_DIGEST;
+                    TalkClientContact selfContact = mDatabase.findSelfContact(true);
 
-                // do we need to register?
-                if(client == null) {
-                    byte[] salt = new byte[digest.getDigestSize()];
-                    byte[] secret = new byte[digest.getDigestSize()];
-                    SRP6VerifierGenerator vg = new SRP6VerifierGenerator();
+                    if(!selfContact.isSelfRegistered()) {
+                        performRegistration(selfContact);
+                    }
 
-                    vg.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest);
-
-                    SRP_RANDOM.nextBytes(salt);
-                    SRP_RANDOM.nextBytes(secret);
-
-                    String saltString = bytesToHex(salt);
-                    String secretString = bytesToHex(secret);
-
-                    String clientId = mServerRpc.generateId();
-
-                    BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
-
-                    mServerRpc.srpRegister(verifier.toString(16), bytesToHex(salt));
-
-                    client = new TalkClient(clientId);
-                    client.setSrpSalt(saltString);
-                    client.setSrpSecret(secretString);
-
-                    mDatabase.saveClient(client);
-                }
-
-                String id = client.getClientId();
-
-                SRP6VerifyingClient vc = new SRP6VerifyingClient();
-                vc.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest, SRP_RANDOM);
-
-                byte[] loginId = id.getBytes();
-                byte[] loginSalt = fromHexString(client.getSrpSalt());
-                byte[] loginSecret = fromHexString(client.getSrpSecret());
-                BigInteger A = vc.generateClientCredentials(loginSalt, loginId, loginSecret);
-
-                String Bs = mServerRpc.srpPhase1(id,  A.toString(16));
-                try {
-                    vc.calculateSecret(new BigInteger(Bs, 16));
-                } catch (CryptoException e) {
-                    e.printStackTrace();
-                }
-
-                String Vc = bytesToHex(vc.calculateVerifier());
-                String Vs = mServerRpc.srpPhase2(Vc);
-                if(!vc.verifyServer(fromHexString(Vs))) {
-                    throw new RuntimeException("Could not verify server");
-                }
-
-                switchState(STATE_ACTIVE, "login successful");
+                    performLogin(selfContact);
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
                 mLoginFuture = null;
+                switchState(STATE_SYNCING, "login successful");
             }
         }, 0, TimeUnit.SECONDS);
+    }
+
+    private void shutdownSync() {
+    }
+
+    private void scheduleSync() {
+        LOG.debug("scheduleSync()");
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                Date never = new Date(0);
+                try {
+                    LOG.info("sync: updating presence");
+                    updateOwnPresence();
+                    LOG.info("sync: syncing presences");
+                    TalkPresence[] presences = mServerRpc.getPresences(never);
+                    for(TalkPresence presence: presences) {
+                        updateClientPresence(presence);
+                    }
+                    LOG.info("sync: syncing relationships");
+                    TalkRelationship[] relationships = mServerRpc.getRelationships(never);
+                    for(TalkRelationship relationship: relationships) {
+                        updateClientRelationship(relationship);
+                    }
+                    LOG.info("sync: syncing groups");
+                    TalkGroup[] groups = mServerRpc.getGroups(never);
+                    for(TalkGroup group: groups) {
+                        updateGroupPresence(group);
+                    }
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+                switchState(STATE_ACTIVE, "sync successful");
+            }
+        });
     }
 
     private void shutdownDisconnect() {
@@ -482,7 +503,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void scheduleDisconnect() {
-        LOG.info("scheduleDisconnect()");
+        LOG.debug("scheduleDisconnect()");
         shutdownDisconnect();
         mDisconnectFuture = mExecutor.schedule(new Runnable() {
             @Override
@@ -526,24 +547,195 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         @Override
         public void presenceUpdated(TalkPresence presence) {
             LOG.info("server: presenceUpdated(" + presence.getClientId() + ")");
+            updateClientPresence(presence);
         }
 
         @Override
         public void relationshipUpdated(TalkRelationship relationship) {
             LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
+            updateClientRelationship(relationship);
         }
 
         @Override
         public void groupUpdated(TalkGroup group) {
             LOG.info("server: groupUpdated(" + group.getGroupId() + ")");
+            updateGroupPresence(group);
         }
 
         @Override
         public void groupMemberUpdated(TalkGroupMember member) {
             LOG.info("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
+            updateGroupMember(member);
         }
 
     }
+
+    private void performRegistration(TalkClientContact selfContact) {
+        LOG.info("registration: attempting registration");
+
+        Digest digest = SRP_DIGEST;
+        byte[] salt = new byte[digest.getDigestSize()];
+        byte[] secret = new byte[digest.getDigestSize()];
+        SRP6VerifierGenerator vg = new SRP6VerifierGenerator();
+
+        vg.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest);
+
+        SRP_RANDOM.nextBytes(salt);
+        SRP_RANDOM.nextBytes(secret);
+
+        String saltString = bytesToHex(salt);
+        String secretString = bytesToHex(secret);
+
+        String clientId = mServerRpc.generateId();
+
+        LOG.info("registration: started with id " + clientId);
+
+        BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
+
+        mServerRpc.srpRegister(verifier.toString(16), bytesToHex(salt));
+
+        LOG.info("registration: finished");
+
+        TalkClientSelf self = new TalkClientSelf(saltString, secretString);
+
+        selfContact.updateSelf(clientId, self);
+
+        try {
+            mDatabase.saveCredentials(self);
+            mDatabase.saveContact(selfContact);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void performLogin(TalkClientContact selfContact) {
+        String clientId = selfContact.getClientId();
+        LOG.info("login: attempting login as " + clientId);
+        Digest digest = SRP_DIGEST;
+
+        TalkClientSelf self = selfContact.getSelf();
+
+        SRP6VerifyingClient vc = new SRP6VerifyingClient();
+        vc.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest, SRP_RANDOM);
+
+        LOG.info("login: performing phase 1");
+
+        byte[] loginId = clientId.getBytes();
+        byte[] loginSalt = fromHexString(self.getSrpSalt());
+        byte[] loginSecret = fromHexString(self.getSrpSecret());
+        BigInteger A = vc.generateClientCredentials(loginSalt, loginId, loginSecret);
+
+        String Bs = mServerRpc.srpPhase1(clientId,  A.toString(16));
+        try {
+            vc.calculateSecret(new BigInteger(Bs, 16));
+        } catch (CryptoException e) {
+            e.printStackTrace();
+        }
+
+        LOG.info("login: performing phase 2");
+
+        String Vc = bytesToHex(vc.calculateVerifier());
+        String Vs = mServerRpc.srpPhase2(Vc);
+        if(!vc.verifyServer(fromHexString(Vs))) {
+            throw new RuntimeException("Could not verify server");
+        }
+
+        LOG.info("login: successful");
+    }
+
+    private void updateOwnPresence() {
+        try {
+            TalkClientContact contact = mDatabase.findSelfContact(true);
+            TalkPresence presence = contact.getClientPresence();
+            if(presence == null) {
+                presence = new TalkPresence();
+                presence.setClientId(contact.getClientId());
+                presence.setClientName("Client");
+                presence.setClientStatus("I am.");
+                presence.setTimestamp(new Date());
+                contact.updatePresence(presence);
+            }
+            presence = contact.getClientPresence();
+            mDatabase.savePresence(presence);
+            mDatabase.saveContact(contact);
+            mServerRpc.updatePresence(presence);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateClientPresence(TalkPresence presence) {
+        LOG.info("updateClientPresence(" + presence.getClientId() + ")");
+        TalkClientContact clientContact = null;
+        try {
+            clientContact = mDatabase.findContactByClientId(presence.getClientId(), true);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        clientContact.updatePresence(presence);
+
+        try {
+            mDatabase.savePresence(clientContact.getClientPresence());
+            mDatabase.saveContact(clientContact);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateClientRelationship(TalkRelationship relationship) {
+        LOG.info("updateClientRelationship(" + relationship.getOtherClientId() + ")");
+        TalkClientContact clientContact = null;
+        try {
+            clientContact = mDatabase.findContactByClientId(relationship.getOtherClientId(), true);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        clientContact.updateRelationship(relationship);
+
+        try {
+            mDatabase.saveRelationship(clientContact.getClientRelationship());
+            mDatabase.saveContact(clientContact);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateGroupPresence(TalkGroup group) {
+        LOG.info("updateGroupPresence(" + group.getGroupId() + ")");
+        TalkClientContact contact = null;
+        try {
+            contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+    }
+
+    public void updateGroupMember(TalkGroupMember member) {
+        LOG.info("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
+        TalkClientContact groupContact = null;
+        TalkClientContact clientContact = null;
+        try {
+            groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
+            clientContact = mDatabase.findContactByClientId(member.getClientId(), true);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+        // if this concerns our own membership
+        if(clientContact.isSelf()) {
+
+        }
+        // if this concerns the membership of someone else
+        if(clientContact.isClient()) {
+
+        }
+    }
+
 
     /** XXX junk */
     private static String bytesToHex(byte[] bytes) {
