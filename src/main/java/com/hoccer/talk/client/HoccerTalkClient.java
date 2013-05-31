@@ -251,11 +251,35 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void setClientName(String newName) {
-
+        try {
+            TalkClientContact contact = mDatabase.findSelfContact(false);
+            if(contact != null) {
+                TalkPresence presence = contact.getClientPresence();
+                if(presence != null) {
+                    presence.setClientName(newName);
+                    mDatabase.savePresence(presence);
+                    sendPresence();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public void setClientStatus(String newStatus) {
-
+        try {
+            TalkClientContact contact = mDatabase.findSelfContact(false);
+            if(contact != null) {
+                TalkPresence presence = contact.getClientPresence();
+                if(presence != null) {
+                    presence.setClientStatus(newStatus);
+                    mDatabase.savePresence(presence);
+                    sendPresence();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public String generatePairingToken() {
