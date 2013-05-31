@@ -6,6 +6,8 @@ import java.net.URISyntaxException;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -248,7 +250,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
-    public String requestPairingToken() {
+    public void setClientName(String newName) {
+
+    }
+
+    public void setClientStatus(String newStatus) {
+
+    }
+
+    public String generatePairingToken() {
         String tokenPurpose = TalkToken.PURPOSE_PAIRING;
         int tokenLifetime = 7 * 24 * 3600;
         String token = mServerRpc.generateToken(tokenPurpose, tokenLifetime);
@@ -256,9 +266,28 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return token;
     }
 
-    public void performTokenPairing(String token) {
+    public void pairByToken(String token) {
         LOG.info("trying to pair using token " + token);
         mServerRpc.pairByToken(token);
+    }
+
+    public TalkClientContact createGroup() {
+        String groupTag = UUID.randomUUID().toString();
+        TalkClientContact contact = new TalkClientContact(TalkClientContact.TYPE_GROUP);
+        contact.updateGroupTag(groupTag);
+        TalkGroup groupPresence = new TalkGroup();
+        groupPresence.setGroupTag(groupTag);
+        groupPresence.setGroupName("Group");
+        contact.updateGroupPresence(groupPresence);
+        String groupId = mServerRpc.createGroup(groupPresence);
+        contact.updateGroupId(groupId);
+        try {
+            mDatabase.saveGroup(groupPresence);
+            mDatabase.saveContact(contact);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return contact;
     }
 
     private ObjectMapper createObjectMapper() {
@@ -460,9 +489,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }, 0, TimeUnit.SECONDS);
     }
 
-    private void shutdownSync() {
-    }
-
     private void scheduleSync() {
         LOG.debug("scheduleSync()");
         mExecutor.execute(new Runnable() {
@@ -471,7 +497,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 Date never = new Date(0);
                 try {
                     LOG.info("sync: updating presence");
-                    updateOwnPresence();
+                    sendPresence();
                     LOG.info("sync: syncing presences");
                     TalkPresence[] presences = mServerRpc.getPresences(never);
                     for(TalkPresence presence: presences) {
@@ -486,6 +512,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     TalkGroup[] groups = mServerRpc.getGroups(never);
                     for(TalkGroup group: groups) {
                         updateGroupPresence(group);
+                    }
+                    LOG.info("sync: syncing group memberships");
+                    List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
+                    for(TalkClientContact group: contacts) {
+                        if(group.getGroupId() != null) {
+                            TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
+                            for(TalkGroupMember member: members) {
+                                updateGroupMember(member);
+                            }
+                        }
                     }
                 } catch (Throwable t) {
                     t.printStackTrace();
@@ -598,7 +634,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         TalkClientSelf self = new TalkClientSelf(saltString, secretString);
 
-        selfContact.updateSelf(clientId, self);
+        selfContact.updateSelfRegistered(clientId, self);
 
         try {
             mDatabase.saveCredentials(self);
@@ -643,9 +679,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.info("login: successful");
     }
 
-    private void updateOwnPresence() {
+    private void ensurePresence() {
         try {
-            TalkClientContact contact = mDatabase.findSelfContact(true);
+            TalkClientContact contact = mDatabase.findSelfContact(false);
+            if(contact == null) {
+                throw new RuntimeException("We should have a self contact!?");
+            }
+
             TalkPresence presence = contact.getClientPresence();
             if(presence == null) {
                 presence = new TalkPresence();
@@ -654,6 +694,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 presence.setClientStatus("I am.");
                 presence.setTimestamp(new Date());
                 contact.updatePresence(presence);
+                mDatabase.savePresence(presence);
+                mDatabase.saveContact(contact);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendPresence() {
+        try {
+            TalkClientContact contact = mDatabase.findSelfContact(false);
+            if(contact == null) {
+                throw new RuntimeException("We should have a self contact!?");
+            }
+            TalkPresence presence = contact.getClientPresence();
+            if(presence == null) {
+                throw new RuntimeException("We should have a self presence?");
             }
             presence = contact.getClientPresence();
             mDatabase.savePresence(presence);
@@ -709,9 +766,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         TalkClientContact contact = null;
         try {
             contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
+            if(contact == null) {
+
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             return;
+        }
+
+        contact.updateGroupPresence(group);
+
+        try {
+            mDatabase.saveGroup(contact.getGroupPresence());
+            mDatabase.saveContact(contact);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
@@ -728,11 +797,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
         // if this concerns our own membership
         if(clientContact.isSelf()) {
-
+            groupContact.updateGroupMember(member);
+            try {
+                mDatabase.saveGroupMember(groupContact.getGroupMember());
+                mDatabase.saveContact(groupContact);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
         // if this concerns the membership of someone else
         if(clientContact.isClient()) {
-
+            LOG.info("Ignoring group member for other client");
         }
     }
 

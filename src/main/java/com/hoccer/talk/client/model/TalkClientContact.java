@@ -43,6 +43,9 @@ public class TalkClientContact {
     @DatabaseField(canBeNull = true)
     private String groupId;
 
+    @DatabaseField(canBeNull = true)
+    private String groupTag;
+
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkGroup groupPresence;
 
@@ -82,6 +85,10 @@ public class TalkClientContact {
 
     public boolean isGroup() {
         return this.contactType.equals(TYPE_GROUP);
+    }
+
+    public boolean isGroupRegistered() {
+        return isGroup() && this.groupId != null;
     }
 
     private void ensureSelf() {
@@ -141,13 +148,22 @@ public class TalkClientContact {
         return groupId;
     }
 
+    public String getGroupTag() {
+        ensureGroup();
+        return groupTag;
+    }
+
     public TalkGroup getGroupPresence() {
         ensureGroup();
         return groupPresence;
     }
 
+    public TalkGroupMember getGroupMember() {
+        return groupMember;
+    }
 
-    public void updateSelf(String clientId, TalkClientSelf self) {
+    public void updateSelfRegistered(String clientId, TalkClientSelf self) {
+        ensureSelf();
         this.clientId = clientId;
         if(this.self == null) {
             this.self = self;
@@ -156,11 +172,20 @@ public class TalkClientContact {
         }
     }
 
+    public void updateGroupId(String groupId) {
+        ensureGroup();
+        this.groupId = groupId;
+    }
+
+    public void updateGroupTag(String groupTag) {
+        ensureGroup();
+        this.groupTag = groupTag;
+    }
+
     public void updatePresence(TalkPresence presence) {
         ensureClientOrSelf();
         if(this.clientPresence == null) {
             this.clientPresence = presence;
-            presence.setClientId(getClientId());
         } else {
             TalkPresence my = this.clientPresence;
             my.setClientName(presence.getClientName());
@@ -178,8 +203,43 @@ public class TalkClientContact {
             this.clientRelationship = relationship;
         } else {
             TalkRelationship my = this.clientRelationship;
+            my.setClientId(relationship.getClientId());
+            my.setOtherClientId(relationship.getOtherClientId());
             my.setLastChanged(relationship.getLastChanged());
             my.setState(relationship.getState());
+        }
+    }
+
+    public void updateGroupPresence(TalkGroup group) {
+        ensureGroup();
+        if(this.groupPresence == null) {
+            if(group.getGroupId() != null) {
+                groupId = group.getGroupId();
+            }
+            if(group.getGroupTag() != null) {
+                groupTag = group.getGroupTag();
+            }
+            this.groupPresence = group;
+        } else {
+            TalkGroup my = this.groupPresence;
+            my.setState(group.getState());
+            my.setGroupName(group.getGroupName());
+            my.setGroupAvatarUrl(group.getGroupAvatarUrl());
+            my.setLastChanged(group.getLastChanged());
+        }
+    }
+
+    public void updateGroupMember(TalkGroupMember member) {
+        ensureGroup();
+        if(this.groupMember == null) {
+            this.groupMember = member;
+        } else {
+            TalkGroupMember my = this.groupMember;
+            my.setState(member.getState());
+            my.setLastChanged(member.getLastChanged());
+            my.setMemberKeyId(member.getMemberKeyId());
+            my.setEncryptedGroupKey(member.getEncryptedGroupKey());
+            my.setRole(member.getRole());
         }
     }
 
