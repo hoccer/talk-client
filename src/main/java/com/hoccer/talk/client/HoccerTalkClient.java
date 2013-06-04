@@ -314,6 +314,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return contact;
     }
 
+    public void inviteClientToGroup(String groupId, String clientId) {
+        mServerRpc.inviteGroupMember(groupId, clientId);
+    }
+
+    public void joinGroup(String groupId) {
+        mServerRpc.joinGroup(groupId);
+    }
+
+    public void leaveGroup(String groupId) {
+        mServerRpc.leaveGroup(groupId);
+    }
+
     private ObjectMapper createObjectMapper() {
         ObjectMapper result = new ObjectMapper();
         result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
