@@ -21,6 +21,7 @@ import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
@@ -609,11 +610,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         @Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
 			LOG.info("server: incomingDelivery()");
+            updateIncomingDelivery(d, m);
 		}
 
 		@Override
 		public void outgoingDelivery(TalkDelivery d) {
 			LOG.info("server: outgoingDelivery()");
+            updateOutgoingDelivery(d);
 		}
 
         @Override
@@ -752,6 +755,47 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mDatabase.savePresence(presence);
             mDatabase.saveContact(contact);
             mServerRpc.updatePresence(presence);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateOutgoingDelivery(TalkDelivery delivery) {
+        LOG.info("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
+        TalkClientMessage clientMessage = null;
+        try {
+            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        clientMessage.updateOutgoing(delivery);
+
+        try {
+            mDatabase.saveDelivery(clientMessage.getOutgoingDelivery());
+            mDatabase.saveClientMessage(clientMessage);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateIncomingDelivery(TalkDelivery delivery, TalkMessage message) {
+        LOG.info("updateIncomingDelivery(" + delivery.getMessageId() + ")");
+        TalkClientMessage clientMessage = null;
+        try {
+            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        clientMessage.updateIncoming(delivery, message);
+
+        try {
+            mDatabase.saveMessage(clientMessage.getMessage());
+            mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
+            mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
             e.printStackTrace();
         }

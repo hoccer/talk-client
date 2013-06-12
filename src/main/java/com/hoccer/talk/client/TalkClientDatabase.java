@@ -1,11 +1,9 @@
 package com.hoccer.talk.client;
 
 import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
-import com.hoccer.talk.model.TalkGroup;
-import com.hoccer.talk.model.TalkGroupMember;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
@@ -22,6 +20,10 @@ public class TalkClientDatabase {
     Dao<TalkGroup, String> mGroups;
     Dao<TalkGroupMember, Long> mGroupMembers;
 
+    Dao<TalkClientMessage, Integer> mClientMessages;
+    Dao<TalkMessage, String> mMessages;
+    Dao<TalkDelivery, Long> mDeliveries;
+
     public TalkClientDatabase(ITalkClientDatabaseBackend backend) {
         mBackend = backend;
     }
@@ -33,6 +35,10 @@ public class TalkClientDatabase {
         mRelationships = mBackend.getDao(TalkRelationship.class);
         mGroups = mBackend.getDao(TalkGroup.class);
         mGroupMembers = mBackend.getDao(TalkGroupMember.class);
+
+        mClientMessages = mBackend.getDao(TalkClientMessage.class);
+        mMessages = mBackend.getDao(TalkMessage.class);
+        mDeliveries = mBackend.getDao(TalkDelivery.class);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
@@ -57,6 +63,18 @@ public class TalkClientDatabase {
 
     public void saveGroupMember(TalkGroupMember member) throws SQLException {
         mGroupMembers.createOrUpdate(member);
+    }
+
+    public void saveClientMessage(TalkClientMessage message) throws SQLException {
+        mClientMessages.createOrUpdate(message);
+    }
+
+    public void saveMessage(TalkMessage message) throws SQLException {
+        mMessages.createOrUpdate(message);
+    }
+
+    public void saveDelivery(TalkDelivery delivery) throws SQLException {
+        mDeliveries.createOrUpdate(delivery);
     }
 
     public List<TalkClientContact> findAllContacts() throws SQLException {
@@ -118,6 +136,21 @@ public class TalkClientDatabase {
         }
 
         return contact;
+    }
+
+    public TalkClientMessage findMessageByMessageId(String messageId, boolean create) throws SQLException {
+        TalkClientMessage message = null;
+
+        message = mClientMessages.queryBuilder()
+                    .where().eq("messageId", message)
+                    .queryForFirst();
+
+        if(create && message == null) {
+            message = new TalkClientMessage();
+            mClientMessages.create(message);
+        }
+
+        return message;
     }
 
 }
