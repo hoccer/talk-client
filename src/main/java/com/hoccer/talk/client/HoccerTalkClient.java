@@ -718,13 +718,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.info("login: successful");
     }
 
-    private void ensurePresence() {
-        try {
-            TalkClientContact contact = mDatabase.findSelfContact(false);
-            if(contact == null) {
-                throw new RuntimeException("We should have a self contact!?");
-            }
+    private TalkClientContact ensureSelfContact() throws SQLException {
+        TalkClientContact contact = mDatabase.findSelfContact(false);
+        if(contact == null) {
+            throw new RuntimeException("We should have a self contact!?");
+        }
+        return contact;
+    }
 
+    private TalkPresence ensureSelfPresence(TalkClientContact contact) throws SQLException {
+        try {
             TalkPresence presence = contact.getClientPresence();
             if(presence == null) {
                 presence = new TalkPresence();
@@ -736,21 +739,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 mDatabase.savePresence(presence);
                 mDatabase.saveContact(contact);
             }
+            return presence;
         } catch (SQLException e) {
             e.printStackTrace();
+            return null;
         }
     }
 
     private void sendPresence() {
         try {
-            TalkClientContact contact = mDatabase.findSelfContact(false);
-            if(contact == null) {
-                throw new RuntimeException("We should have a self contact!?");
-            }
-            TalkPresence presence = contact.getClientPresence();
-            if(presence == null) {
-                throw new RuntimeException("We should have a self presence?");
-            }
+            TalkClientContact contact = ensureSelfContact();
+            TalkPresence presence = ensureSelfPresence(contact);
             presence = contact.getClientPresence();
             mDatabase.savePresence(presence);
             mDatabase.saveContact(contact);
