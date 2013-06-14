@@ -70,6 +70,9 @@ public class TalkClientContact {
         }
     }
 
+    public int getClientContactId() {
+        return clientContactId;
+    }
 
     public boolean isSelf() {
         return this.contactType.equals(TYPE_SELF);
