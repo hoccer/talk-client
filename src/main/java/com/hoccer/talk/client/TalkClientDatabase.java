@@ -77,6 +77,10 @@ public class TalkClientDatabase {
         mDeliveries.createOrUpdate(delivery);
     }
 
+    public TalkClientContact findClientContactById(int clientContactId) throws SQLException {
+        return mClientContacts.queryForId(clientContactId);
+    }
+
     public List<TalkClientContact> findAllContacts() throws SQLException {
         return mClientContacts.queryForAll();
     }

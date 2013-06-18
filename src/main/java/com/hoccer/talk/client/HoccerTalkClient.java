@@ -74,41 +74,48 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
-
-    WebSocketClientFactory mClientFactory;
-
-	JsonRpcWsClient mConnection;
-
+    /** The database backend we use */
     ITalkClientDatabaseBackend mDatabaseBackend;
+    /* The database instance we use */
     TalkClientDatabase mDatabase;
-	
+
+    /** Factory for underlying websocket connections */
+    WebSocketClientFactory mClientFactory;
+    /** JSON-RPC client instance */
+	JsonRpcWsClient mConnection;
+    /* RPC handler for notifications */
 	TalkRpcClientImpl mHandler;
-	
+    /* RPC proxy bound to our server */
 	ITalkRpcServer mServerRpc;
 
+    /** Executor doing all the heavy network and database work */
     ScheduledExecutorService mExecutor;
 
+    /* Futures keeping track of singleton background operations */
     ScheduledFuture<?> mLoginFuture;
     ScheduledFuture<?> mConnectFuture;
     ScheduledFuture<?> mDisconnectFuture;
     ScheduledFuture<?> mAutoDisconnectFuture;
 
+    /** All our listeners */
     Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
 
+    /** The current state of this client */
     int mState = STATE_INACTIVE;
 
+    /** Connection retry count for back-off */
     int mConnectionFailures = 0;
-
-    private String[] mAllClients = new String[0];
 
     /**
      * Create a Hoccer Talk client using the given client database
      */
 	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor, ITalkClientDatabaseBackend databaseBackend) {
-        // remember client database and background executor
+        // remember the executor provided by the client
         mExecutor = backgroundExecutor;
+        // as well as the database backend
         mDatabaseBackend = databaseBackend;
 
+        // create and initialize the database
         mDatabase = new TalkClientDatabase(mDatabaseBackend);
         try {
             mDatabase.initialize();
@@ -128,8 +135,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mConnection = new JsonRpcWsClient(uri, TalkClientConfiguration.PROTOCOL_STRING);
         WebSocketClient wsClient = mConnection.getWebSocketClient();
         wsClient.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
-        //wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
-        //wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
+        // XXX wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
+        // XXX wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
@@ -157,45 +164,74 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     /**
-     * Get the RPC interface to the server
-     * @return
+     * @return the RPC proxy towards the server
      */
     public ITalkRpcServer getServerRpc() {
         return mServerRpc;
     }
 
     /**
-     * Get the handler object implementing the client RPC interface
-     * @return
+     * @return the RPC handler for notifications
      */
     public ITalkRpcClient getHandler() {
         return mHandler;
     }
 
+    /**
+     * @return the current state of this client (numerical)
+     */
     public int getState() {
         return mState;
     }
 
+    /**
+     * @return the current state of this client (textual)
+     */
     public String getStateString() {
         return stateToString(mState);
     }
 
+    /**
+     * Add a listener
+     * @param listener
+     */
     public void registerListener(ITalkClientListener listener) {
         mListeners.add(listener);
     }
 
+    /**
+     * Remove a listener
+     * @param listener
+     */
     public void unregisterListener(ITalkClientListener listener) {
         mListeners.remove(listener);
     }
 
+    /**
+     * Returns true if the client has been activated
+     *
+     * This is only true after an explicit call to activate().
+     *
+     * @return
+     */
     public boolean isActivated() {
         return mState > STATE_INACTIVE;
     }
 
+    /**
+     * Returns true if the client is awake
+     *
+     * This means that the client is trying to connect or connected.
+     *
+     * @return
+     */
     public boolean isAwake() {
         return mState > STATE_IDLE;
     }
 
+    /**
+     * Activate the client, allowing it do operate
+     */
     public void activate() {
         LOG.debug("client: activate()");
         if(mState == STATE_INACTIVE) {
@@ -203,6 +239,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    /**
+     * Deactivate the client, shutting it down completely
+     */
     public void deactivate() {
         LOG.debug("client: deactivate()");
         if(mState != STATE_INACTIVE) {
@@ -210,6 +249,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    /**
+     * Wake the client so it will connect and speak with the server
+     */
     public void wake() {
         LOG.debug("client: wake()");
         switch(mState) {
@@ -224,6 +266,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    /**
+     * Blocking version of the deactivation call
+     */
     public void deactivateNow() {
         LOG.debug("client: deactivateNow()");
         mAutoDisconnectFuture.cancel(true);
@@ -233,6 +278,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mState = STATE_INACTIVE;
     }
 
+    /**
+     * Register the given GCM push information with the server
+     * @param packageName
+     * @param registrationId
+     */
     public void registerGcm(final String packageName, final String registrationId) {
         mExecutor.execute(new Runnable() {
             @Override
@@ -242,6 +292,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
+    /**
+     * Unregister any GCM push information on the server
+     */
     public void unregisterGcm() {
         mExecutor.execute(new Runnable() {
             @Override
@@ -251,29 +304,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
-    public void setClientName(String newName) {
+    public void setClientString(String newName, String newStatus) {
         try {
             TalkClientContact contact = mDatabase.findSelfContact(false);
             if(contact != null) {
                 TalkPresence presence = contact.getClientPresence();
                 if(presence != null) {
-                    presence.setClientName(newName);
-                    mDatabase.savePresence(presence);
-                    sendPresence();
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void setClientStatus(String newStatus) {
-        try {
-            TalkClientContact contact = mDatabase.findSelfContact(false);
-            if(contact != null) {
-                TalkPresence presence = contact.getClientPresence();
-                if(presence != null) {
-                    presence.setClientStatus(newStatus);
+                    if(newName != null) {
+                        presence.setClientName(newName);
+                    }
+                    if(newStatus != null) {
+                        presence.setClientStatus(newStatus);
+                    }
                     mDatabase.savePresence(presence);
                     sendPresence();
                 }
@@ -291,8 +333,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return token;
     }
 
-    public void pairByToken(String token) {
-        LOG.info("trying to pair using token " + token);
+    public void performTokenPairing(final String token) {
         mServerRpc.pairByToken(token);
     }
 

@@ -14,7 +14,7 @@ public class TalkClientMessage {
     @DatabaseField
     private String messageId;
 
-    @DatabaseField
+    @DatabaseField(canBeNull = true)
     private String messageTag;
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
@@ -27,7 +27,14 @@ public class TalkClientMessage {
     private TalkDelivery outgoingDelivery;
 
     public TalkClientMessage() {
+    }
 
+    public boolean isIncoming() {
+        return incomingDelivery != null;
+    }
+
+    public boolean isOutgoing() {
+        return outgoingDelivery != null;
     }
 
     public String getMessageId() {
@@ -51,11 +58,21 @@ public class TalkClientMessage {
     }
 
     public void updateIncoming(TalkDelivery delivery, TalkMessage message) {
-
+        if(incomingDelivery == null) {
+            incomingDelivery = delivery;
+        } else {
+            incomingDelivery.setState(delivery.getState());
+            // XXX
+        }
     }
 
     public void updateOutgoing(TalkDelivery delivery) {
-
+        if(outgoingDelivery == null) {
+            outgoingDelivery = delivery;
+        } else {
+            outgoingDelivery.setState(delivery.getState());
+            // XXX
+        }
     }
 
 }
