@@ -41,6 +41,10 @@ public class TalkClientDatabase {
         mDeliveries = mBackend.getDao(TalkDelivery.class);
     }
 
+    public void refreshContact(TalkClientContact contact) throws SQLException {
+        mClientContacts.refresh(contact);
+    }
+
     public void saveContact(TalkClientContact contact) throws SQLException {
         mClientContacts.update(contact);
     }

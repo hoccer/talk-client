@@ -6,7 +6,9 @@ public interface ITalkClientListener {
 
     void onClientStateChange(HoccerTalkClient client, int state);
 
-    void onContactPresenceChanged(TalkClientContact contact);
-    void onContactRelationshipChanged(TalkClientContact contact);
+    void onClientPresenceChanged(TalkClientContact contact);
+    void onClientRelationshipChanged(TalkClientContact contact);
+
+    void onGroupPresenceChanged(TalkClientContact contact);
 
 }

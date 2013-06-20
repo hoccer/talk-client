@@ -94,6 +94,32 @@ public class TalkClientContact {
         return isGroup() && this.groupId != null;
     }
 
+    public String getName() {
+        if(isSelf()) {
+            return "Myself";
+        }
+        if(isGroup()) {
+            if(groupPresence != null) {
+                return groupPresence.getGroupName();
+            }
+        }
+        if(isClient()) {
+            if(clientPresence != null) {
+                return clientPresence.getClientName();
+            }
+        }
+        return "<unknown>";
+    }
+
+    public String getStatus() {
+        if(isClient()) {
+            if(clientPresence != null) {
+                return clientPresence.getClientStatus();
+            }
+        }
+        return "";
+    }
+
     private void ensureSelf() {
         if(!isSelf()) {
             throw new RuntimeException("Client is not of type self");

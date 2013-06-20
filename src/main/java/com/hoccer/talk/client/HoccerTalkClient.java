@@ -353,6 +353,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        for(ITalkClientListener listener: mListeners) {
+            listener.onGroupPresenceChanged(contact);
+        }
         return contact;
     }
 
@@ -788,16 +791,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void sendPresence() {
-        try {
-            TalkClientContact contact = ensureSelfContact();
-            TalkPresence presence = ensureSelfPresence(contact);
-            presence = contact.getClientPresence();
-            mDatabase.savePresence(presence);
-            mDatabase.saveContact(contact);
-            mServerRpc.updatePresence(presence);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    TalkClientContact contact = ensureSelfContact();
+                    TalkPresence presence = ensureSelfPresence(contact);
+                    presence = contact.getClientPresence();
+                    mDatabase.savePresence(presence);
+                    mDatabase.saveContact(contact);
+                    mServerRpc.updatePresence(presence);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
     private void updateOutgoingDelivery(TalkDelivery delivery) {
@@ -859,6 +867,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        for(ITalkClientListener listener: mListeners) {
+            listener.onClientPresenceChanged(clientContact);
+        }
     }
 
     private void updateClientRelationship(TalkRelationship relationship) {
@@ -878,6 +890,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mDatabase.saveContact(clientContact);
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+
+        for(ITalkClientListener listener: mListeners) {
+            listener.onClientRelationshipChanged(clientContact);
         }
     }
 
@@ -901,6 +917,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mDatabase.saveContact(contact);
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+
+        for(ITalkClientListener listener: mListeners) {
+            listener.onGroupPresenceChanged(contact);
         }
     }
 
