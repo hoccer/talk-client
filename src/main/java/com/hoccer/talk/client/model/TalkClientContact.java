@@ -5,7 +5,10 @@ import com.hoccer.talk.model.TalkGroupMember;
 import com.hoccer.talk.model.TalkPresence;
 import com.hoccer.talk.model.TalkRelationship;
 import com.j256.ormlite.field.DatabaseField;
+import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
+
+import java.util.List;
 
 /**
  * These represent a target of communication
@@ -51,6 +54,9 @@ public class TalkClientContact {
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkGroupMember groupMember;
+
+    @ForeignCollectionField(eager = false, foreignFieldName = "groupContact")
+    private List<TalkClientMembership> groupMemberships;
 
     public TalkClientContact() {
 
@@ -213,6 +219,10 @@ public class TalkClientContact {
 
     public TalkGroupMember getGroupMember() {
         return groupMember;
+    }
+
+    public List<TalkClientMembership> getGroupMemberships() {
+        return groupMemberships;
     }
 
     public void updateSelfRegistered(String clientId, TalkClientSelf self) {

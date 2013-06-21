@@ -1,6 +1,7 @@
 package com.hoccer.talk.client;
 
 import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientMembership;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.model.*;
@@ -20,6 +21,8 @@ public class TalkClientDatabase {
     Dao<TalkGroup, String> mGroups;
     Dao<TalkGroupMember, Long> mGroupMembers;
 
+    Dao<TalkClientMembership, Integer> mClientMemberships;
+
     Dao<TalkClientMessage, Integer> mClientMessages;
     Dao<TalkMessage, String> mMessages;
     Dao<TalkDelivery, Long> mDeliveries;
@@ -36,13 +39,11 @@ public class TalkClientDatabase {
         mGroups = mBackend.getDao(TalkGroup.class);
         mGroupMembers = mBackend.getDao(TalkGroupMember.class);
 
+        mClientMemberships = mBackend.getDao(TalkClientMembership.class);
+
         mClientMessages = mBackend.getDao(TalkClientMessage.class);
         mMessages = mBackend.getDao(TalkMessage.class);
         mDeliveries = mBackend.getDao(TalkDelivery.class);
-    }
-
-    public void refreshContact(TalkClientContact contact) throws SQLException {
-        mClientContacts.refresh(contact);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
