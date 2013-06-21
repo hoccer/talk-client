@@ -146,6 +146,12 @@ public class TalkClientDatabase {
         return contact;
     }
 
+    public TalkClientContact findContactByGroupTag(String groupTag) throws SQLException {
+        return mClientContacts.queryBuilder()
+                .where().eq("groupTag", groupTag)
+                .queryForFirst();
+    }
+
     public TalkClientMessage findMessageByMessageId(String messageId, boolean create) throws SQLException {
         TalkClientMessage message = null;
 

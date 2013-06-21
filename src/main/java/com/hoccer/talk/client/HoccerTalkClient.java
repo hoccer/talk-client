@@ -394,13 +394,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        String groupId = mServerRpc.createGroup(groupPresence);
-        contact.updateGroupId(groupId);
-        try {
-            mDatabase.saveContact(contact);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        mServerRpc.createGroup(groupPresence);
         return contact;
     }
 
@@ -946,9 +940,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.debug("updateGroupPresence(" + group.getGroupId() + ")");
         TalkClientContact contact = null;
         try {
-            contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
+            contact = mDatabase.findContactByGroupId(group.getGroupId(), false);
             if(contact == null) {
-
+                contact = mDatabase.findContactByGroupTag(group.getGroupTag());
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -974,10 +968,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         try {
-            groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
-            clientContact = mDatabase.findContactByClientId(member.getClientId(), true);
+            clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
+            if(clientContact != null) {
+                groupContact = mDatabase.findContactByGroupId(member.getGroupId(), clientContact.isSelf());
+            }
         } catch (SQLException e) {
             e.printStackTrace();
+            return;
+        }
+        if(clientContact == null) {
+            LOG.warn("gm update for unknown client " + member.getClientId());
+        }
+        if(groupContact == null) {
+            LOG.warn("gm update for unknown group " + member.getGroupId());
+        }
+        if(clientContact == null || groupContact == null) {
             return;
         }
         // if this concerns our own membership
