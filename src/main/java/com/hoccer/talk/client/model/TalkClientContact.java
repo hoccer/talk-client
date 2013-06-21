@@ -86,6 +86,18 @@ public class TalkClientContact {
         return this.contactType.equals(TYPE_CLIENT);
     }
 
+    public boolean isClientRelated() {
+        return isClient() && this.clientRelationship != null && this.clientRelationship.isRelated();
+    }
+
+    public boolean isClientFriend() {
+        return isClient() && this.clientRelationship != null && this.clientRelationship.isFriend();
+    }
+
+    public boolean isClientBlocked() {
+        return isClient() && this.clientRelationship != null && this.clientRelationship.isBlocked();
+    }
+
     public boolean isGroup() {
         return this.contactType.equals(TYPE_GROUP);
     }

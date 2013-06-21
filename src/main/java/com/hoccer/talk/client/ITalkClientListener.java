@@ -10,5 +10,6 @@ public interface ITalkClientListener {
     void onClientRelationshipChanged(TalkClientContact contact);
 
     void onGroupPresenceChanged(TalkClientContact contact);
+    void onGroupMembershipChanged(TalkClientContact contact);
 
 }

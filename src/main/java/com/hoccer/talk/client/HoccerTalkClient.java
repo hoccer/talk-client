@@ -347,6 +347,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mServerRpc.pairByToken(token);
     }
 
+    public void depairContact(final TalkClientContact contact) {
+        if(contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.depairClient(contact.getClientId());
+                }
+            });
+        }
+    }
+
     public void blockContact(final TalkClientContact contact) {
         if(contact.isClient()) {
             mExecutor.execute(new Runnable() {
@@ -377,10 +388,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         groupPresence.setGroupTag(groupTag);
         groupPresence.setGroupName("Group");
         contact.updateGroupPresence(groupPresence);
+        try {
+            mDatabase.saveGroup(groupPresence);
+            mDatabase.saveContact(contact);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         String groupId = mServerRpc.createGroup(groupPresence);
         contact.updateGroupId(groupId);
         try {
-            mDatabase.saveGroup(groupPresence);
             mDatabase.saveContact(contact);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -972,6 +988,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 mDatabase.saveContact(groupContact);
             } catch (SQLException e) {
                 e.printStackTrace();
+            }
+            for(ITalkClientListener listener: mListeners) {
+                listener.onGroupMembershipChanged(groupContact);
             }
         }
         // if this concerns the membership of someone else
