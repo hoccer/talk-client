@@ -339,7 +339,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         String tokenPurpose = TalkToken.PURPOSE_PAIRING;
         int tokenLifetime = 7 * 24 * 3600;
         String token = mServerRpc.generateToken(tokenPurpose, tokenLifetime);
-        LOG.info("got pairing token " + token);
+        LOG.debug("got pairing token " + token);
         return token;
     }
 
@@ -622,24 +622,24 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             public void run() {
                 Date never = new Date(0);
                 try {
-                    LOG.info("sync: updating presence");
+                    LOG.debug("sync: updating presence");
                     sendPresence();
-                    LOG.info("sync: syncing presences");
+                    LOG.debug("sync: syncing presences");
                     TalkPresence[] presences = mServerRpc.getPresences(never);
                     for(TalkPresence presence: presences) {
                         updateClientPresence(presence);
                     }
-                    LOG.info("sync: syncing relationships");
+                    LOG.debug("sync: syncing relationships");
                     TalkRelationship[] relationships = mServerRpc.getRelationships(never);
                     for(TalkRelationship relationship: relationships) {
                         updateClientRelationship(relationship);
                     }
-                    LOG.info("sync: syncing groups");
+                    LOG.debug("sync: syncing groups");
                     TalkGroup[] groups = mServerRpc.getGroups(never);
                     for(TalkGroup group: groups) {
                         updateGroupPresence(group);
                     }
-                    LOG.info("sync: syncing group memberships");
+                    LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
                     for(TalkClientContact group: contacts) {
                         if(group.getGroupId() != null) {
@@ -688,12 +688,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void ping() {
-            LOG.info("server: ping()");
+            LOG.debug("server: ping()");
         }
 
         @Override
         public void pushNotRegistered() {
-            LOG.info("server: pushNotRegistered()");
+            LOG.debug("server: pushNotRegistered()");
         }
 
         @Override
@@ -710,32 +710,32 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
-            LOG.info("server: presenceUpdated(" + presence.getClientId() + ")");
+            LOG.debug("server: presenceUpdated(" + presence.getClientId() + ")");
             updateClientPresence(presence);
         }
 
         @Override
         public void relationshipUpdated(TalkRelationship relationship) {
-            LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
+            LOG.debug("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
             updateClientRelationship(relationship);
         }
 
         @Override
         public void groupUpdated(TalkGroup group) {
-            LOG.info("server: groupUpdated(" + group.getGroupId() + ")");
+            LOG.debug("server: groupUpdated(" + group.getGroupId() + ")");
             updateGroupPresence(group);
         }
 
         @Override
         public void groupMemberUpdated(TalkGroupMember member) {
-            LOG.info("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
+            LOG.debug("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
             updateGroupMember(member);
         }
 
     }
 
     private void performRegistration(TalkClientContact selfContact) {
-        LOG.info("registration: attempting registration");
+        LOG.debug("registration: attempting registration");
 
         Digest digest = SRP_DIGEST;
         byte[] salt = new byte[digest.getDigestSize()];
@@ -752,13 +752,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         String clientId = mServerRpc.generateId();
 
-        LOG.info("registration: started with id " + clientId);
+        LOG.debug("registration: started with id " + clientId);
 
         BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
 
         mServerRpc.srpRegister(verifier.toString(16), bytesToHex(salt));
 
-        LOG.info("registration: finished");
+        LOG.debug("registration: finished");
 
         TalkClientSelf self = new TalkClientSelf(saltString, secretString);
 
@@ -774,7 +774,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void performLogin(TalkClientContact selfContact) {
         String clientId = selfContact.getClientId();
-        LOG.info("login: attempting login as " + clientId);
+        LOG.debug("login: attempting login as " + clientId);
         Digest digest = SRP_DIGEST;
 
         TalkClientSelf self = selfContact.getSelf();
@@ -782,7 +782,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         SRP6VerifyingClient vc = new SRP6VerifyingClient();
         vc.init(SRP_PARAMETERS.N, SRP_PARAMETERS.g, digest, SRP_RANDOM);
 
-        LOG.info("login: performing phase 1");
+        LOG.debug("login: performing phase 1");
 
         byte[] loginId = clientId.getBytes();
         byte[] loginSalt = fromHexString(self.getSrpSalt());
@@ -796,7 +796,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             e.printStackTrace();
         }
 
-        LOG.info("login: performing phase 2");
+        LOG.debug("login: performing phase 2");
 
         String Vc = bytesToHex(vc.calculateVerifier());
         String Vs = mServerRpc.srpPhase2(Vc);
@@ -804,7 +804,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             throw new RuntimeException("Could not verify server");
         }
 
-        LOG.info("login: successful");
+        LOG.debug("login: successful");
     }
 
     private TalkClientContact ensureSelfContact() throws SQLException {
@@ -854,7 +854,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateOutgoingDelivery(TalkDelivery delivery) {
-        LOG.info("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
+        LOG.debug("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
         TalkClientMessage clientMessage = null;
         try {
             clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
@@ -874,7 +874,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateIncomingDelivery(TalkDelivery delivery, TalkMessage message) {
-        LOG.info("updateIncomingDelivery(" + delivery.getMessageId() + ")");
+        LOG.debug("updateIncomingDelivery(" + delivery.getMessageId() + ")");
         TalkClientMessage clientMessage = null;
         try {
             clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
@@ -895,7 +895,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateClientPresence(TalkPresence presence) {
-        LOG.info("updateClientPresence(" + presence.getClientId() + ")");
+        LOG.debug("updateClientPresence(" + presence.getClientId() + ")");
         TalkClientContact clientContact = null;
         try {
             clientContact = mDatabase.findContactByClientId(presence.getClientId(), true);
@@ -919,7 +919,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateClientRelationship(TalkRelationship relationship) {
-        LOG.info("updateClientRelationship(" + relationship.getOtherClientId() + ")");
+        LOG.debug("updateClientRelationship(" + relationship.getOtherClientId() + ")");
         TalkClientContact clientContact = null;
         try {
             clientContact = mDatabase.findContactByClientId(relationship.getOtherClientId(), true);
@@ -943,7 +943,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateGroupPresence(TalkGroup group) {
-        LOG.info("updateGroupPresence(" + group.getGroupId() + ")");
+        LOG.debug("updateGroupPresence(" + group.getGroupId() + ")");
         TalkClientContact contact = null;
         try {
             contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
@@ -970,7 +970,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void updateGroupMember(TalkGroupMember member) {
-        LOG.info("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
+        LOG.debug("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         try {
