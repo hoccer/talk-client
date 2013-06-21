@@ -358,6 +358,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    public void deleteContact(final TalkClientContact contact) {
+
+    }
+
     public void blockContact(final TalkClientContact contact) {
         if(contact.isClient()) {
             mExecutor.execute(new Runnable() {
@@ -398,16 +402,31 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return contact;
     }
 
-    public void inviteClientToGroup(String groupId, String clientId) {
-        mServerRpc.inviteGroupMember(groupId, clientId);
+    public void inviteClientToGroup(final String groupId, final String clientId) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.inviteGroupMember(groupId, clientId);
+            }
+        });
     }
 
-    public void joinGroup(String groupId) {
-        mServerRpc.joinGroup(groupId);
+    public void joinGroup(final String groupId) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.joinGroup(groupId);
+            }
+        });
     }
 
-    public void leaveGroup(String groupId) {
-        mServerRpc.leaveGroup(groupId);
+    public void leaveGroup(final String groupId) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.leaveGroup(groupId);
+            }
+        });
     }
 
     private ObjectMapper createObjectMapper() {
