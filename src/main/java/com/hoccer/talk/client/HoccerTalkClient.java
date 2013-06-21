@@ -655,7 +655,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
                     for(TalkClientContact group: contacts) {
-                        if(group.getGroupId() != null) {
+                        if(group.isGroup() && group.isGroupJoined()) {
                             TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
                             for(TalkGroupMember member: members) {
                                 updateGroupMember(member);
