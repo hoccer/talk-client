@@ -337,6 +337,28 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mServerRpc.pairByToken(token);
     }
 
+    public void blockContact(final TalkClientContact contact) {
+        if(contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.blockClient(contact.getClientId());
+                }
+            });
+        }
+    }
+
+    public void unblockContact(final TalkClientContact contact) {
+        if(contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.unblockClient(contact.getClientId());
+                }
+            });
+        }
+    }
+
     public TalkClientContact createGroup() {
         String groupTag = UUID.randomUUID().toString();
         TalkClientContact contact = new TalkClientContact(TalkClientContact.TYPE_GROUP);
