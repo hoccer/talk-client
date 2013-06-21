@@ -266,6 +266,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    public void reconnect() {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mConnection.disconnect();
+                wake();
+            }
+        });
+    }
+
     /**
      * Blocking version of the deactivation call
      */
