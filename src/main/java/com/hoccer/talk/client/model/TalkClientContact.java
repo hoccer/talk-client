@@ -94,6 +94,18 @@ public class TalkClientContact {
         return isGroup() && this.groupId != null;
     }
 
+    public boolean isGroupAdmin() {
+        return isGroup() && this.groupMember != null && this.groupMember.isAdmin();
+    }
+
+    public boolean isGroupInvited() {
+        return isGroup() && this.groupMember != null && this.groupMember.isInvited();
+    }
+
+    public boolean isGroupJoined() {
+        return isGroup() && this.groupMember != null && this.groupMember.isJoined();
+    }
+
     public String getName() {
         if(isSelf()) {
             return "Myself";

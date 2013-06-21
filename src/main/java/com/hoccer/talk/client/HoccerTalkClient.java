@@ -385,9 +385,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        for(ITalkClientListener listener: mListeners) {
-            listener.onGroupPresenceChanged(contact);
-        }
         return contact;
     }
 

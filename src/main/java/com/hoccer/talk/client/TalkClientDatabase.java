@@ -46,7 +46,7 @@ public class TalkClientDatabase {
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
-        mClientContacts.update(contact);
+        mClientContacts.createOrUpdate(contact);
     }
 
     public void saveCredentials(TalkClientSelf credentials) throws SQLException {
