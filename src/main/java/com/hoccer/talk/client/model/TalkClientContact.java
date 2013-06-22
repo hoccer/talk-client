@@ -4,10 +4,12 @@ import com.hoccer.talk.model.TalkGroup;
 import com.hoccer.talk.model.TalkGroupMember;
 import com.hoccer.talk.model.TalkPresence;
 import com.hoccer.talk.model.TalkRelationship;
+import com.j256.ormlite.dao.ForeignCollection;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -56,7 +58,8 @@ public class TalkClientContact {
     private TalkGroupMember groupMember;
 
     @ForeignCollectionField(eager = false, foreignFieldName = "groupContact")
-    private List<TalkClientMembership> groupMemberships;
+    private ForeignCollection<TalkClientMembership> groupMemberships;
+    
 
     public TalkClientContact() {
 
@@ -221,7 +224,7 @@ public class TalkClientContact {
         return groupMember;
     }
 
-    public List<TalkClientMembership> getGroupMemberships() {
+    public ForeignCollection<TalkClientMembership> getGroupMemberships() {
         return groupMemberships;
     }
 
