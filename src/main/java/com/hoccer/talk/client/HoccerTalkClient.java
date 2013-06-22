@@ -705,6 +705,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         @Override
+        public void alertUser(String message) {
+            LOG.debug("server: alertUser()");
+            LOG.info("ALERTING USER: \"" + message + "\"");
+        }
+
+        @Override
         public void pushNotRegistered() {
             LOG.debug("server: pushNotRegistered()");
         }
