@@ -855,8 +855,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         String Vc = bytesToHex(vc.calculateVerifier());
         String Vs = mServerRpc.srpPhase2(Vc);
-        if(!vc.verifyServer(fromHexString(Vs))) {
-            throw new RuntimeException("Could not verify server");
+        try {
+            vc.verifyServer(fromHexString(Vs));
+        } catch (CryptoException e) {
+            throw new RuntimeException("Server verification failed");
         }
 
         LOG.debug("login: successful");
