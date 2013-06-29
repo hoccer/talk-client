@@ -177,6 +177,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 		mServerRpc = (ITalkRpcServer)mConnection.makeProxy(ITalkRpcServer.class);
 	}
 
+    public URI getServiceUri() {
+        return mConnection.getServiceUri();
+    }
+
+    public void setServiceUri(URI serviceUri) {
+        mConnection.setServiceUri(serviceUri);
+        if(mState >= STATE_IDLE) {
+            reconnect();
+        }
+    }
+
     public TalkClientDatabase getDatabase() {
         return mDatabase;
     }
@@ -735,6 +746,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         @Override
         public void pushNotRegistered() {
             LOG.debug("server: pushNotRegistered()");
+            for(ITalkClientListener listener: mListeners) {
+                listener.onPushRegistrationRequested();
+            }
         }
 
         @Override
