@@ -140,17 +140,19 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                                 : new JsonFactory();
         ObjectMapper mapper = createObjectMapper(jsonFactory);
 
-        // create JSON-RPC client
+        // create websocket client
         WebSocketClientFactory wscFactory = new WebSocketClientFactory();
         try {
             wscFactory.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        String protocol = TalkClientConfiguration.USE_BSON_PROTOCOL
-                        ? TalkClientConfiguration.PROTOCOL_STRING_BSON
-                        : TalkClientConfiguration.PROTOCOL_STRING_JSON;
         WebSocketClient wsClient = wscFactory.newWebSocketClient();
+
+        // create json-rpc client
+        String protocol = TalkClientConfiguration.USE_BSON_PROTOCOL
+                ? TalkClientConfiguration.PROTOCOL_STRING_BSON
+                : TalkClientConfiguration.PROTOCOL_STRING_JSON;
         mConnection = new JsonRpcWsClient(uri, protocol, wsClient, mapper);
         mConnection.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
         if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
@@ -282,6 +284,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    /**
+     * Reconnect the client immediately
+     */
     public void reconnect() {
         mExecutor.execute(new Runnable() {
             @Override
