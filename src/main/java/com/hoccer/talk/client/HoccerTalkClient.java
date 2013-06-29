@@ -19,6 +19,8 @@ import better.jsonrpc.server.JsonRpcServer;
 
 import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.client.model.TalkClientContact;
 import com.hoccer.talk.client.model.TalkClientMessage;
@@ -28,6 +30,7 @@ import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
 import com.hoccer.talk.srp.SRP6VerifyingClient;
+import de.undercouch.bson4jackson.BsonFactory;
 import org.apache.log4j.Logger;
 import org.bouncycastle.crypto.CryptoException;
 import org.bouncycastle.crypto.Digest;
@@ -131,18 +134,31 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             // won't happen
         }
 
+        // create common object mapper
+        JsonFactory jsonFactory = TalkClientConfiguration.USE_BSON_PROTOCOL
+                                ? new BsonFactory()
+                                : new JsonFactory();
+        ObjectMapper mapper = createObjectMapper(jsonFactory);
+
         // create JSON-RPC client
-        mConnection = new JsonRpcWsClient(uri, TalkClientConfiguration.PROTOCOL_STRING);
-        WebSocketClient wsClient = mConnection.getWebSocketClient();
-        wsClient.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
-        // XXX wsClient.setMaxTextMessageSize(TalkClientConfiguration.CONNECTION_MAX_TEXT_SIZE);
-        // XXX wsClient.setMaxBinaryMessageSize(TalkClientConfiguration.CONNECTION_MAX_BINARY_SIZE);
+        WebSocketClientFactory wscFactory = new WebSocketClientFactory();
+        try {
+            wscFactory.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        String protocol = TalkClientConfiguration.USE_BSON_PROTOCOL
+                        ? TalkClientConfiguration.PROTOCOL_STRING_BSON
+                        : TalkClientConfiguration.PROTOCOL_STRING_JSON;
+        WebSocketClient wsClient = wscFactory.newWebSocketClient();
+        mConnection = new JsonRpcWsClient(uri, protocol, wsClient, mapper);
+        mConnection.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
+        if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
+            mConnection.setSendBinaryMessages(true);
+        }
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
-
-        // create common object mapper
-        ObjectMapper mapper = createObjectMapper();
 
         // configure JSON-RPC client
         JsonRpcClient clt = new JsonRpcClient();
@@ -429,9 +445,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
-    private ObjectMapper createObjectMapper() {
-        ObjectMapper result = new ObjectMapper();
+    private ObjectMapper createObjectMapper(JsonFactory jsonFactory) {
+        ObjectMapper result = new ObjectMapper(jsonFactory);
         result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        result.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         return result;
     }
 

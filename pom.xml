@@ -45,6 +45,12 @@
       <artifactId>log4j</artifactId>
       <version>${log4j.version}</version>
     </dependency>
+    <!-- BSON mapper -->
+    <dependency>
+      <groupId>de.undercouch</groupId>
+      <artifactId>bson4jackson</artifactId>
+      <version>${bson4jackson.version}</version>
+    </dependency>
   </dependencies>
   
   <build>
