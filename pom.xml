@@ -19,25 +19,28 @@
   </properties>
 
   <dependencies>
-    <dependency>
-      <groupId>better</groupId>
-      <artifactId>better-jsonrpc-common</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-      <groupId>better</groupId>
-      <artifactId>better-jsonrpc-websocket</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
-    </dependency>
+    <!-- Common definitions -->
     <dependency>
       <groupId>hoccer</groupId>
       <artifactId>hoccer-talk-common</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
+    <!-- SRP implementation -->
     <dependency>
       <groupId>hoccer</groupId>
       <artifactId>hoccer-talk-srp</artifactId>
       <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <!-- JSON-RPC stack -->
+    <dependency>
+      <groupId>better</groupId>
+      <artifactId>better-jsonrpc-common</artifactId>
+      <version>${better-jsonrpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>better</groupId>
+      <artifactId>better-jsonrpc-websocket</artifactId>
+      <version>${better-jsonrpc.version}</version>
     </dependency>
     <!-- Logging -->
     <dependency>
@@ -58,18 +61,10 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.4</version>
+        <version>${maven-compiler.version}</version>
         <configuration>
           <source>${java.version}</source>
           <target>${java.version}</target>
-        </configuration>
-      </plugin>
-      <plugin>            
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-war-plugin</artifactId>
-        <version>2.1.1</version>
-        <configuration>
-          <webXml>src\main\webapp\WEB-INF\web.xml</webXml>        
         </configuration>
       </plugin>
     </plugins>
