@@ -996,9 +996,40 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void updateOutgoingDelivery(TalkDelivery delivery) {
         LOG.debug("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
+
+        TalkClientContact clientContact = null;
+        TalkClientContact groupContact = null;
         TalkClientMessage clientMessage = null;
         try {
-            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+            String receiverId = delivery.getReceiverId();
+            if(receiverId != null) {
+                clientContact = mDatabase.findContactByClientId(receiverId, false);
+                if(clientContact == null) {
+                    LOG.warn("outgoing message for unknown client " + receiverId);
+                    return;
+                }
+            }
+
+            String groupId = delivery.getGroupId();
+            if(groupId != null) {
+                groupContact = mDatabase.findContactByGroupId(groupId, false);
+                if(groupContact == null) {
+                    LOG.warn("outgoing message for unknown group " + groupId);
+                }
+            }
+
+            String messageId = delivery.getMessageId();
+            String messageTag = delivery.getMessageTag();
+            if(messageTag != null) {
+                clientMessage = mDatabase.findMessageByMessageTag(messageTag, false);
+            }
+            if(clientMessage == null) {
+                clientMessage = mDatabase.findMessageByMessageId(messageId, false);
+            }
+            if(clientMessage == null) {
+                LOG.warn("outgoing delivery notification for unknown message " + delivery.getMessageId());
+                return;
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             return;
@@ -1016,9 +1047,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void updateIncomingDelivery(TalkDelivery delivery, TalkMessage message) {
         LOG.debug("updateIncomingDelivery(" + delivery.getMessageId() + ")");
+        TalkClientContact clientContact = null;
         TalkClientMessage clientMessage = null;
         try {
-            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+            clientContact = mDatabase.findContactByClientId(message.getSenderId(), false);
+            if(clientContact == null) {
+                LOG.warn("incoming message from unknown client " + message.getSenderId());
+                return;
+            }
+            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), true);
         } catch (SQLException e) {
             e.printStackTrace();
             return;

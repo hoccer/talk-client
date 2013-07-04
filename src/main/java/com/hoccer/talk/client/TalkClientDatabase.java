@@ -157,8 +157,23 @@ public class TalkClientDatabase {
         TalkClientMessage message = null;
 
         message = mClientMessages.queryBuilder()
-                    .where().eq("messageId", message)
+                    .where().eq("messageId", messageId)
                     .queryForFirst();
+
+        if(create && message == null) {
+            message = new TalkClientMessage();
+            mClientMessages.create(message);
+        }
+
+        return message;
+    }
+
+    public TalkClientMessage findMessageByMessageTag(String messageTag, boolean create) throws SQLException {
+        TalkClientMessage message = null;
+
+        message = mClientMessages.queryBuilder()
+                .where().eq("messageTag", messageTag)
+                .queryForFirst();
 
         if(create && message == null) {
             message = new TalkClientMessage();
