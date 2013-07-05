@@ -128,17 +128,17 @@ public class TalkClientContact {
     }
 
     public String getName() {
-        if(isSelf()) {
-            return "Myself";
+        if(isClient() || isSelf()) {
+            if(clientPresence != null) {
+                return clientPresence.getClientName();
+            }
+            if(isSelf()) {
+                return "<self>";
+            }
         }
         if(isGroup()) {
             if(groupPresence != null) {
                 return groupPresence.getGroupName();
-            }
-        }
-        if(isClient()) {
-            if(clientPresence != null) {
-                return clientPresence.getClientName();
             }
         }
         return "<unknown>";
