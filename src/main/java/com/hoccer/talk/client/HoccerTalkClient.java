@@ -1,5 +1,6 @@
 package com.hoccer.talk.client;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -104,6 +105,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     ScheduledFuture<?> mConnectFuture;
     ScheduledFuture<?> mDisconnectFuture;
     ScheduledFuture<?> mAutoDisconnectFuture;
+    ScheduledFuture<?> mKeepAliveFuture;
 
     /** All our listeners */
     Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
@@ -163,6 +165,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 : TalkClientConfiguration.PROTOCOL_STRING_JSON;
         mConnection = new JsonRpcWsClient(uri, protocol, wsClient, mapper);
         mConnection.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
+        mConnection.setSendKeepAlives(true);
         if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
             mConnection.setSendBinaryMessages(true);
         }
@@ -505,11 +508,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         int previousState = mState;
         mState = newState;
 
+        // maintain keep-alives timer
+        if(mState >= STATE_SYNCING) {
+            scheduleKeepAlive();
+        } else {
+            shutdownKeepAlive();
+        }
+
+        // make disconnects happen
         if(mState == STATE_IDLE || mState == STATE_INACTIVE) {
             scheduleDisconnect();
         } else {
             shutdownDisconnect();
         }
+
+        // make connects happen
         if(mState == STATE_RECONNECTING) {
             LOG.info("scheduling requested reconnect");
             mConnectionFailures = 0;
@@ -530,19 +543,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } else {
             shutdownConnect();
         }
+
         if(mState == STATE_REGISTERING) {
             scheduleRegistration();
         } else {
             shutdownRegistration();
         }
+
         if(mState == STATE_LOGIN) {
             scheduleLogin();
         } else {
             shutdownLogin();
         }
+
         if(mState == STATE_SYNCING) {
             scheduleSync();
         }
+
         if(mState == STATE_ACTIVE) {
             mConnectionFailures = 0;
             // start talking
@@ -651,6 +668,31 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.debug("resetIdle()");
         mLastActivity = System.currentTimeMillis();
         scheduleIdle();
+    }
+
+    private void shutdownKeepAlive() {
+        if(mKeepAliveFuture != null) {
+            mKeepAliveFuture.cancel(false);
+            mKeepAliveFuture = null;
+        }
+    }
+
+    private void scheduleKeepAlive() {
+        shutdownKeepAlive();
+        mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    LOG.info("performing keep-alive");
+                    try {
+                        mConnection.sendKeepAlive();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            },
+            TalkClientConfiguration.KEEPALIVE_INTERVAL,
+            TalkClientConfiguration.KEEPALIVE_INTERVAL,
+            TimeUnit.SECONDS);
     }
 
     private void shutdownConnect() {
