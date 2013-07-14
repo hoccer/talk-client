@@ -27,6 +27,9 @@ public class TalkClientDatabase {
     Dao<TalkMessage, String> mMessages;
     Dao<TalkDelivery, Long> mDeliveries;
 
+    Dao<TalkKey, Long> mPublicKeys;
+    Dao<TalkPrivateKey, Long> mPrivateKeys;
+
     public TalkClientDatabase(ITalkClientDatabaseBackend backend) {
         mBackend = backend;
     }
@@ -44,6 +47,9 @@ public class TalkClientDatabase {
         mClientMessages = mBackend.getDao(TalkClientMessage.class);
         mMessages = mBackend.getDao(TalkMessage.class);
         mDeliveries = mBackend.getDao(TalkDelivery.class);
+
+        mPublicKeys = mBackend.getDao(TalkKey.class);
+        mPrivateKeys = mBackend.getDao(TalkPrivateKey.class);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
@@ -80,6 +86,14 @@ public class TalkClientDatabase {
 
     public void saveDelivery(TalkDelivery delivery) throws SQLException {
         mDeliveries.createOrUpdate(delivery);
+    }
+
+    public void savePublicKey(TalkKey publicKey) throws SQLException {
+        mPublicKeys.createOrUpdate(publicKey);
+    }
+
+    public void savePrivateKey(TalkPrivateKey privateKey) throws SQLException {
+        mPrivateKeys.createOrUpdate(privateKey);
     }
 
     public TalkClientContact findClientContactById(int clientContactId) throws SQLException {

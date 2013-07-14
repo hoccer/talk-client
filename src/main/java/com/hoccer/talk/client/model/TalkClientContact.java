@@ -1,9 +1,6 @@
 package com.hoccer.talk.client.model;
 
-import com.hoccer.talk.model.TalkGroup;
-import com.hoccer.talk.model.TalkGroupMember;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.ForeignCollection;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
@@ -29,6 +26,10 @@ public class TalkClientContact {
 
     @DatabaseField
     private String contactType;
+
+
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
+    private TalkKey publicKey;
 
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
@@ -181,6 +182,16 @@ public class TalkClientContact {
     public String getContactType() {
         return contactType;
     }
+
+
+    public TalkKey getPublicKey() {
+        return publicKey;
+    }
+
+    public void setPublicKey(TalkKey publicKey) {
+        this.publicKey = publicKey;
+    }
+
 
     public TalkClientSelf getSelf() {
         ensureSelf();

@@ -1094,6 +1094,38 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         for(ITalkClientListener listener: mListeners) {
             listener.onClientPresenceChanged(clientContact);
         }
+
+        requestClientKey(clientContact);
+    }
+
+    private void requestClientKey(TalkClientContact client) {
+        String clientId = client.getClientId();
+
+        String currentKeyId = client.getClientPresence().getKeyId();
+        if(currentKeyId == null || currentKeyId.isEmpty()) {
+            LOG.info("client " + clientId + " has no key id");
+            return;
+        }
+
+        TalkKey clientKey = client.getPublicKey();
+        if(clientKey != null) {
+            if(clientKey.getKeyId().equals(currentKeyId)) {
+                LOG.info("client " + clientId + " has current key");
+                return;
+            }
+        }
+
+        LOG.info("retrieving key " + currentKeyId + " for client " + clientId);
+        TalkKey key = mServerRpc.getKey(client.getClientId(), currentKeyId);
+        if(key != null) {
+            try {
+                client.setPublicKey(key);
+                mDatabase.savePublicKey(key);
+                mDatabase.saveContact(client);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void updateClientRelationship(TalkRelationship relationship) {
