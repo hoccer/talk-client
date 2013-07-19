@@ -31,6 +31,9 @@ public class TalkClientContact {
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkKey publicKey;
 
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
+    private TalkPrivateKey privateKey;
+
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientSelf self;
@@ -192,6 +195,14 @@ public class TalkClientContact {
         this.publicKey = publicKey;
     }
 
+    public TalkPrivateKey getPrivateKey() {
+        return privateKey;
+    }
+
+    public void setPrivateKey(TalkPrivateKey privateKey) {
+        this.privateKey = privateKey;
+    }
+    
 
     public TalkClientSelf getSelf() {
         ensureSelf();
