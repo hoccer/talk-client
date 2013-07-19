@@ -1,10 +1,11 @@
 package com.hoccer.talk.client;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.SecureRandom;
+import java.security.*;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
@@ -26,12 +27,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.client.model.TalkClientContact;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
 import com.hoccer.talk.srp.SRP6VerifyingClient;
 import de.undercouch.bson4jackson.BsonFactory;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.bouncycastle.crypto.CryptoException;
 import org.bouncycastle.crypto.Digest;
@@ -1018,16 +1021,67 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
+    private void ensureSelfKey(TalkClientContact contact) throws SQLException {
+        TalkKey publicKey = contact.getPublicKey();
+        TalkPrivateKey privateKey = contact.getPrivateKey();
+        if(publicKey == null || privateKey == null) {
+            Date now = new Date();
+            try {
+                LOG.info("generating new RSA key");
+                KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
+
+                PublicKey pubKey = keyPair.getPublic();
+                byte[] pubEnc = RSACryptor.unwrapRSA1024_X509(pubKey.getEncoded());
+                String pubStr = Base64.encodeBase64String(pubEnc);
+
+                PrivateKey privKey = keyPair.getPrivate();
+                byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
+                String privStr = Base64.encodeBase64String(privEnc);
+
+                String kid = RSACryptor.calcKeyId(pubEnc);
+
+                publicKey = new TalkKey();
+                publicKey.setClientId(contact.getClientId());
+                publicKey.setTimestamp(now);
+                publicKey.setKeyId(kid);
+                publicKey.setKey(pubStr);
+
+                privateKey = new TalkPrivateKey();
+                privateKey.setClientId(contact.getClientId());
+                privateKey.setTimestamp(now);
+                privateKey.setKeyId(kid);
+                privateKey.setKey(privStr);
+
+                contact.setPublicKey(publicKey);
+                contact.setPrivateKey(privateKey);
+
+                mDatabase.savePublicKey(publicKey);
+                mDatabase.savePrivateKey(privateKey);
+                mDatabase.saveContact(contact);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            } catch (InvalidKeyException e) {
+                e.printStackTrace();
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     private void sendPresence() {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                Date now = new Date();
                 try {
                     TalkClientContact contact = ensureSelfContact();
-                    TalkPresence presence = ensureSelfPresence(contact);
-                    presence = contact.getClientPresence();
+                    ensureSelfPresence(contact);
+                    ensureSelfKey(contact);
+                    TalkPresence presence = contact.getClientPresence();
+                    presence.setKeyId(contact.getPublicKey().getKeyId());
                     mDatabase.savePresence(presence);
                     mDatabase.saveContact(contact);
+                    mServerRpc.updateKey(contact.getPublicKey());
                     mServerRpc.updatePresence(presence);
                 } catch (SQLException e) {
                     e.printStackTrace();
@@ -1133,11 +1187,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             e.printStackTrace();
         }
 
+        final TalkClientContact fContact = clientContact;
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                requestClientKey(fContact);
+            }
+        });
+
         for(ITalkClientListener listener: mListeners) {
             listener.onClientPresenceChanged(clientContact);
         }
-
-        requestClientKey(clientContact);
     }
 
     private void requestClientKey(TalkClientContact client) {
