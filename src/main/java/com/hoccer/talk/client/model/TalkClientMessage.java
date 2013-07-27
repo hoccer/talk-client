@@ -20,6 +20,9 @@ public class TalkClientMessage {
     @DatabaseField(canBeNull = true)
     private String messageTag;
 
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    private TalkClientContact contact;
+
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkMessage message;
 
@@ -48,20 +51,48 @@ public class TalkClientMessage {
         return messageId;
     }
 
+    public void setMessageId(String messageId) {
+        this.messageId = messageId;
+    }
+
     public String getMessageTag() {
         return messageTag;
+    }
+
+    public void setMessageTag(String messageTag) {
+        this.messageTag = messageTag;
+    }
+
+    public TalkClientContact getContact() {
+        return contact;
+    }
+
+    public void setContact(TalkClientContact contact) {
+        this.contact = contact;
     }
 
     public TalkMessage getMessage() {
         return message;
     }
 
+    public void setMessage(TalkMessage message) {
+        this.message = message;
+    }
+
     public TalkDelivery getIncomingDelivery() {
         return incomingDelivery;
     }
 
+    public void setIncomingDelivery(TalkDelivery incomingDelivery) {
+        this.incomingDelivery = incomingDelivery;
+    }
+
     public TalkDelivery getOutgoingDelivery() {
         return outgoingDelivery;
+    }
+
+    public void setOutgoingDelivery(TalkDelivery outgoingDelivery) {
+        this.outgoingDelivery = outgoingDelivery;
     }
 
     public void updateIncoming(TalkDelivery delivery, TalkMessage message) {

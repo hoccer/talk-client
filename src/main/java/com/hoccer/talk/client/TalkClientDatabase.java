@@ -6,11 +6,15 @@ import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
+import org.apache.log4j.Logger;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TalkClientDatabase {
+
+    private static final Logger LOG = Logger.getLogger(TalkClientDatabase.class);
 
     ITalkClientDatabaseBackend mBackend;
 
@@ -165,6 +169,34 @@ public class TalkClientDatabase {
         return mClientContacts.queryBuilder()
                 .where().eq("groupTag", groupTag)
                 .queryForFirst();
+    }
+
+    public List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
+        LOG.info("findMessagesForDelivery");
+        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
+
+        LOG.info("found " + newDeliveries.size());
+
+        List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
+        try {
+        for(TalkDelivery d: newDeliveries) {
+            LOG.info("querying for tag " + d.getMessageTag());
+            TalkClientMessage m = mClientMessages.queryBuilder()
+                                    .where().eq("outgoingDelivery" + "_id", d)
+                                    .queryForFirst();
+            LOG.info("returned");
+            if(m != null) {
+                LOG.info("found message " + m.getClientMessageId());
+                messages.add(m);
+            } else {
+                LOG.info("no message for delivery for tag " + d.getMessageTag());
+            }
+        }
+        } catch (Throwable t) {
+            LOG.error("SQL fnord", t);
+        }
+
+        return messages;
     }
 
     public TalkClientMessage findMessageByMessageId(String messageId, boolean create) throws SQLException {

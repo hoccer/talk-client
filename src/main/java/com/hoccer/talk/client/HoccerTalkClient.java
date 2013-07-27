@@ -491,6 +491,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
+    public void requestDelivery() {
+        resetIdle();
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                performDeliveries();
+            }
+        });
+    }
+
     private ObjectMapper createObjectMapper(JsonFactory jsonFactory) {
         ObjectMapper result = new ObjectMapper(jsonFactory);
         result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -993,6 +1003,31 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.debug("login: successful");
     }
 
+    private void performDeliveries() {
+        LOG.info("performing deliveries");
+        try {
+            List<TalkClientMessage> clientMessages = mDatabase.findMessagesForDelivery();
+            LOG.info(clientMessages.size() + " to deliver");
+            TalkDelivery[] deliveries = new TalkDelivery[clientMessages.size()];
+            TalkMessage[] messages = new TalkMessage[clientMessages.size()];
+            int i = 0;
+            for(TalkClientMessage clientMessage: clientMessages) {
+                deliveries[i] = clientMessage.getOutgoingDelivery();
+                messages[i] = clientMessage.getMessage();
+            }
+            for(i = 0; i < messages.length; i++) {
+                TalkDelivery[] delivery = new TalkDelivery[1];
+                delivery[0] = deliveries[i];
+                TalkDelivery[] resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
+                for(int j = 0; j < resultingDeliveries.length; j++) {
+                    updateOutgoingDelivery(resultingDeliveries[j]);
+                }
+            }
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
+    }
+
     private TalkClientContact ensureSelfContact() throws SQLException {
         TalkClientContact contact = mDatabase.findSelfContact(false);
         if(contact == null) {
@@ -1139,6 +1174,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED)) {
+            mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+        }
     }
 
     private void updateIncomingDelivery(TalkDelivery delivery, TalkMessage message) {
@@ -1165,6 +1204,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+
+        if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
+            mServerRpc.deliveryConfirm(delivery.getMessageId());
         }
     }
 
