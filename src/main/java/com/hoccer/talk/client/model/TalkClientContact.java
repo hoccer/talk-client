@@ -262,10 +262,12 @@ public class TalkClientContact {
     }
 
     public TalkGroupMember getGroupMember() {
+        ensureGroup();
         return groupMember;
     }
 
     public ForeignCollection<TalkClientMembership> getGroupMemberships() {
+        ensureGroup();
         return groupMemberships;
     }
 
