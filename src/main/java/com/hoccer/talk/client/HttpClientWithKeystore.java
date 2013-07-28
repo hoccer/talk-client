@@ -34,20 +34,19 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
 
     /* currently not used */
     public static synchronized void initializeSsl(KeyStore pTrustStore) throws GeneralSecurityException {
-
-        LOG.debug("initializeSsl");
+        LOG.debug("initializeSsl()");
 
         LOG.trace("aliases:");
         Enumeration<String> aliases = pTrustStore.aliases();
         while (aliases.hasMoreElements()) {
-
             LOG.trace(" - " + aliases.nextElement());
         }
 
-        LOG.trace("creating socket factory");
+        LOG.debug("creating socket factory");
         SSLSocketFactory socketFactory = new SSLSocketFactory(pTrustStore);
         socketFactory.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
+        LOG.debug("creating scheme registry");
         sRegistry = new SchemeRegistry();
         sRegistry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
         sRegistry.register(new Scheme("https", socketFactory, 443));
@@ -80,7 +79,7 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
 
     @Override
     protected ClientConnectionManager createClientConnectionManager() {
-        LOG.info("createClientConnectionManager()");
+        LOG.debug("createClientConnectionManager()");
 
         if (sRegistry == null) {
             LOG.warn("using default connection manager");
@@ -88,7 +87,7 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
             return super.createClientConnectionManager();
         }
 
-        LOG.info("using connection manager with SSL socket factory");
+        LOG.info("using trusted connection manager");
         return new ThreadSafeClientConnManager(getParams(), sRegistry);
     }
 
