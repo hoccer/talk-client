@@ -1150,7 +1150,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
-    private void updateOutgoingDelivery(TalkDelivery delivery) {
+    private void updateOutgoingDelivery(final TalkDelivery delivery) {
         LOG.debug("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
 
         TalkClientContact clientContact = null;
@@ -1201,11 +1201,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED)) {
-            mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+                }
+            });
         }
     }
 
-    private void updateIncomingDelivery(TalkDelivery delivery, TalkMessage message) {
+    private void updateIncomingDelivery(final TalkDelivery delivery, final TalkMessage message) {
         LOG.debug("updateIncomingDelivery(" + delivery.getMessageId() + ")");
         TalkClientContact clientContact = null;
         TalkClientMessage clientMessage = null;
@@ -1232,7 +1237,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
-            mServerRpc.deliveryConfirm(delivery.getMessageId());
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.deliveryConfirm(delivery.getMessageId());
+                }
+            });
         }
     }
 
