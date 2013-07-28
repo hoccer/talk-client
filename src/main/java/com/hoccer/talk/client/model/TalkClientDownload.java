@@ -286,6 +286,8 @@ public class TalkClientDownload extends TalkTransfer {
             LOG.error("Download throwable", t);
             return false;
         }
+
+        switchState(State.COMPLETE);
         return true;
     }
 
