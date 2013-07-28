@@ -1261,13 +1261,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
         } catch (MalformedURLException e) {
-            LOG.warn("Malformed avatar url", e);
+            LOG.warn("malformed avatar url", e);
         }
 
         TalkClientDownload avatarDownload = clientContact.getAvatarDownload();
         try {
             if(avatarDownload != null) {
-                LOG.info("saving avatar download with url " + avatarDownload.getUrl());
                 mDatabase.saveClientDownload(avatarDownload);
             }
             mDatabase.savePresence(clientContact.getClientPresence());
@@ -1276,7 +1275,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             e.printStackTrace();
         }
         if(avatarDownload != null) {
-            LOG.info("requesting avatar download");
             mTransferAgent.requestDownload(avatarDownload);
         }
 
@@ -1294,12 +1292,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void updateAvatarDownload(TalkClientContact contact, String avatarUrl, String avatarId, Date avatarTimestamp) throws MalformedURLException {
-        boolean avatarChanged = false;
         TalkClientDownload avatarDownload = contact.getAvatarDownload();
-        LOG.info("avatar url " + avatarUrl);
         if(avatarDownload == null) {
-            LOG.info("no avatar download yet");
             if(avatarUrl != null) {
+                LOG.info("new avatar for contact " + contact.getClientContactId());
                 avatarDownload = new TalkClientDownload();
                 avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
             }
@@ -1311,24 +1307,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 return;
             }
             String downloadUrl = avatarDownload.getUrl();
-            LOG.info("avatar download is " + avatarDownload.getClientDownloadId());
-            LOG.info("download url " + downloadUrl);
             if(avatarUrl != null) {
                 if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
-                    LOG.info("avatar has changed");
-                    if(downloadUrl != null) {
-                        LOG.info("old avatar url " + downloadUrl);
-                    }
+                    LOG.info("new avatar for contact " + contact.getClientContactId());
                     avatarDownload = new TalkClientDownload();
                     avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
                 } else {
-                    LOG.info("avatar is the same");
+                    LOG.debug("avatar not changed for contact " + contact.getClientContactId());
                 }
             }
         }
 
         if(avatarDownload != null) {
-            LOG.info("setting avatar download");
             contact.setAvatarDownload(avatarDownload);
         }
     }
@@ -1338,19 +1328,19 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         String currentKeyId = client.getClientPresence().getKeyId();
         if(currentKeyId == null || currentKeyId.isEmpty()) {
-            LOG.info("client " + clientId + " has no key id");
+            LOG.warn("client " + clientId + " has no key id");
             return;
         }
 
         TalkKey clientKey = client.getPublicKey();
         if(clientKey != null) {
             if(clientKey.getKeyId().equals(currentKeyId)) {
-                LOG.info("client " + clientId + " has current key");
+                LOG.debug("client " + clientId + " has current key");
                 return;
             }
         }
 
-        LOG.info("retrieving key " + currentKeyId + " for client " + clientId);
+        LOG.debug("retrieving key " + currentKeyId + " for client " + clientId);
         TalkKey key = mServerRpc.getKey(client.getClientId(), currentKeyId);
         if(key != null) {
             try {
