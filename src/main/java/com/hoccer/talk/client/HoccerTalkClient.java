@@ -1,7 +1,6 @@
 package com.hoccer.talk.client;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -1218,11 +1217,20 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     private void updateIncomingDelivery(final TalkDelivery delivery, final TalkMessage message) {
         LOG.debug("updateIncomingDelivery(" + delivery.getMessageId() + ")");
         boolean newMessage = false;
-        TalkClientContact clientContact = null;
+        TalkClientContact groupContact = null;
+        TalkClientContact senderContact = null;
         TalkClientMessage clientMessage = null;
         try {
-            clientContact = mDatabase.findContactByClientId(message.getSenderId(), false);
-            if(clientContact == null) {
+            String groupId = delivery.getGroupId();
+            if(groupId != null) {
+                groupContact = mDatabase.findContactByGroupId(groupId, false);
+                if(groupContact == null) {
+                    LOG.warn("incoming message in unknown group " + groupId);
+                    return;
+                }
+            }
+            senderContact = mDatabase.findContactByClientId(message.getSenderId(), false);
+            if(senderContact == null) {
                 LOG.warn("incoming message from unknown client " + message.getSenderId());
                 return;
             }
@@ -1232,11 +1240,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), true);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("sql error", e);
             return;
         }
 
-        clientMessage.setContact(clientContact);
+        clientMessage.setSenderContact(senderContact);
+
+        if(groupContact == null) {
+            clientMessage.setConversationContact(senderContact);
+        } else {
+            clientMessage.setConversationContact(groupContact);
+        }
+
         clientMessage.updateIncoming(delivery, message);
 
         try {

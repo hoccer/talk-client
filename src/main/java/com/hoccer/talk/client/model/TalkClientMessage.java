@@ -21,7 +21,10 @@ public class TalkClientMessage {
     private String messageTag;
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
-    private TalkClientContact contact;
+    private TalkClientContact conversationContact;
+
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    private TalkClientContact senderContact;
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkMessage message;
@@ -63,12 +66,20 @@ public class TalkClientMessage {
         this.messageTag = messageTag;
     }
 
-    public TalkClientContact getContact() {
-        return contact;
+    public TalkClientContact getConversationContact() {
+        return conversationContact;
     }
 
-    public void setContact(TalkClientContact contact) {
-        this.contact = contact;
+    public void setConversationContact(TalkClientContact conversationContact) {
+        this.conversationContact = conversationContact;
+    }
+
+    public TalkClientContact getSenderContact() {
+        return senderContact;
+    }
+
+    public void setSenderContact(TalkClientContact senderContact) {
+        this.senderContact = senderContact;
     }
 
     public TalkMessage getMessage() {
