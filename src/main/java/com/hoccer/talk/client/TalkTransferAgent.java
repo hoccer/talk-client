@@ -53,26 +53,30 @@ public class TalkTransferAgent {
 
     public void requestDownload(final TalkClientDownload download) {
         synchronized (mDownloadsById) {
-            int downloadId = download.getClientDownloadId();
+            final int downloadId = download.getClientDownloadId();
             if(!mDownloadsById.containsKey(downloadId)) {
                 TalkClientDownload.State state = download.getState();
                 if(state == TalkClientDownload.State.COMPLETE) {
-                    LOG.info("No need to download " + downloadId);
+                    LOG.debug("no need to download " + downloadId);
                     return;
                 }
                 if(state == TalkClientDownload.State.FAILED) {
-                    LOG.info("Can't resume failed download " + downloadId);
+                    LOG.warn("can't resume failed download " + downloadId);
                     return;
                 }
 
-                LOG.info("requesting download " + downloadId);
+                LOG.debug("requesting download " + downloadId);
 
                 mDownloadsById.put(downloadId, download);
 
                 mExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
+                        LOG.info("performing download " + downloadId + " in state " + download.getState());
                         download.performDownloadAttempt(mHttpClient, mClient.getDatabase(), mClient);
+                        synchronized (mDownloadsById) {
+                            mDownloadsById.remove(downloadId);
+                        }
                     }
                 });
             }
