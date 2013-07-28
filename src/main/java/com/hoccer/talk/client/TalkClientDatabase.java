@@ -112,6 +112,14 @@ public class TalkClientDatabase {
         mClientUploads.createOrUpdate(upload);
     }
 
+    public void refreshClientDownload(TalkClientDownload download) throws SQLException {
+        mClientDownloads.refresh(download);
+    }
+
+    public void refreshClientUpload(TalkClientUpload upload) throws SQLException {
+        mClientUploads.refresh(upload);
+    }
+
     public TalkClientContact findClientContactById(int clientContactId) throws SQLException {
         return mClientContacts.queryForId(clientContactId);
     }
