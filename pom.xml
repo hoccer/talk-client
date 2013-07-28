@@ -54,6 +54,12 @@
       <artifactId>bson4jackson</artifactId>
       <version>${bson4jackson.version}</version>
     </dependency>
+    <!-- HTTP client for transfers -->
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+      <version>${apache.httpclient.version}</version>
+    </dependency>
   </dependencies>
   
   <build>
