@@ -3,6 +3,7 @@ package com.hoccer.talk.client;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.*;
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.crypto.RSACryptor;
@@ -89,6 +91,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     ITalkClientDatabaseBackend mDatabaseBackend;
     /* The database instance we use */
     TalkClientDatabase mDatabase;
+
+    String mAvatarDirectory;
+
+    TalkTransferAgent mTransferAgent;
 
     /** Factory for underlying websocket connections */
     WebSocketClientFactory mClientFactory;
@@ -189,7 +195,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         // create RPC proxy
 		mServerRpc = mConnection.makeProxy(ITalkRpcServer.class);
+
+        // create transfer agent
+        mTransferAgent = new TalkTransferAgent(this);
 	}
+
+    public String getAvatarDirectory() {
+        return mAvatarDirectory;
+    }
+
+    public void setAvatarDirectory(String avatarDirectory) {
+        this.mAvatarDirectory = avatarDirectory;
+    }
 
     public URI getServiceUri() {
         return mConnection.getServiceUri();
@@ -1226,10 +1243,25 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         clientContact.updatePresence(presence);
 
         try {
+            updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
+        } catch (MalformedURLException e) {
+            LOG.warn("Malformed avatar url", e);
+        }
+
+        TalkClientDownload avatarDownload = clientContact.getAvatarDownload();
+        try {
+            if(avatarDownload != null) {
+                LOG.info("saving avatar download with url " + avatarDownload.getUrl());
+                mDatabase.saveClientDownload(avatarDownload);
+            }
             mDatabase.savePresence(clientContact.getClientPresence());
             mDatabase.saveContact(clientContact);
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+        if(avatarDownload != null) {
+            LOG.info("requesting avatar download");
+            mTransferAgent.requestDownload(avatarDownload);
         }
 
         final TalkClientContact fContact = clientContact;
@@ -1242,6 +1274,40 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         for(ITalkClientListener listener: mListeners) {
             listener.onClientPresenceChanged(clientContact);
+        }
+    }
+
+    private void updateAvatarDownload(TalkClientContact contact, String avatarUrl, String avatarId, Date avatarTimestamp) throws MalformedURLException {
+        boolean avatarChanged = false;
+        TalkClientDownload avatarDownload = contact.getAvatarDownload();
+        LOG.info("avatar url " + avatarUrl);
+        if(avatarDownload == null) {
+            LOG.info("no avatar download yet");
+            if(avatarUrl != null) {
+                avatarDownload = new TalkClientDownload();
+                avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
+            }
+        } else {
+            String downloadUrl = avatarDownload.getUrl();
+            LOG.info("avatar download is " + avatarDownload.getClientDownloadId());
+            LOG.info("download url " + downloadUrl);
+            if(avatarUrl != null) {
+                if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
+                    LOG.info("avatar has changed");
+                    if(downloadUrl != null) {
+                        LOG.info("old avatar url " + downloadUrl);
+                    }
+                    avatarDownload = new TalkClientDownload();
+                    avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
+                } else {
+                    LOG.info("avatar is the same");
+                }
+            }
+        }
+
+        if(avatarDownload != null) {
+            LOG.info("setting avatar download");
+            contact.setAvatarDownload(avatarDownload);
         }
     }
 
@@ -1322,10 +1388,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         contact.updateGroupPresence(group);
 
         try {
+            updateAvatarDownload(contact, group.getGroupAvatarUrl(), "g-" + group.getGroupId(), group.getLastChanged());
+        } catch (MalformedURLException e) {
+            LOG.warn("Malformed avatar URL", e);
+        }
+
+        TalkClientDownload avatarDownload = contact.getAvatarDownload();
+        try {
+            if(avatarDownload != null) {
+                mDatabase.saveClientDownload(avatarDownload);
+            }
             mDatabase.saveGroup(contact.getGroupPresence());
             mDatabase.saveContact(contact);
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+        if(avatarDownload != null) {
+            mTransferAgent.requestDownload(avatarDownload);
         }
 
         for(ITalkClientListener listener: mListeners) {

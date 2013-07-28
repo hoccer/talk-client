@@ -1,9 +1,6 @@
 package com.hoccer.talk.client;
 
-import com.hoccer.talk.client.model.TalkClientContact;
-import com.hoccer.talk.client.model.TalkClientMembership;
-import com.hoccer.talk.client.model.TalkClientMessage;
-import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
 import org.apache.log4j.Logger;
@@ -34,6 +31,10 @@ public class TalkClientDatabase {
     Dao<TalkKey, Long> mPublicKeys;
     Dao<TalkPrivateKey, Long> mPrivateKeys;
 
+    Dao<TalkClientDownload, Integer> mClientDownloads;
+    Dao<TalkClientUpload, Integer> mClientUploads;
+
+
     public TalkClientDatabase(ITalkClientDatabaseBackend backend) {
         mBackend = backend;
     }
@@ -54,6 +55,9 @@ public class TalkClientDatabase {
 
         mPublicKeys = mBackend.getDao(TalkKey.class);
         mPrivateKeys = mBackend.getDao(TalkPrivateKey.class);
+
+        mClientDownloads = mBackend.getDao(TalkClientDownload.class);
+        mClientUploads = mBackend.getDao(TalkClientUpload.class);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
@@ -98,6 +102,14 @@ public class TalkClientDatabase {
 
     public void savePrivateKey(TalkPrivateKey privateKey) throws SQLException {
         mPrivateKeys.createOrUpdate(privateKey);
+    }
+
+    public void saveClientDownload(TalkClientDownload download) throws SQLException {
+        mClientDownloads.createOrUpdate(download);
+    }
+
+    public void saveClientUpload(TalkClientUpload upload) throws SQLException {
+        mClientUploads.createOrUpdate(upload);
     }
 
     public TalkClientContact findClientContactById(int clientContactId) throws SQLException {

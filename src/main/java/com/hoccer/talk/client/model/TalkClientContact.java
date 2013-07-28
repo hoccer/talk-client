@@ -63,6 +63,9 @@ public class TalkClientContact {
 
     @ForeignCollectionField(eager = false, foreignFieldName = "groupContact")
     private ForeignCollection<TalkClientMembership> groupMemberships;
+
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    private TalkClientDownload avatarDownload;
     
 
     public TalkClientContact() {
@@ -157,6 +160,16 @@ public class TalkClientContact {
         return "";
     }
 
+    public TalkClientDownload getAvatarDownload() {
+        ensureClientOrGroup();
+        return avatarDownload;
+    }
+
+    public void setAvatarDownload(TalkClientDownload avatarDownload) {
+        ensureClientOrGroup();
+        this.avatarDownload = avatarDownload;
+    }
+
     private void ensureSelf() {
         if(!isSelf()) {
             throw new RuntimeException("Client is not of type self");
@@ -172,6 +185,12 @@ public class TalkClientContact {
     private void ensureClientOrSelf() {
         if(!(isClient() || isSelf())) {
             throw new RuntimeException("Client is not of type client or self");
+        }
+    }
+
+    private void ensureClientOrGroup() {
+        if(!(isClient() || isGroup())) {
+            throw new RuntimeException("Client is not of type client or group");
         }
     }
 
