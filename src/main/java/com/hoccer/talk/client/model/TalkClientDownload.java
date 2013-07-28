@@ -67,7 +67,7 @@ public class TalkClientDownload extends TalkTransfer {
     public void initializeAsAvatar(String url, String id, Date timestamp) throws MalformedURLException {
         this.type = Type.AVATAR;
         this.url = url;
-        this.file = id + "-" + timestamp.getTime();
+        this.file = id + "-" + timestamp.getTime() + ".png";
     }
 
     public void initializeAsAttachment(TalkAttachment attachment) {
@@ -119,6 +119,10 @@ public class TalkClientDownload extends TalkTransfer {
 
     public long getProgress() {
         return progress;
+    }
+
+    public File getAvatarFile(File avatarDirectory) {
+        return new File(avatarDirectory, this.file);
     }
 
     private String computeFileName(HoccerTalkClient client) {

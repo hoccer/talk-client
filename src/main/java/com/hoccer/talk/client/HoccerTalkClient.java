@@ -1129,6 +1129,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void sendPresence() {
+        LOG.debug("sendPresence()");
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
@@ -1208,10 +1209,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 }
             });
         }
+
+        for(ITalkClientListener listener: mListeners) {
+            listener.onMessageStateChanged(clientMessage);
+        }
     }
 
     private void updateIncomingDelivery(final TalkDelivery delivery, final TalkMessage message) {
         LOG.debug("updateIncomingDelivery(" + delivery.getMessageId() + ")");
+        boolean newMessage = false;
         TalkClientContact clientContact = null;
         TalkClientMessage clientMessage = null;
         try {
@@ -1220,12 +1226,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 LOG.warn("incoming message from unknown client " + message.getSenderId());
                 return;
             }
-            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), true);
+            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+            if(clientMessage == null) {
+                newMessage = true;
+                clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), true);
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             return;
         }
 
+        clientMessage.setContact(clientContact);
         clientMessage.updateIncoming(delivery, message);
 
         try {
@@ -1243,6 +1254,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     mServerRpc.deliveryConfirm(delivery.getMessageId());
                 }
             });
+        }
+
+        for(ITalkClientListener listener: mListeners) {
+            if(newMessage) {
+                listener.onMessageAdded(clientMessage);
+            } else {
+                listener.onMessageStateChanged(clientMessage);
+            }
         }
     }
 

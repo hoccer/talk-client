@@ -66,6 +66,9 @@ public class TalkClientContact {
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
     private TalkClientDownload avatarDownload;
+
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    private TalkClientUpload avatarUpload;
     
 
     public TalkClientContact() {
@@ -168,6 +171,16 @@ public class TalkClientContact {
     public void setAvatarDownload(TalkClientDownload avatarDownload) {
         ensureClientOrGroup();
         this.avatarDownload = avatarDownload;
+    }
+
+    public TalkClientUpload getAvatarUpload() {
+        ensureSelf();
+        return avatarUpload;
+    }
+
+    public void setAvatarUpload(TalkClientUpload avatarUpload) {
+        ensureSelf();
+        this.avatarUpload = avatarUpload;
     }
 
     private void ensureSelf() {
