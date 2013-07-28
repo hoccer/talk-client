@@ -1304,6 +1304,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
             }
         } else {
+            try {
+                mDatabase.refreshClientDownload(avatarDownload);
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+                return;
+            }
             String downloadUrl = avatarDownload.getUrl();
             LOG.info("avatar download is " + avatarDownload.getClientDownloadId());
             LOG.info("download url " + downloadUrl);
