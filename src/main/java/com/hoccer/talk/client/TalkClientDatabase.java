@@ -249,4 +249,10 @@ public class TalkClientDatabase {
         return message;
     }
 
+    public List<TalkClientMessage> findMessagesByContactId(int contactId) throws SQLException {
+        return mClientMessages.queryBuilder()
+                .where().eq("contact_id", contactId)
+                .query();
+    }
+
 }
