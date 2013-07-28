@@ -1082,17 +1082,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             Date now = new Date();
             try {
                 LOG.info("generating new RSA key");
+
                 KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
 
+                LOG.info("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
                 byte[] pubEnc = RSACryptor.unwrapRSA1024_X509(pubKey.getEncoded());
                 String pubStr = Base64.encodeBase64String(pubEnc);
 
+                LOG.info("unwrapping private key");
                 PrivateKey privKey = keyPair.getPrivate();
                 byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
                 String privStr = Base64.encodeBase64String(privEnc);
 
+                LOG.info("calculating key id");
                 String kid = RSACryptor.calcKeyId(pubEnc);
+
+                LOG.info("creating database objects");
 
                 publicKey = new TalkKey();
                 publicKey.setClientId(contact.getClientId());
@@ -1109,16 +1115,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 contact.setPublicKey(publicKey);
                 contact.setPrivateKey(privateKey);
 
+                LOG.info("generated new key with kid " + kid);
+
                 mDatabase.savePublicKey(publicKey);
                 mDatabase.savePrivateKey(privateKey);
                 mDatabase.saveContact(contact);
-            } catch (NoSuchAlgorithmException e) {
-                e.printStackTrace();
-            } catch (InvalidKeyException e) {
-                e.printStackTrace();
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
+            } catch (Exception e) {
+                LOG.error("exception generating key", e);
             }
+        } else {
+            LOG.info("using key with kid " + publicKey.getKeyId());
         }
     }
 
