@@ -2,12 +2,12 @@ package com.hoccer.talk.client;
 
 public class TalkClientConfiguration {
 
-    public static final boolean USE_BSON_PROTOCOL = true;
+    public static final boolean USE_BSON_PROTOCOL = false;
 
     public static final String PROTOCOL_STRING_JSON = "com.hoccer.talk.v1";
     public static final String PROTOCOL_STRING_BSON = "com.hoccer.talk.v1.bson";
 
-    public static final String SERVER_URI = "ws://10.86.1.31:8080/";
+    public static final String SERVER_URI = "wss://server.talk.hoccer.de/";
 
     /** Connection timeout (seconds) */
     public static final int CONNECT_TIMEOUT = 10;
