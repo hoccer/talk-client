@@ -168,7 +168,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 : TalkClientConfiguration.PROTOCOL_STRING_JSON;
         mConnection = new JsonRpcWsClient(uri, protocol, wsClient, mapper);
         mConnection.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
-        mConnection.setSendKeepAlives(true);
+        mConnection.setSendKeepAlives(TalkClientConfiguration.KEEPALIVE_ENABLED);
         if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
             mConnection.setSendBinaryMessages(true);
         }
@@ -692,20 +692,22 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void scheduleKeepAlive() {
         shutdownKeepAlive();
-        mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    LOG.info("performing keep-alive");
-                    try {
-                        mConnection.sendKeepAlive();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+        if(TalkClientConfiguration.KEEPALIVE_ENABLED) {
+            mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
+                    @Override
+                    public void run() {
+                        LOG.info("performing keep-alive");
+                        try {
+                            mConnection.sendKeepAlive();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     }
-                }
-            },
-            TalkClientConfiguration.KEEPALIVE_INTERVAL,
-            TalkClientConfiguration.KEEPALIVE_INTERVAL,
-            TimeUnit.SECONDS);
+                },
+                TalkClientConfiguration.KEEPALIVE_INTERVAL,
+                TalkClientConfiguration.KEEPALIVE_INTERVAL,
+                TimeUnit.SECONDS);
+        }
     }
 
     private void shutdownConnect() {

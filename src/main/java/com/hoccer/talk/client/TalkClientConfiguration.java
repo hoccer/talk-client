@@ -15,6 +15,7 @@ public class TalkClientConfiguration {
     /** Idle timeout for client activity (seconds) */
     public static final int IDLE_TIMEOUT = 600;
 
+    public static final boolean KEEPALIVE_ENABLED = false;
     public static final int KEEPALIVE_INTERVAL = 60;
 
     /** WS connection idle timeout (msecs) */
