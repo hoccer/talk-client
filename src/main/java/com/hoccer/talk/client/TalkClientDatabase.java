@@ -251,7 +251,7 @@ public class TalkClientDatabase {
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder()
-                .where().eq("contact_id", contactId)
+                .where().eq("conversationContact_id", contactId)
                 .query();
     }
 

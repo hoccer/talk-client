@@ -222,6 +222,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return mDatabase;
     }
 
+    public TalkTransferAgent getTransferAgent() {
+        return mTransferAgent;
+    }
+
     /**
      * @return the RPC proxy towards the server
      */
@@ -1292,8 +1296,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         clientContact.updatePresence(presence);
 
+        boolean needDownload = false;
         try {
-            updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
+            needDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
         } catch (MalformedURLException e) {
             LOG.warn("malformed avatar url", e);
         }
@@ -1308,7 +1313,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        if(avatarDownload != null) {
+        if(avatarDownload != null && needDownload) {
             mTransferAgent.requestDownload(avatarDownload);
         }
 
@@ -1325,23 +1330,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
-    private void updateAvatarDownload(TalkClientContact contact, String avatarUrl, String avatarId, Date avatarTimestamp) throws MalformedURLException {
+    private boolean updateAvatarDownload(TalkClientContact contact, String avatarUrl, String avatarId, Date avatarTimestamp) throws MalformedURLException {
+        boolean haveUrl = avatarUrl != null && !avatarUrl.isEmpty();
+        if(!haveUrl) {
+            LOG.warn("no avatar url for contact " + contact.getClientContactId());
+            return false;
+        }
+
         TalkClientDownload avatarDownload = contact.getAvatarDownload();
         if(avatarDownload == null) {
-            if(avatarUrl != null) {
+            if(haveUrl) {
                 LOG.info("new avatar for contact " + contact.getClientContactId());
                 avatarDownload = new TalkClientDownload();
                 avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
             }
         } else {
-            try {
-                mDatabase.refreshClientDownload(avatarDownload);
-            } catch (SQLException e) {
-                LOG.error("sql error", e);
-                return;
-            }
             String downloadUrl = avatarDownload.getUrl();
-            if(avatarUrl != null) {
+            if(haveUrl) {
                 if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
                     LOG.info("new avatar for contact " + contact.getClientContactId());
                     avatarDownload = new TalkClientDownload();
@@ -1354,7 +1359,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         if(avatarDownload != null) {
             contact.setAvatarDownload(avatarDownload);
+            return true;
         }
+
+        return false;
     }
 
     private void requestClientKey(TalkClientContact client) {
