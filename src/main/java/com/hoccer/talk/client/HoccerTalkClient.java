@@ -1256,6 +1256,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             clientMessage.setConversationContact(groupContact);
         }
 
+        if(delivery.getKeyId() == null) {
+            clientMessage.setText(message.getBody());
+        } else {
+            // XXX decrypt
+        }
+
         clientMessage.updateIncoming(delivery, message);
 
         try {

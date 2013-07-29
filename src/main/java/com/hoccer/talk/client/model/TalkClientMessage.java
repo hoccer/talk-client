@@ -35,6 +35,9 @@ public class TalkClientMessage {
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkDelivery outgoingDelivery;
 
+    @DatabaseField(width = 2048)
+    private String text;
+
     public TalkClientMessage() {
     }
 
@@ -104,6 +107,14 @@ public class TalkClientMessage {
 
     public void setOutgoingDelivery(TalkDelivery outgoingDelivery) {
         this.outgoingDelivery = outgoingDelivery;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
     }
 
     public void updateIncoming(TalkDelivery delivery, TalkMessage message) {
