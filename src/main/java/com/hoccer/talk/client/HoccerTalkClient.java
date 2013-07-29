@@ -1296,9 +1296,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         clientContact.updatePresence(presence);
 
-        boolean needDownload = false;
+        boolean wantDownload = false;
         try {
-            needDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
+            wantDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
         } catch (MalformedURLException e) {
             LOG.warn("malformed avatar url", e);
         }
@@ -1313,7 +1313,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        if(avatarDownload != null && needDownload) {
+        if(avatarDownload != null && wantDownload) {
             mTransferAgent.requestDownload(avatarDownload);
         }
 
@@ -1337,32 +1337,46 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             return false;
         }
 
+        boolean wantDownload = false;
         TalkClientDownload avatarDownload = contact.getAvatarDownload();
         if(avatarDownload == null) {
             if(haveUrl) {
                 LOG.info("new avatar for contact " + contact.getClientContactId());
                 avatarDownload = new TalkClientDownload();
                 avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
+                wantDownload = true;
             }
         } else {
+            try {
+                mDatabase.refreshClientDownload(avatarDownload);
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+                return false;
+            }
             String downloadUrl = avatarDownload.getUrl();
             if(haveUrl) {
                 if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
                     LOG.info("new avatar for contact " + contact.getClientContactId());
+                    LOG.info("o: " + downloadUrl);
+                    LOG.info("n: " + avatarUrl);
                     avatarDownload = new TalkClientDownload();
                     avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
+                    wantDownload = true;
                 } else {
                     LOG.debug("avatar not changed for contact " + contact.getClientContactId());
+                    TalkClientDownload.State state = avatarDownload.getState();
+                    if(!state.equals(TalkClientDownload.State.COMPLETE) && !state.equals(TalkClientDownload.State.FAILED)) {
+                        wantDownload = true;
+                    }
                 }
             }
         }
 
         if(avatarDownload != null) {
             contact.setAvatarDownload(avatarDownload);
-            return true;
         }
 
-        return false;
+        return wantDownload;
     }
 
     private void requestClientKey(TalkClientContact client) {
