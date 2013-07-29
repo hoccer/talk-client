@@ -4,6 +4,7 @@ import com.google.appengine.api.blobstore.ByteRange;
 import com.hoccer.talk.client.HoccerTalkClient;
 import com.hoccer.talk.client.TalkClientDatabase;
 import com.hoccer.talk.client.TalkTransfer;
+import com.hoccer.talk.client.TalkTransferAgent;
 import com.hoccer.talk.model.TalkAttachment;
 import com.hoccer.talk.model.TalkPresence;
 import com.j256.ormlite.field.DatabaseField;
@@ -64,7 +65,14 @@ public class TalkClientDownload extends TalkTransfer {
         this.contentLength = -1;
     }
 
-    public void initializeAsAvatar(String url, String id, Date timestamp) throws MalformedURLException {
+    /**
+     * Initialize this download as an avatar download
+     *
+     * @param url to download
+     * @param id for avatar, identifying what the avatar belongs to
+     * @param timestamp for avatar, takes care of collisions over id
+     */
+    public void initializeAsAvatar(String url, String id, Date timestamp) {
         this.type = Type.AVATAR;
         this.url = url;
         this.file = id + "-" + timestamp.getTime() + ".png";
@@ -127,18 +135,23 @@ public class TalkClientDownload extends TalkTransfer {
 
     private String computeFileName(HoccerTalkClient client) {
         if(this.file == null) {
+            LOG.warn("file without filename");
             return null;
         }
         if(type == Type.AVATAR) {
             return client.getAvatarDirectory() + File.separator + this.file;
         }
+        LOG.info("file of unhandled type");
         return null;
     }
 
-    public void performDownloadAttempt(HttpClient client, TalkClientDatabase database, HoccerTalkClient talkClient) {
+    public void performDownloadAttempt(TalkTransferAgent agent) {
+        TalkClientDatabase database = agent.getDatabase();
+        HoccerTalkClient talkClient = agent.getClient();
         String filename = computeFileName(talkClient);
         if(filename == null) {
-            LOG.error("Could not determine filename for download " + clientDownloadId);
+            LOG.error("could not determine filename for download " + clientDownloadId);
+            return;
         }
         LOG.info("filename is " + filename);
 
@@ -151,7 +164,7 @@ public class TalkClientDownload extends TalkTransfer {
             LOG.warn("Tried to perform failed download");
         }
         if(state == State.NEW) {
-            switchState(State.STARTED);
+            switchState(agent, State.STARTED);
             changed = true;
         }
 
@@ -163,7 +176,7 @@ public class TalkClientDownload extends TalkTransfer {
             }
         }
 
-        boolean success = performOneRequest(client, filename);
+        boolean success = performOneRequest(agent, filename);
         if(!success) {
             LOG.info("download attempt failed");
             failedAttempts++;
@@ -178,8 +191,13 @@ public class TalkClientDownload extends TalkTransfer {
         }
     }
 
-    private boolean performOneRequest(HttpClient client, String filename) {
+    private boolean performOneRequest(TalkTransferAgent agent, String filename) {
+        HttpClient client = agent.getHttpClient();
+        TalkClientDatabase database = agent.getDatabase();
+        RandomAccessFile raf = null;
+        FileDescriptor fd = null;
         try {
+            LOG.info("GET " + url + " starting");
             // create the GET request
             HttpGet request = new HttpGet(url);
             // if we have a content length then we can do range requests
@@ -195,7 +213,7 @@ public class TalkClientDownload extends TalkTransfer {
             if(sc != HttpStatus.SC_OK && sc != HttpStatus.SC_PARTIAL_CONTENT) {
                 // client error - mark as failed
                 if(sc >= 400 && sc <= 499) {
-                    markFailed();
+                    markFailed(agent);
                 }
                 return false;
             }
@@ -205,20 +223,20 @@ public class TalkClientDownload extends TalkTransfer {
                 String contentLengthString = contentLengthHeader.getValue();
                 int contentLengthValue = Integer.valueOf(contentLengthString);
                 if(contentLength == -1) {
-                    LOG.info("GET " + url + " content-length " + contentLengthValue);
+                    LOG.info("GET " + url + " content length " + contentLengthValue);
                     setContentLength(contentLengthValue);
                 } else {
                     if(contentLength != contentLengthValue) {
                         LOG.error("Content length of file changed");
-                        markFailed();
+                        markFailed(agent);
                         return false;
                     }
                 }
             }
             // check we have a content length
             if(contentLength == -1) {
-                LOG.error("Unknown content length");
-                markFailed();
+                LOG.error("GET " + url + " unknown content length");
+                markFailed(agent);
                 return false;
             }
             // parse content range from response
@@ -244,8 +262,9 @@ public class TalkClientDownload extends TalkTransfer {
             // create and open destination file
             File f = new File(filename);
             f.createNewFile();
-            RandomAccessFile raf = new RandomAccessFile(f, "rw");
+            raf = new RandomAccessFile(f, "rw");
             raf.setLength(contentLength);
+            fd = raf.getFD();
             // get ourselves a buffer
             byte[] buffer = new byte[1<<16];
             // determine what to copy
@@ -253,8 +272,8 @@ public class TalkClientDownload extends TalkTransfer {
             int bytesToGo = contentLength - progress;
             if(contentRange != null) {
                 if(contentRange.getStart() != progress) {
-                    LOG.error("Server did not start where we told it to");
-                    markFailed();
+                    LOG.error("GET " + url + " server returned wrong offset");
+                    markFailed(agent);
                     return false;
                 }
                 if(contentRange.hasEnd()) {
@@ -265,43 +284,62 @@ public class TalkClientDownload extends TalkTransfer {
             raf.seek(bytesStart);
             // copy data
             while(bytesToGo > 0) {
+                // determine how much to copy
                 int bytesToRead = Math.min(buffer.length, bytesToGo);
+                // perform the copy
                 int bytesRead = is.read(buffer, 0, bytesToRead);
                 raf.write(buffer, 0, bytesRead);
+                // sync the file
+                fd.sync();
+                // update state
+                progress += bytesRead;
                 bytesToGo -= bytesRead;
+                // update db
+                database.saveClientDownload(this);
+                // call listeners
+                agent.onDownloadProgress(this);
             }
-            // final sync
-            raf.getFD().sync();
+            // update state
+            if(progress == contentLength && state != State.COMPLETE) {
+                switchState(agent, State.COMPLETE);
+            }
+            // update db
+            database.saveClientDownload(this);
             // close streams
+            fd = null;
             raf.close();
             is.close();
-            // update state
-            progress = progress + bytesToGo;
-            if(progress == contentLength && state != State.COMPLETE) {
-                switchState(State.COMPLETE);
+        } catch (Exception e) {
+            LOG.error("download exception", e);
+            return false;
+        } finally {
+            if(fd != null) {
+                try {
+                    fd.sync();
+                } catch (SyncFailedException sfe) {
+                    LOG.warn("sync failed while handling download exception", sfe);
+                }
             }
-        } catch (ClientProtocolException e) {
-            LOG.error("Download exception", e);
-            return false;
-        } catch (IOException e) {
-            LOG.error("Download exception", e);
-            return false;
-        } catch (Throwable t) {
-            LOG.error("Download throwable", t);
-            return false;
+            try {
+                database.saveClientDownload(this);
+            } catch (SQLException sqle) {
+                LOG.warn("save failed while handling download exception", sqle);
+            }
         }
 
-        switchState(State.COMPLETE);
+        switchState(agent, State.COMPLETE);
+
         return true;
     }
 
-    private void markFailed() {
-        switchState(State.FAILED);
+    private void markFailed(TalkTransferAgent agent) {
+        switchState(agent, State.FAILED);
     }
 
-    private void switchState(State newState) {
+    private void switchState(TalkTransferAgent agent, State newState) {
         LOG.info("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
+        agent.onDownloadStateChanged(this);
     }
 
 }
