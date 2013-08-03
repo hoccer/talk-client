@@ -1,11 +1,13 @@
 package com.hoccer.talk.client;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.*;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
@@ -28,6 +30,7 @@ import com.hoccer.talk.client.model.TalkClientContact;
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
@@ -43,6 +46,10 @@ import org.bouncycastle.crypto.agreement.srp.SRP6VerifierGenerator;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.eclipse.jetty.websocket.WebSocketClient;
 import org.eclipse.jetty.websocket.WebSocketClientFactory;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
@@ -1034,10 +1041,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             TalkMessage[] messages = new TalkMessage[clientMessages.size()];
             int i = 0;
             for(TalkClientMessage clientMessage: clientMessages) {
+                LOG.info("preparing " + clientMessage.getClientMessageId());
                 deliveries[i] = clientMessage.getOutgoingDelivery();
                 messages[i] = clientMessage.getMessage();
+                try {
+                    encryptMessage(clientMessage, deliveries[i], messages[i]);
+                } catch (Throwable t) {
+                    LOG.error("error encrypting", t);
+                }
+                i++;
             }
             for(i = 0; i < messages.length; i++) {
+                LOG.info("delivering " + i);
                 TalkDelivery[] delivery = new TalkDelivery[1];
                 delivery[0] = deliveries[i];
                 TalkDelivery[] resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
@@ -1256,11 +1271,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             clientMessage.setConversationContact(groupContact);
         }
 
-        if(delivery.getKeyId() == null) {
-            clientMessage.setText(message.getBody());
-        } else {
-            // XXX decrypt
-        }
+        decryptMessage(clientMessage, delivery, message);
 
         clientMessage.updateIncoming(delivery, message);
 
@@ -1287,6 +1298,122 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             } else {
                 listener.onMessageStateChanged(clientMessage);
             }
+        }
+    }
+
+    byte[] nullsalt = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+    private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
+
+        clientMessage.setText("<Unreadable>");
+
+        try {
+            String keyId = delivery.getKeyId();
+            if(keyId == null) {
+                clientMessage.setText(message.getBody());
+            } else {
+                TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
+                if(talkPrivateKey != null) {
+                    PrivateKey privateKey = talkPrivateKey.getAsNative();
+                    if(privateKey != null) {
+
+                        byte[] decKey = null;
+                        byte[] decryptedBody = null;
+                        String body = "";
+                        try {
+                            decKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(delivery.getKeyCiphertext()));
+                            decryptedBody = AESCryptor.decrypt(decKey, nullsalt, Base64.decodeBase64(message.getBody()));
+                            body = new String(decryptedBody, "UTF-8");
+                        } catch (NoSuchPaddingException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (NoSuchAlgorithmException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (InvalidKeyException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (BadPaddingException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (IllegalBlockSizeException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (InvalidAlgorithmParameterException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (IOException e) {
+                            LOG.error("error decrypting", e);
+                        }
+                        LOG.info("message: " + body);
+                        clientMessage.setText(body);
+                    } else {
+                        LOG.warn("could not decode private key");
+                    }
+                } else {
+                    LOG.warn("no private key for keyId " + keyId);
+                }
+            }
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
+    }
+
+    private void encryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
+        if(message.getBody() != null) {
+            //return;
+        }
+
+        LOG.info("encrypting message " + clientMessage.getClientMessageId());
+
+        TalkClientContact receiver = clientMessage.getConversationContact();
+        if(receiver == null) {
+            LOG.error("no receiver");
+            return;
+        }
+        LOG.info("receiver is " + receiver.getClientContactId());
+
+        try {
+            receiver = mDatabase.findClientContactById(receiver.getClientContactId());
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
+
+        TalkKey talkPublicKey = receiver.getPublicKey();
+        if(talkPublicKey == null) {
+            LOG.error("no pubkey for encryption");
+            return;
+        }
+
+        LOG.info("got tpk");
+
+        PublicKey publicKey = talkPublicKey.getAsNative();
+        if(publicKey == null) {
+            LOG.error("could not get public key for encryption");
+            return;
+        }
+
+        LOG.info("got pk");
+
+        LOG.info("generating key");
+        byte[] plainKey = AESCryptor.makeRandomBytes(32);
+        try {
+            LOG.info("encrypting key");
+            byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
+            delivery.setKeyId(talkPublicKey.getKeyId());
+            delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
+            LOG.info("encrypting body");
+            byte[] encryptedBody = AESCryptor.encrypt(plainKey, nullsalt, message.getBody().getBytes());
+            message.setBody(Base64.encodeBase64String(encryptedBody));
+        } catch (NoSuchPaddingException e) {
+            LOG.error("error encrypting", e);
+        } catch (NoSuchAlgorithmException e) {
+            LOG.error("error encrypting", e);
+        } catch (InvalidKeyException e) {
+            LOG.error("error encrypting", e);
+        } catch (BadPaddingException e) {
+            LOG.error("error encrypting", e);
+        } catch (IllegalBlockSizeException e) {
+            LOG.error("error encrypting", e);
+        } catch (InvalidAlgorithmParameterException e) {
+            LOG.error("error encrypting", e);
+        } catch (UnsupportedEncodingException e) {
+            LOG.error("error encrypting", e);
         }
     }
 

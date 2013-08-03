@@ -259,4 +259,7 @@ public class TalkClientDatabase {
                 .query();
     }
 
+    public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
+        return mPrivateKeys.queryBuilder().where().eq("keyId", keyId).queryForFirst();
+    }
 }
