@@ -35,6 +35,12 @@ public class TalkClientMessage {
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkDelivery outgoingDelivery;
 
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
+    private TalkClientUpload attachmentUpload;
+
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
+    private TalkClientDownload attachmentDownload;
+
     @DatabaseField(width = 2048)
     private String text;
 
@@ -107,6 +113,22 @@ public class TalkClientMessage {
 
     public void setOutgoingDelivery(TalkDelivery outgoingDelivery) {
         this.outgoingDelivery = outgoingDelivery;
+    }
+
+    public TalkClientUpload getAttachmentUpload() {
+        return attachmentUpload;
+    }
+
+    public void setAttachmentUpload(TalkClientUpload attachmentUpload) {
+        this.attachmentUpload = attachmentUpload;
+    }
+
+    public TalkClientDownload getAttachmentDownload() {
+        return attachmentDownload;
+    }
+
+    public void setAttachmentDownload(TalkClientDownload attachmentDownload) {
+        this.attachmentDownload = attachmentDownload;
     }
 
     public String getText() {
