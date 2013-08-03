@@ -3,12 +3,17 @@ package com.hoccer.talk.client.model;
 import com.hoccer.talk.client.HoccerTalkClient;
 import com.hoccer.talk.client.TalkClientDatabase;
 import com.hoccer.talk.client.TalkTransfer;
+import com.hoccer.talk.client.TalkTransferAgent;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
+import org.apache.http.Header;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -24,7 +29,7 @@ public class TalkClientUpload extends TalkTransfer {
     }
 
     @DatabaseField(generatedId = true)
-    private int clientDownloadId;
+    private int clientUploadId;
 
     @DatabaseField
     private Type type;
@@ -54,6 +59,22 @@ public class TalkClientUpload extends TalkTransfer {
         super(Direction.UPLOAD);
     }
 
+    public int getClientUploadId() {
+        return clientUploadId;
+    }
+
+    public State getState() {
+        return state;
+    }
+
+    public Type getType() {
+        return type;
+    }
+
+    public void initializeAsAvatar() {
+        this.type = Type.AVATAR;
+    }
+
     public void performUploadAttempt(HttpClient client, TalkClientDatabase database, HoccerTalkClient talkClient) {
         boolean changed = false;
         if(state == State.COMPLETE) {
@@ -80,7 +101,7 @@ public class TalkClientUpload extends TalkTransfer {
             }
         }
 
-        boolean success = performOneRequest(client);
+        boolean success = performOneRequest(talkClient.getTransferAgent());
         if(!success) {
             failedAttempts++;
         }
@@ -99,14 +120,54 @@ public class TalkClientUpload extends TalkTransfer {
         state = State.REGISTERED;
     }
 
-    private boolean performOneRequest(HttpClient client) {
+    private boolean performOneRequest(TalkTransferAgent agent) {
+        HttpClient client = agent.getHttpClient();
         try {
             HttpHead headRequest = new HttpHead(uploadUrl);
             HttpResponse headResponse = client.execute(headRequest);
+            int headSc = headResponse.getStatusLine().getStatusCode();
+            LOG.info("HEAD returned " + headSc);
+            if(headSc != HttpStatus.SC_OK) {
+                // client error - mark as failed
+                if(headSc >= 400 && headSc <= 499) {
+                    markFailed(agent);
+                }
+                return false;
+            }
+
+            Header[] hdrs = headResponse.getAllHeaders();
+            for(int i = 0; i < hdrs.length; i++) {
+                Header h = hdrs[i];
+                LOG.info("HEAD header: " + h.getName() + ": " + h.getValue());
+            }
+
+            return false;
+
+/*            HttpPut putRequest = new HttpPut(uploadUrl);
+            HttpResponse putResponse = client.execute(putRequest);
+            int putSc = putResponse.getStatusLine().getStatusCode();
+            LOG.info("PUT returned " + putSc);
+            if(putSc != HttpStatus.SC_OK) {
+                // client error - mark as failed
+                if(putSc >= 400 && putSc <= 499) {
+                    markFailed(agent);
+                }
+                return false;
+            }*/
         } catch (IOException e) {
             e.printStackTrace();
         }
         return true;
+    }
+
+    private void markFailed(TalkTransferAgent agent) {
+        switchState(agent, State.FAILED);
+    }
+
+    private void switchState(TalkTransferAgent agent, State newState) {
+        LOG.info("[" + clientUploadId + "] switching to state " + newState);
+        state = newState;
+        agent.onUploadStateChanged(this);
     }
 
 }

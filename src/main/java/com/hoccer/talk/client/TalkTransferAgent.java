@@ -112,6 +112,32 @@ public class TalkTransferAgent implements ITalkTransferListener {
         }
     }
 
+    public void requestUpload(final TalkClientUpload upload) {
+        synchronized (mUploadsById) {
+            final int uploadId = upload.getClientUploadId();
+            if(!mUploadsById.containsKey(uploadId)) {
+                TalkClientUpload.State state = upload.getState();
+                if(state == TalkClientUpload.State.COMPLETE) {
+                    LOG.debug("no need to upload " + uploadId);
+                }
+                if(state == TalkClientUpload.State.FAILED) {
+                    LOG.warn("can't resume failed upload " + uploadId);
+                }
+
+                LOG.info("requesting upload " + uploadId);
+
+                mUploadsById.put(uploadId, upload);
+
+                mExecutor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        LOG.info("performing upload " + uploadId + " in state " + upload.getState());
+                    }
+                });
+            }
+        }
+    }
+
     @Override
     public void onDownloadStarted(TalkClientDownload download) {
         for(ITalkTransferListener listener: mListeners) {
