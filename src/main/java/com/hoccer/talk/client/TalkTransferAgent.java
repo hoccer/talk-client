@@ -12,7 +12,6 @@ import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.log4j.Logger;
-import sun.security.ssl.SSLSocketFactoryImpl;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
