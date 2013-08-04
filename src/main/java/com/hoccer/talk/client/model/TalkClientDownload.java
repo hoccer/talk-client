@@ -21,6 +21,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.UUID;
 
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends TalkTransfer {
@@ -73,15 +74,21 @@ public class TalkClientDownload extends TalkTransfer {
      * @param timestamp for avatar, takes care of collisions over id
      */
     public void initializeAsAvatar(String url, String id, Date timestamp) {
+        LOG.info("initializeAsAvatar(" + url + ")");
         this.type = Type.AVATAR;
         this.url = url;
         this.file = id + "-" + timestamp.getTime() + ".png";
     }
 
     public void initializeAsAttachment(TalkAttachment attachment) {
+        LOG.info("initializeAsAttachment(" + attachment.getUrl() + ")");
         type = Type.ATTACHMENT;
-        // XXX
-        LOG.error("Unimplemented");
+        this.url = attachment.getUrl();
+        this.file = attachment.getFilename();
+        if(this.file == null) {
+            this.file = UUID.randomUUID().toString();
+        }
+        LOG.info("attachment filename " + this.file);
     }
 
     public int getClientDownloadId() {
@@ -133,6 +140,10 @@ public class TalkClientDownload extends TalkTransfer {
         return new File(avatarDirectory, this.file);
     }
 
+    public File getAttachmentFile(File attachmentDirectory) {
+        return new File(attachmentDirectory, this.file);
+    }
+
     private String computeFileName(HoccerTalkClient client) {
         if(this.file == null) {
             LOG.warn("file without filename");
@@ -140,6 +151,9 @@ public class TalkClientDownload extends TalkTransfer {
         }
         if(type == Type.AVATAR) {
             return client.getAvatarDirectory() + File.separator + this.file;
+        }
+        if(type == Type.ATTACHMENT) {
+            return client.getAttachmentDirectory() + File.separator + this.file;
         }
         LOG.info("file of unhandled type");
         return null;
@@ -176,13 +190,25 @@ public class TalkClientDownload extends TalkTransfer {
             }
         }
 
-        boolean success = performOneRequest(agent, filename);
-        if(!success) {
-            LOG.info("download attempt failed");
-            failedAttempts++;
+        int failureCount = 0;
+        while(failureCount < 3) {
+            boolean success = performOneRequest(agent, filename);
+            if(!success) {
+                LOG.info("download attempt failed");
+                failedAttempts++;
+                failureCount++;
+            }
+            if(state == State.FAILED) {
+                LOG.error("download finally failed");
+                break;
+            }
+            if(state == State.COMPLETE) {
+                LOG.info("download is complete");
+                break;
+            }
         }
 
-        LOG.info("download attempt succeeded");
+        LOG.info("download attempt finished");
 
         try {
             database.saveClientDownload(this);
@@ -219,18 +245,13 @@ public class TalkClientDownload extends TalkTransfer {
             }
             // parse content length from response
             Header contentLengthHeader = response.getFirstHeader("Content-Length");
+            int contentLengthValue = this.contentLength;
             if(contentLengthHeader != null) {
                 String contentLengthString = contentLengthHeader.getValue();
-                int contentLengthValue = Integer.valueOf(contentLengthString);
+                contentLengthValue = Integer.valueOf(contentLengthString);
+                LOG.info("GET " + url + " content length " + contentLengthValue);
                 if(contentLength == -1) {
-                    LOG.info("GET " + url + " content length " + contentLengthValue);
                     setContentLength(contentLengthValue);
-                } else {
-                    if(contentLength != contentLengthValue) {
-                        LOG.error("Content length of file changed");
-                        markFailed(agent);
-                        return false;
-                    }
                 }
             }
             // check we have a content length
@@ -277,17 +298,35 @@ public class TalkClientDownload extends TalkTransfer {
                     return false;
                 }
                 if(contentRange.hasEnd()) {
-                    bytesToGo = (int)(contentRange.getEnd() - contentRange.getStart() - 1);
+                    if(contentRange.getEnd() != (contentLength - 1)) {
+                        LOG.error("GET " + url + " server returned wrong end");
+                        markFailed(agent);
+                        return false;
+                    }
+                    bytesToGo = (int)(contentRange.getEnd() - contentRange.getStart() + 1);
                 }
             }
+            if(contentLengthValue != bytesToGo) {
+                LOG.error("GET " + url + " returned bad content length");
+                markFailed(agent);
+                return false;
+            }
+            LOG.info("GET " + url + " still needs " + bytesToGo + " bytes");
             // seek to start of region
             raf.seek(bytesStart);
             // copy data
             while(bytesToGo > 0) {
+                LOG.trace("to go: " + bytesToGo);
+                LOG.trace("at progress: " + progress);
                 // determine how much to copy
                 int bytesToRead = Math.min(buffer.length, bytesToGo);
                 // perform the copy
                 int bytesRead = is.read(buffer, 0, bytesToRead);
+                LOG.trace("reading " + bytesToRead + " returned " + bytesRead);
+                if(bytesRead == -1) {
+                    LOG.warn("eof!?");
+                    return false;
+                }
                 raf.write(buffer, 0, bytesRead);
                 // sync the file
                 fd.sync();
@@ -326,8 +365,6 @@ public class TalkClientDownload extends TalkTransfer {
                 LOG.warn("save failed while handling download exception", sqle);
             }
         }
-
-        switchState(agent, State.COMPLETE);
 
         return true;
     }

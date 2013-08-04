@@ -99,6 +99,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     TalkClientDatabase mDatabase;
 
     String mAvatarDirectory;
+    String mAttachmentDirectory;
 
     TalkTransferAgent mTransferAgent;
 
@@ -134,6 +135,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     /** Last client activity */
     long mLastActivity = 0;
 
+    ObjectMapper mJsonMapper;
+
     /**
      * Create a Hoccer Talk client using the given client database
      */
@@ -159,11 +162,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             // won't happen
         }
 
-        // create common object mapper
-        JsonFactory jsonFactory = TalkClientConfiguration.USE_BSON_PROTOCOL
-                                ? new BsonFactory()
-                                : new JsonFactory();
-        ObjectMapper mapper = createObjectMapper(jsonFactory);
+        // create JSON object mapper
+        JsonFactory jsonFactory = new JsonFactory();
+        mJsonMapper = createObjectMapper(jsonFactory);
+
+        // create RPC object mapper (BSON or JSON)
+        JsonFactory rpcFactory;
+        if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
+            rpcFactory = new BsonFactory();
+        } else {
+            rpcFactory = jsonFactory;
+        }
+        ObjectMapper rpcMapper = createObjectMapper(rpcFactory);
 
         // create websocket client
         WebSocketClientFactory wscFactory = new WebSocketClientFactory();
@@ -178,7 +188,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         String protocol = TalkClientConfiguration.USE_BSON_PROTOCOL
                 ? TalkClientConfiguration.PROTOCOL_STRING_BSON
                 : TalkClientConfiguration.PROTOCOL_STRING_JSON;
-        mConnection = new JsonRpcWsClient(uri, protocol, wsClient, mapper);
+        mConnection = new JsonRpcWsClient(uri, protocol, wsClient, rpcMapper);
         mConnection.setMaxIdleTime(TalkClientConfiguration.CONNECTION_IDLE_TIMEOUT);
         mConnection.setSendKeepAlives(TalkClientConfiguration.KEEPALIVE_ENABLED);
         if(TalkClientConfiguration.USE_BSON_PROTOCOL) {
@@ -212,6 +222,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     public void setAvatarDirectory(String avatarDirectory) {
         this.mAvatarDirectory = avatarDirectory;
+    }
+
+    public String getAttachmentDirectory() {
+        return mAttachmentDirectory;
+    }
+
+    public void setAttachmentDirectory(String attachmentDirectory) {
+        this.mAttachmentDirectory = attachmentDirectory;
     }
 
     public URI getServiceUri() {
@@ -1275,7 +1293,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         clientMessage.updateIncoming(delivery, message);
 
+        TalkClientDownload attachmentDownload = clientMessage.getAttachmentDownload();
         try {
+            if(attachmentDownload != null) {
+                mDatabase.saveClientDownload(clientMessage.getAttachmentDownload());
+            }
             mDatabase.saveMessage(clientMessage.getMessage());
             mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
             mDatabase.saveClientMessage(clientMessage);
@@ -1290,6 +1312,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     mServerRpc.deliveryConfirm(delivery.getMessageId());
                 }
             });
+        }
+
+        if(attachmentDownload != null) {
+            mTransferAgent.requestDownload(attachmentDownload);
         }
 
         for(ITalkClientListener listener: mListeners) {
@@ -1311,9 +1337,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             String keyId = delivery.getKeyId();
             String keyCiphertext = delivery.getKeyCiphertext();
-            String body = message.getBody();
+            String rawBody = message.getBody();
+            String rawAttachment = message.getAttachment();
             if(keyId == null || keyCiphertext == null) {
-                if(body == null) {
+                if(rawBody == null) {
                     clientMessage.setText("");
                 } else {
                     clientMessage.setText(message.getBody());
@@ -1324,13 +1351,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     PrivateKey privateKey = talkPrivateKey.getAsNative();
                     if(privateKey != null) {
 
-                        byte[] decKey = null;
-                        byte[] decryptedBody = null;
-                        String decryptedBodyString = "";
+                        byte[] decryptedKey = null;
+                        byte[] decryptedBodyRaw = null;
+                        String decryptedBody = "";
+                        byte[] decryptedAttachmentRaw = null;
+                        TalkAttachment decryptedAttachment = null;
                         try {
-                            decKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
-                            decryptedBody = AESCryptor.decrypt(decKey, nullsalt, Base64.decodeBase64(body));
-                            decryptedBodyString = new String(decryptedBody, "UTF-8");
+                            decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
+                            if(rawBody != null) {
+                                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, nullsalt, Base64.decodeBase64(rawBody));
+                                decryptedBody = new String(decryptedBodyRaw, "UTF-8");
+                            }
+                            if(rawAttachment != null) {
+                                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, nullsalt, Base64.decodeBase64(rawAttachment));
+                                decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
+                            }
                         } catch (NoSuchPaddingException e) {
                             LOG.error("error decrypting", e);
                         } catch (NoSuchAlgorithmException e) {
@@ -1346,8 +1381,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         } catch (IOException e) {
                             LOG.error("error decrypting", e);
                         }
-                        LOG.info("message: " + decryptedBodyString);
-                        clientMessage.setText(decryptedBodyString);
+                        if(decryptedBody != null) {
+                            LOG.info("message: " + decryptedBody);
+                            clientMessage.setText(decryptedBody);
+                        }
+                        if(decryptedAttachment != null) {
+                            LOG.info("attachment: " + decryptedAttachment.getUrl());
+                            TalkClientDownload download = new TalkClientDownload();
+                            download.initializeAsAttachment(decryptedAttachment);
+                            clientMessage.setAttachmentDownload(download);
+                        }
                     } else {
                         LOG.warn("could not decode private key");
                     }
@@ -1658,6 +1701,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         if(clientContact.isClient()) {
             LOG.info("Ignoring group member for other client");
         }
+    }
+
+    public void requestDownload(TalkClientDownload download) {
+        mTransferAgent.requestDownload(download);
     }
 
 
