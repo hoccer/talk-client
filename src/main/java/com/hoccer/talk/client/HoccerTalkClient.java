@@ -1310,8 +1310,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         try {
             String keyId = delivery.getKeyId();
-            if(keyId == null) {
-                clientMessage.setText(message.getBody());
+            String keyCiphertext = delivery.getKeyCiphertext();
+            String body = message.getBody();
+            if(keyId == null || keyCiphertext == null) {
+                if(body == null) {
+                    clientMessage.setText("");
+                } else {
+                    clientMessage.setText(message.getBody());
+                }
             } else {
                 TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
                 if(talkPrivateKey != null) {
@@ -1320,11 +1326,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
                         byte[] decKey = null;
                         byte[] decryptedBody = null;
-                        String body = "";
+                        String decryptedBodyString = "";
                         try {
-                            decKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(delivery.getKeyCiphertext()));
-                            decryptedBody = AESCryptor.decrypt(decKey, nullsalt, Base64.decodeBase64(message.getBody()));
-                            body = new String(decryptedBody, "UTF-8");
+                            decKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
+                            decryptedBody = AESCryptor.decrypt(decKey, nullsalt, Base64.decodeBase64(body));
+                            decryptedBodyString = new String(decryptedBody, "UTF-8");
                         } catch (NoSuchPaddingException e) {
                             LOG.error("error decrypting", e);
                         } catch (NoSuchAlgorithmException e) {
@@ -1340,8 +1346,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         } catch (IOException e) {
                             LOG.error("error decrypting", e);
                         }
-                        LOG.info("message: " + body);
-                        clientMessage.setText(body);
+                        LOG.info("message: " + decryptedBodyString);
+                        clientMessage.setText(decryptedBodyString);
                     } else {
                         LOG.warn("could not decode private key");
                     }
