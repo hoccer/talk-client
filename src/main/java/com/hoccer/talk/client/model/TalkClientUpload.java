@@ -75,7 +75,10 @@ public class TalkClientUpload extends TalkTransfer {
         this.type = Type.AVATAR;
     }
 
-    public void performUploadAttempt(HttpClient client, TalkClientDatabase database, HoccerTalkClient talkClient) {
+    public void performUploadAttempt(TalkTransferAgent agent) {
+        HttpClient client = agent.getHttpClient();
+        TalkClientDatabase database = agent.getDatabase();
+        HoccerTalkClient talkClient = agent.getClient();
         boolean changed = false;
         if(state == State.COMPLETE) {
             LOG.warn("Tried to perform completed upload");

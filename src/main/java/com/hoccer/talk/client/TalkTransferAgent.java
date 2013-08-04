@@ -132,6 +132,12 @@ public class TalkTransferAgent implements ITalkTransferListener {
                     @Override
                     public void run() {
                         LOG.info("performing upload " + uploadId + " in state " + upload.getState());
+                        onUploadStarted(upload);
+                        upload.performUploadAttempt(TalkTransferAgent.this);
+                        synchronized (mUploadsById) {
+                            mUploadsById.remove(uploadId);
+                            onUploadFinished(upload);
+                        }
                     }
                 });
             }
