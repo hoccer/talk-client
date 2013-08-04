@@ -423,9 +423,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         return token;
     }
 
-    public void performTokenPairing(final String token) {
+    public boolean performTokenPairing(final String token) {
         resetIdle();
-        mServerRpc.pairByToken(token);
+        return mServerRpc.pairByToken(token);
     }
 
     public void depairContact(final TalkClientContact contact) {
