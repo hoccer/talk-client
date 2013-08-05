@@ -26,7 +26,7 @@ public class TalkClientDownload extends TalkTransfer {
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
     public enum State {
-        NEW, STARTED, DECRYPTING, COMPLETE, FAILED
+        NEW, REQUESTED, STARTED, DECRYPTING, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -143,12 +143,20 @@ public class TalkClientDownload extends TalkTransfer {
         return progress;
     }
 
+    public String getMediaType() {
+        return "image";
+    }
+
     public File getAvatarFile(File avatarDirectory) {
         return new File(avatarDirectory, this.file);
     }
 
     public File getAttachmentFile(File attachmentDirectory) {
         return new File(attachmentDirectory, this.file);
+    }
+
+    public File getAttachmentDecryptedFile(File filesDirectory) {
+        return new File(filesDirectory, this.decryptedFile);
     }
 
     private String computeFileName(HoccerTalkClient client) {
