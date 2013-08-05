@@ -7,7 +7,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
@@ -100,6 +99,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     String mAvatarDirectory;
     String mAttachmentDirectory;
+    String mFilesDirectory;
 
     TalkTransferAgent mTransferAgent;
 
@@ -230,6 +230,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     public void setAttachmentDirectory(String attachmentDirectory) {
         this.mAttachmentDirectory = attachmentDirectory;
+    }
+
+    public String getFilesDirectory() {
+        return mFilesDirectory;
+    }
+
+    public void setFilesDirectory(String filesDirectory) {
+        this.mFilesDirectory = filesDirectory;
     }
 
     public URI getServiceUri() {
@@ -1327,9 +1335,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
     }
 
-    byte[] nullsalt = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
     private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
 
         clientMessage.setText("<Unreadable>");
@@ -1359,11 +1364,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         try {
                             decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
                             if(rawBody != null) {
-                                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, nullsalt, Base64.decodeBase64(rawBody));
+                                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
                                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
                             }
                             if(rawAttachment != null) {
-                                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, nullsalt, Base64.decodeBase64(rawAttachment));
+                                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
                                 decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
                             }
                         } catch (NoSuchPaddingException e) {
@@ -1388,7 +1393,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         if(decryptedAttachment != null) {
                             LOG.info("attachment: " + decryptedAttachment.getUrl());
                             TalkClientDownload download = new TalkClientDownload();
-                            download.initializeAsAttachment(decryptedAttachment);
+                            download.initializeAsAttachment(decryptedAttachment, decryptedKey);
                             clientMessage.setAttachmentDownload(download);
                         }
                     } else {
@@ -1447,7 +1452,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             delivery.setKeyId(talkPublicKey.getKeyId());
             delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
             LOG.info("encrypting body");
-            byte[] encryptedBody = AESCryptor.encrypt(plainKey, nullsalt, message.getBody().getBytes());
+            byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
             message.setBody(Base64.encodeBase64String(encryptedBody));
         } catch (NoSuchPaddingException e) {
             LOG.error("error encrypting", e);

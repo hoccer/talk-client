@@ -5,20 +5,17 @@ import com.hoccer.talk.client.HoccerTalkClient;
 import com.hoccer.talk.client.TalkClientDatabase;
 import com.hoccer.talk.client.TalkTransfer;
 import com.hoccer.talk.client.TalkTransferAgent;
+import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
-import com.hoccer.talk.model.TalkPresence;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 import org.apache.http.*;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.log4j.Logger;
+import org.bouncycastle.util.encoders.Hex;
 
 import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.UUID;
@@ -29,7 +26,7 @@ public class TalkClientDownload extends TalkTransfer {
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
     public enum State {
-        NEW, STARTED, COMPLETE, FAILED
+        NEW, STARTED, DECRYPTING, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -46,6 +43,12 @@ public class TalkClientDownload extends TalkTransfer {
 
     @DatabaseField(width = 2000)
     private String file;
+
+    @DatabaseField
+    private String decryptionKey;
+
+    @DatabaseField
+    private String decryptedFile;
 
     @DatabaseField
     private int contentLength;
@@ -80,13 +83,17 @@ public class TalkClientDownload extends TalkTransfer {
         this.file = id + "-" + timestamp.getTime() + ".png";
     }
 
-    public void initializeAsAttachment(TalkAttachment attachment) {
+    public void initializeAsAttachment(TalkAttachment attachment, byte[] key) {
         LOG.info("initializeAsAttachment(" + attachment.getUrl() + ")");
         type = Type.ATTACHMENT;
         this.url = attachment.getUrl();
         this.file = attachment.getFilename();
         if(this.file == null) {
             this.file = UUID.randomUUID().toString();
+        }
+        if(key != null) {
+            this.decryptionKey = bytesToHex(key);
+            this.decryptedFile = this.file;
         }
         LOG.info("attachment filename " + this.file);
     }
@@ -200,6 +207,18 @@ public class TalkClientDownload extends TalkTransfer {
             }
             if(state == State.FAILED) {
                 LOG.error("download finally failed");
+                break;
+            }
+            if(state == State.DECRYPTING) {
+                LOG.info("download will now be decrypted");
+                try {
+                    performDecryption(agent);
+                } catch (Exception e) {
+                    LOG.error("error decrypting", e);
+                    markFailed(agent);
+                    break;
+                }
+                switchState(agent, State.COMPLETE);
                 break;
             }
             if(state == State.COMPLETE) {
@@ -340,7 +359,11 @@ public class TalkClientDownload extends TalkTransfer {
             }
             // update state
             if(progress == contentLength && state != State.COMPLETE) {
-                switchState(agent, State.COMPLETE);
+                if(decryptionKey != null) {
+                    switchState(agent, State.DECRYPTING);
+                } else {
+                    switchState(agent, State.COMPLETE);
+                }
             }
             // update db
             database.saveClientDownload(this);
@@ -369,6 +392,48 @@ public class TalkClientDownload extends TalkTransfer {
         return true;
     }
 
+    private void performDecryption(TalkTransferAgent agent) {
+        LOG.info("performing decryption of download " + clientDownloadId);
+
+        File source = getAttachmentFile(new File(agent.getClient().getAttachmentDirectory()));
+
+        File destinationDir = new File(agent.getClient().getFilesDirectory());
+
+        File destination = new File(destinationDir, decryptedFile);
+        if(destination.exists()) {
+            destination.delete();
+        }
+
+        byte[] key = Hex.decode(decryptionKey);
+
+        int bytesToDecrypt = (int)source.length();
+
+        try {
+            byte[] buffer = new byte[1 << 16];
+            InputStream is = new FileInputStream(source);
+            OutputStream os = new FileOutputStream(destination);
+            OutputStream dos = AESCryptor.decryptingOutputStream(os, key, AESCryptor.NULL_SALT);
+
+            int bytesToGo = bytesToDecrypt;
+            while(bytesToGo > 0) {
+                int bytesToCopy = Math.min(buffer.length, bytesToGo);
+                int bytesRead = is.read(buffer, 0, bytesToCopy);
+                dos.write(buffer, 0, bytesRead);
+                bytesToGo -= bytesRead;
+            }
+
+            dos.flush();
+            dos.close();
+            os.flush();
+            os.close();
+            is.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void markFailed(TalkTransferAgent agent) {
         switchState(agent, State.FAILED);
     }
@@ -377,6 +442,19 @@ public class TalkClientDownload extends TalkTransfer {
         LOG.info("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
         agent.onDownloadStateChanged(this);
+    }
+
+    /* XXX junk */
+    private static String bytesToHex(byte[] bytes) {
+        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        char[] hexChars = new char[bytes.length * 2];
+        int v;
+        for ( int j = 0; j < bytes.length; j++ ) {
+            v = bytes[j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
     }
 
 }
