@@ -38,17 +38,6 @@ public class TalkClientDownload extends TalkTransfer {
     @DatabaseField
     private State state;
 
-    @DatabaseField(width = 2000)
-    private String url;
-
-    @DatabaseField(width = 2000)
-    private String file;
-
-    @DatabaseField
-    private String decryptionKey;
-
-    @DatabaseField
-    private String decryptedFile;
 
     @DatabaseField
     private int contentLength;
@@ -56,16 +45,32 @@ public class TalkClientDownload extends TalkTransfer {
     @DatabaseField(width = 128)
     private String contentType;
 
-    @DatabaseField
-    private int progress;
+    @DatabaseField(width = 64)
+    private String mediaType;
+
+
+    /** URL to download */
+    @DatabaseField(width = 2000)
+    private String downloadUrl;
+
+    @DatabaseField(width = 2000)
+    private String downloadFile;
 
     @DatabaseField
-    private long failedAttempts;
+    private int downloadProgress;
+
+
+    @DatabaseField(width = 128)
+    private String decryptionKey;
+
+    @DatabaseField(width = 2000)
+    private String decryptedFile;
+
 
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
         this.state = State.NEW;
-        this.progress = 0;
+        this.downloadProgress = 0;
         this.contentLength = -1;
     }
 
@@ -79,53 +84,36 @@ public class TalkClientDownload extends TalkTransfer {
     public void initializeAsAvatar(String url, String id, Date timestamp) {
         LOG.info("initializeAsAvatar(" + url + ")");
         this.type = Type.AVATAR;
-        this.url = url;
-        this.file = id + "-" + timestamp.getTime() + ".png";
+        this.downloadUrl = url;
+        this.downloadFile = id + "-" + timestamp.getTime() + ".png";
     }
 
     public void initializeAsAttachment(TalkAttachment attachment, byte[] key) {
         LOG.info("initializeAsAttachment(" + attachment.getUrl() + ")");
-        type = Type.ATTACHMENT;
-        this.url = attachment.getUrl();
-        this.file = attachment.getFilename();
-        if(this.file == null) {
-            this.file = UUID.randomUUID().toString();
+
+        this.type = Type.ATTACHMENT;
+
+        this.contentLength = Integer.valueOf(attachment.getContentSize());
+        this.contentType = attachment.getMimeType();
+        this.mediaType = attachment.getMediaType();
+
+        this.downloadUrl = attachment.getUrl();
+        this.downloadFile = attachment.getFilename();
+        if(this.downloadFile == null) {
+            this.downloadFile = UUID.randomUUID().toString();
         }
         if(key != null) {
             this.decryptionKey = bytesToHex(key);
-            this.decryptedFile = this.file;
+            this.decryptedFile = this.downloadFile;
         }
-        LOG.info("attachment filename " + this.file);
+
+        LOG.info("attachment filename " + this.downloadFile);
     }
+
 
     public int getClientDownloadId() {
         return clientDownloadId;
     }
-
-    public String getUrl() {
-        return url;
-    }
-
-    private void setUrl(String url) {
-        this.url = url;
-    }
-
-    public int getContentLength() {
-        return contentLength;
-    }
-
-    private void setContentLength(int contentLength) {
-        this.contentLength = contentLength;
-    }
-
-    public String getContentType() {
-        return contentType;
-    }
-
-    private void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
 
     public Type getType() {
         return type;
@@ -135,40 +123,55 @@ public class TalkClientDownload extends TalkTransfer {
         return state;
     }
 
-    public String getFile() {
-        return file;
+
+    public String getDownloadUrl() {
+        return downloadUrl;
     }
 
-    public long getProgress() {
-        return progress;
+    public String getDownloadFile() {
+        return downloadFile;
+    }
+
+    public long getDownloadProgress() {
+        return downloadProgress;
+    }
+
+
+    public int getContentLength() {
+        return contentLength;
+    }
+
+    public String getContentType() {
+        return contentType;
     }
 
     public String getMediaType() {
-        return "image";
+        return this.mediaType;
     }
 
+
     public File getAvatarFile(File avatarDirectory) {
-        return new File(avatarDirectory, this.file);
+        return new File(avatarDirectory, this.downloadFile);
     }
 
     public File getAttachmentFile(File attachmentDirectory) {
-        return new File(attachmentDirectory, this.file);
+        return new File(attachmentDirectory, this.downloadFile);
     }
 
     public File getAttachmentDecryptedFile(File filesDirectory) {
         return new File(filesDirectory, this.decryptedFile);
     }
 
-    private String computeFileName(HoccerTalkClient client) {
-        if(this.file == null) {
+    private String computeDownloadDestination(HoccerTalkClient client) {
+        if(this.downloadFile == null) {
             LOG.warn("file without filename");
             return null;
         }
         if(type == Type.AVATAR) {
-            return client.getAvatarDirectory() + File.separator + this.file;
+            return client.getAvatarDirectory() + File.separator + this.downloadFile;
         }
         if(type == Type.ATTACHMENT) {
-            return client.getAttachmentDirectory() + File.separator + this.file;
+            return client.getAttachmentDirectory() + File.separator + this.downloadFile;
         }
         LOG.info("file of unhandled type");
         return null;
@@ -177,7 +180,7 @@ public class TalkClientDownload extends TalkTransfer {
     public void performDownloadAttempt(TalkTransferAgent agent) {
         TalkClientDatabase database = agent.getDatabase();
         HoccerTalkClient talkClient = agent.getClient();
-        String filename = computeFileName(talkClient);
+        String filename = computeDownloadDestination(talkClient);
         if(filename == null) {
             LOG.error("could not determine filename for download " + clientDownloadId);
             return;
@@ -210,7 +213,6 @@ public class TalkClientDownload extends TalkTransfer {
             boolean success = performOneRequest(agent, filename);
             if(!success) {
                 LOG.info("download attempt failed");
-                failedAttempts++;
                 failureCount++;
             }
             if(state == State.FAILED) {
@@ -250,19 +252,19 @@ public class TalkClientDownload extends TalkTransfer {
         RandomAccessFile raf = null;
         FileDescriptor fd = null;
         try {
-            LOG.info("GET " + url + " starting");
+            LOG.info("GET " + downloadUrl + " starting");
             // create the GET request
-            HttpGet request = new HttpGet(url);
+            HttpGet request = new HttpGet(downloadUrl);
             // if we have a content length then we can do range requests
             if(contentLength != -1) {
                 long last = contentLength - 1;
-                request.addHeader("Range", "bytes=" + progress + "-" + last);
+                request.addHeader("Range", "bytes=" + downloadProgress + "-" + last);
             }
             // start performing the request
             HttpResponse response = client.execute(request);
             // process status code
             int sc = response.getStatusLine().getStatusCode();
-            LOG.info("GET " + url + " returned status " + sc);
+            LOG.info("GET " + downloadUrl + " returned status " + sc);
             if(sc != HttpStatus.SC_OK && sc != HttpStatus.SC_PARTIAL_CONTENT) {
                 // client error - mark as failed
                 if(sc >= 400 && sc <= 499) {
@@ -276,14 +278,14 @@ public class TalkClientDownload extends TalkTransfer {
             if(contentLengthHeader != null) {
                 String contentLengthString = contentLengthHeader.getValue();
                 contentLengthValue = Integer.valueOf(contentLengthString);
-                LOG.info("GET " + url + " content length " + contentLengthValue);
+                LOG.info("GET " + downloadUrl + " content length " + contentLengthValue);
                 if(contentLength == -1) {
-                    setContentLength(contentLengthValue);
+                    contentLength = contentLengthValue;
                 }
             }
             // check we have a content length
             if(contentLength == -1) {
-                LOG.error("GET " + url + " unknown content length");
+                LOG.error("GET " + downloadUrl + " unknown content length");
                 markFailed(agent);
                 return false;
             }
@@ -292,7 +294,7 @@ public class TalkClientDownload extends TalkTransfer {
             Header contentRangeHeader = response.getFirstHeader("Content-Range");
             if(contentRangeHeader != null) {
                 String contentRangeString = contentRangeHeader.getValue();
-                LOG.info("GET " + url + " returned range " + contentRangeString);
+                LOG.info("GET " + downloadUrl + " returned range " + contentRangeString);
                 contentRange = ByteRange.parseContentRange(contentRangeString);
             }
             // remember content type if we don't have one yet
@@ -300,8 +302,8 @@ public class TalkClientDownload extends TalkTransfer {
             if(contentTypeHeader != null) {
                 String contentTypeValue = contentTypeHeader.getValue();
                 if(contentType == null) {
-                    LOG.info("GET " + url + " content type " + contentTypeValue);
-                    setContentType(contentTypeValue);
+                    LOG.info("GET " + downloadUrl + " content type " + contentTypeValue);
+                    contentType = contentTypeValue;
                 }
             }
             // handle content
@@ -316,17 +318,17 @@ public class TalkClientDownload extends TalkTransfer {
             // get ourselves a buffer
             byte[] buffer = new byte[1<<16];
             // determine what to copy
-            int bytesStart = progress;
-            int bytesToGo = contentLength - progress;
+            int bytesStart = downloadProgress;
+            int bytesToGo = contentLength - downloadProgress;
             if(contentRange != null) {
-                if(contentRange.getStart() != progress) {
-                    LOG.error("GET " + url + " server returned wrong offset");
+                if(contentRange.getStart() != downloadProgress) {
+                    LOG.error("GET " + downloadUrl + " server returned wrong offset");
                     markFailed(agent);
                     return false;
                 }
                 if(contentRange.hasEnd()) {
                     if(contentRange.getEnd() != (contentLength - 1)) {
-                        LOG.error("GET " + url + " server returned wrong end");
+                        LOG.error("GET " + downloadUrl + " server returned wrong end");
                         markFailed(agent);
                         return false;
                     }
@@ -334,17 +336,17 @@ public class TalkClientDownload extends TalkTransfer {
                 }
             }
             if(contentLengthValue != bytesToGo) {
-                LOG.error("GET " + url + " returned bad content length");
+                LOG.error("GET " + downloadUrl + " returned bad content length");
                 markFailed(agent);
                 return false;
             }
-            LOG.info("GET " + url + " still needs " + bytesToGo + " bytes");
+            LOG.info("GET " + downloadUrl + " still needs " + bytesToGo + " bytes");
             // seek to start of region
             raf.seek(bytesStart);
             // copy data
             while(bytesToGo > 0) {
                 LOG.trace("to go: " + bytesToGo);
-                LOG.trace("at progress: " + progress);
+                LOG.trace("at progress: " + downloadProgress);
                 // determine how much to copy
                 int bytesToRead = Math.min(buffer.length, bytesToGo);
                 // perform the copy
@@ -358,7 +360,7 @@ public class TalkClientDownload extends TalkTransfer {
                 // sync the file
                 fd.sync();
                 // update state
-                progress += bytesRead;
+                downloadProgress += bytesRead;
                 bytesToGo -= bytesRead;
                 // update db
                 database.saveClientDownload(this);
@@ -366,7 +368,7 @@ public class TalkClientDownload extends TalkTransfer {
                 agent.onDownloadProgress(this);
             }
             // update state
-            if(progress == contentLength && state != State.COMPLETE) {
+            if(downloadProgress == contentLength && state != State.COMPLETE) {
                 if(decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {

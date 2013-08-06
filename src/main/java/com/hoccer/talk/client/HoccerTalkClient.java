@@ -1540,7 +1540,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 LOG.error("sql error", e);
                 return false;
             }
-            String downloadUrl = avatarDownload.getUrl();
+            String downloadUrl = avatarDownload.getDownloadUrl();
             if(haveUrl) {
                 if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
                     LOG.info("new avatar for contact " + contact.getClientContactId());
