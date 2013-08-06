@@ -126,6 +126,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     /** All our listeners */
     Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
 
+    /** Listeners for unseen messages */
+    Vector<ITalkUnseenListener> mUnseenListeners = new Vector<ITalkUnseenListener>();
+
     /** The current state of this client */
     int mState = STATE_INACTIVE;
 
@@ -301,6 +304,27 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      */
     public void unregisterListener(ITalkClientListener listener) {
         mListeners.remove(listener);
+    }
+
+    public void registerUnseenListener(ITalkUnseenListener listener) {
+        mUnseenListeners.add(listener);
+    }
+
+    public void unregisterUnseenListener(ITalkUnseenListener listener) {
+        mUnseenListeners.remove(listener);
+    }
+
+    private void notifyUnseenMessages(boolean notify) {
+        LOG.info("notifyUnseenMessages()");
+        List<TalkClientMessage> unseenMessages = null;
+        try {
+            unseenMessages = mDatabase.findUnseenMessages();
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
+        for(ITalkUnseenListener listener: mUnseenListeners) {
+            listener.onUnseenMessages(unseenMessages, notify);
+        }
     }
 
     public boolean isIdle() {
@@ -1333,6 +1357,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 listener.onMessageStateChanged(clientMessage);
             }
         }
+
+        notifyUnseenMessages(newMessage);
     }
 
     private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
@@ -1723,6 +1749,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 } catch (SQLException e) {
                     LOG.error("SQL error", e);
                 }
+                notifyUnseenMessages(false);
             }
         });
     }
