@@ -1712,6 +1712,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mTransferAgent.requestDownload(download);
     }
 
+    public void markAsSeen(final TalkClientMessage message) {
+        resetIdle();
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                message.setSeen(true);
+                try {
+                    mDatabase.saveClientMessage(message);
+                } catch (SQLException e) {
+                    LOG.error("SQL error", e);
+                }
+            }
+        });
+    }
+
 
     /** XXX junk */
     private static String bytesToHex(byte[] bytes) {

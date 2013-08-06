@@ -254,9 +254,7 @@ public class TalkClientDatabase {
     }
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId) throws SQLException {
-        return mClientMessages.queryBuilder()
-                .where().eq("conversationContact_id", contactId)
-                .query();
+        return mClientMessages.queryForEq("conversationContact_id", contactId);
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
@@ -266,4 +264,21 @@ public class TalkClientDatabase {
     public TalkClientDownload findClientDownloadById(int clientDownloadId) throws SQLException {
         return mClientDownloads.queryForId(clientDownloadId);
     }
+
+    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
+        return mClientMessages.queryForId(clientMessageId);
+    }
+
+    public long findUnseenMessageCountByContactId(int contactId) throws SQLException {
+        return mClientMessages.queryBuilder().where()
+                .eq("conversationContact_id", contactId)
+                .eq("seen", false)
+                .and(2)
+                .countOf();
+    }
+
+    public List<TalkClientMessage> findUnseenMessages() throws SQLException {
+        return mClientMessages.queryForEq("seen", false);
+    }
+
 }

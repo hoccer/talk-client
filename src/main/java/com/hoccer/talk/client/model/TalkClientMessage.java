@@ -44,6 +44,9 @@ public class TalkClientMessage {
     @DatabaseField(width = 2048)
     private String text;
 
+    @DatabaseField
+    private boolean seen;
+
     public TalkClientMessage() {
     }
 
@@ -137,6 +140,14 @@ public class TalkClientMessage {
 
     public void setText(String text) {
         this.text = text;
+    }
+
+    public boolean isSeen() {
+        return seen;
+    }
+
+    public void setSeen(boolean seen) {
+        this.seen = seen;
     }
 
     public void updateIncoming(TalkDelivery delivery, TalkMessage message) {
