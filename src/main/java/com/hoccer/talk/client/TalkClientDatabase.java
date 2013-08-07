@@ -277,6 +277,16 @@ public class TalkClientDatabase {
                 .countOf();
     }
 
+    public TalkClientMessage findLatestMessageByContactId(int contactId) throws SQLException {
+        return mClientMessages.queryBuilder()
+                .orderBy("timestamp", false)
+                    .where()
+                        .isNotNull("text")
+                        .eq("conversationContact_id", contactId)
+                    .and(2)
+                .queryForFirst();
+    }
+
     public List<TalkClientMessage> findUnseenMessages() throws SQLException {
         return mClientMessages.queryForEq("seen", false);
     }
