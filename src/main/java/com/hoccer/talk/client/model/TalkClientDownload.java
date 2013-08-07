@@ -66,6 +66,9 @@ public class TalkClientDownload extends TalkTransfer {
     @DatabaseField(width = 2000)
     private String decryptedFile;
 
+    @DatabaseField
+    private double aspectRatio;
+
 
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
@@ -95,6 +98,8 @@ public class TalkClientDownload extends TalkTransfer {
 
         this.contentType = attachment.getMimeType();
         this.mediaType = attachment.getMediaType();
+
+        this.aspectRatio = attachment.getAspectRatio();
 
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = attachment.getFilename();
@@ -148,6 +153,9 @@ public class TalkClientDownload extends TalkTransfer {
         return this.mediaType;
     }
 
+    public double getAspectRatio() {
+        return aspectRatio;
+    }
 
     public File getAvatarFile(File avatarDirectory) {
         return new File(avatarDirectory, this.downloadFile);
