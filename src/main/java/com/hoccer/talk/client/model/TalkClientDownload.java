@@ -93,7 +93,6 @@ public class TalkClientDownload extends TalkTransfer {
 
         this.type = Type.ATTACHMENT;
 
-        this.contentLength = Integer.valueOf(attachment.getContentSize());
         this.contentType = attachment.getMimeType();
         this.mediaType = attachment.getMediaType();
 
@@ -257,8 +256,10 @@ public class TalkClientDownload extends TalkTransfer {
             HttpGet request = new HttpGet(downloadUrl);
             // if we have a content length then we can do range requests
             if(contentLength != -1) {
-                long last = contentLength - 1;
-                request.addHeader("Range", "bytes=" + downloadProgress + "-" + last);
+                long last = contentLength;
+                String range = "bytes=" + downloadProgress + "-" + last;
+                LOG.info("GET " + downloadUrl + " requesting range " + range);
+                request.addHeader("Range", range);
             }
             // start performing the request
             HttpResponse response = client.execute(request);
@@ -279,15 +280,6 @@ public class TalkClientDownload extends TalkTransfer {
                 String contentLengthString = contentLengthHeader.getValue();
                 contentLengthValue = Integer.valueOf(contentLengthString);
                 LOG.info("GET " + downloadUrl + " content length " + contentLengthValue);
-                if(contentLength == -1) {
-                    contentLength = contentLengthValue;
-                }
-            }
-            // check we have a content length
-            if(contentLength == -1) {
-                LOG.error("GET " + downloadUrl + " unknown content length");
-                markFailed(agent);
-                return false;
             }
             // parse content range from response
             ByteRange contentRange = null;
@@ -306,20 +298,11 @@ public class TalkClientDownload extends TalkTransfer {
                     contentType = contentTypeValue;
                 }
             }
-            // handle content
-            HttpEntity entity = response.getEntity();
-            InputStream is = entity.getContent();
-            // create and open destination file
-            File f = new File(filename);
-            f.createNewFile();
-            raf = new RandomAccessFile(f, "rw");
-            raf.setLength(contentLength);
-            fd = raf.getFD();
             // get ourselves a buffer
             byte[] buffer = new byte[1<<16];
             // determine what to copy
             int bytesStart = downloadProgress;
-            int bytesToGo = contentLength - downloadProgress;
+            int bytesToGo = contentLengthValue;
             if(contentRange != null) {
                 if(contentRange.getStart() != downloadProgress) {
                     LOG.error("GET " + downloadUrl + " server returned wrong offset");
@@ -327,20 +310,40 @@ public class TalkClientDownload extends TalkTransfer {
                     return false;
                 }
                 if(contentRange.hasEnd()) {
-                    if(contentRange.getEnd() != (contentLength - 1)) {
-                        LOG.error("GET " + downloadUrl + " server returned wrong end");
+                    int rangeSize = (int)(contentRange.getEnd() - contentRange.getStart() + 1);
+                    if(rangeSize != bytesToGo) {
+                        LOG.error("GET " + downloadUrl + " server returned range not corresponding to content length");
                         markFailed(agent);
                         return false;
                     }
-                    bytesToGo = (int)(contentRange.getEnd() - contentRange.getStart() + 1);
+                }
+                if(contentRange.hasTotal()) {
+                    if(contentLength == -1) {
+                        long total = contentRange.getTotal();
+                        LOG.info("GET " + downloadUrl + " length determined to be " + total);
+                        contentLength = (int)total;
+                    }
                 }
             }
-            if(contentLengthValue != bytesToGo) {
-                LOG.error("GET " + downloadUrl + " returned bad content length");
+            if(contentLength == -1) {
+                LOG.error("GET " + downloadUrl + " has no content length");
                 markFailed(agent);
                 return false;
             }
-            LOG.info("GET " + downloadUrl + " still needs " + bytesToGo + " bytes");
+            LOG.info("GET " + downloadUrl + " real file size " + contentLength);
+            // handle content
+            HttpEntity entity = response.getEntity();
+            InputStream is = entity.getContent();
+            // create and open destination file
+            File f = new File(filename);
+            LOG.info("GET " + downloadUrl + " destination " + f.toString());
+            f.createNewFile();
+            raf = new RandomAccessFile(f, "rw");
+            fd = raf.getFD();
+            // resize the file
+            raf.setLength(contentLength);
+            // log about what we are to do
+            LOG.info("GET " + downloadUrl + " will retrieve " + bytesToGo + " bytes");
             // seek to start of region
             raf.seek(bytesStart);
             // copy data
@@ -357,6 +360,7 @@ public class TalkClientDownload extends TalkTransfer {
                     return false;
                 }
                 raf.write(buffer, 0, bytesRead);
+                //raf.getFD().sync();
                 // sync the file
                 fd.sync();
                 // update state
@@ -369,6 +373,9 @@ public class TalkClientDownload extends TalkTransfer {
             }
             // update state
             if(downloadProgress == contentLength && state != State.COMPLETE) {
+                LOG.info("file size: " + f.length());
+                LOG.info("progress: " + downloadProgress);
+                LOG.info("length: " + contentLength);
                 if(decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {
