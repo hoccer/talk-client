@@ -6,6 +6,8 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 import org.apache.log4j.Logger;
 
+import java.util.Date;
+
 @DatabaseTable(tableName = "clientMessage")
 public class TalkClientMessage {
 
@@ -47,7 +49,11 @@ public class TalkClientMessage {
     @DatabaseField
     private boolean seen;
 
+    @DatabaseField
+    private Date timestamp;
+
     public TalkClientMessage() {
+        this.timestamp = new Date();
     }
 
     public int getClientMessageId() {
@@ -150,6 +156,14 @@ public class TalkClientMessage {
         this.seen = seen;
     }
 
+    public Date getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Date timestamp) {
+        this.timestamp = timestamp;
+    }
+
     public void updateIncoming(TalkDelivery delivery, TalkMessage message) {
         if(outgoingDelivery != null) {
             LOG.warn("incoming update for outgoing message");
@@ -160,6 +174,9 @@ public class TalkClientMessage {
             incomingDelivery = delivery;
         } else {
             updateDelivery(incomingDelivery, delivery);
+            if(message.getTimeSent() != null) {
+                this.timestamp = message.getTimeSent();
+            }
         }
     }
 
