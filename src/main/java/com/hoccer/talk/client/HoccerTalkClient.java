@@ -1149,24 +1149,25 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         if(publicKey == null || privateKey == null) {
             Date now = new Date();
             try {
-                LOG.info("generating new RSA key");
+                LOG.info("generating new RSA keypair");
 
+                LOG.debug("generating keypair");
                 KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
 
-                LOG.info("unwrapping public key");
+                LOG.trace("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
                 byte[] pubEnc = RSACryptor.unwrapRSA1024_X509(pubKey.getEncoded());
                 String pubStr = Base64.encodeBase64String(pubEnc);
 
-                LOG.info("unwrapping private key");
+                LOG.trace("unwrapping private key");
                 PrivateKey privKey = keyPair.getPrivate();
                 byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
                 String privStr = Base64.encodeBase64String(privEnc);
 
-                LOG.info("calculating key id");
+                LOG.debug("calculating key id");
                 String kid = RSACryptor.calcKeyId(pubEnc);
 
-                LOG.info("creating database objects");
+                LOG.debug("creating database objects");
 
                 publicKey = new TalkKey();
                 publicKey.setClientId(contact.getClientId());
@@ -1183,7 +1184,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 contact.setPublicKey(publicKey);
                 contact.setPrivateKey(privateKey);
 
-                LOG.info("generated new key with kid " + kid);
+                LOG.info("generated new key with key id " + kid);
 
                 mDatabase.savePublicKey(publicKey);
                 mDatabase.savePrivateKey(privateKey);
@@ -1192,7 +1193,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 LOG.error("exception generating key", e);
             }
         } else {
-            LOG.info("using key with kid " + publicKey.getKeyId());
+            LOG.info("using key with key id " + publicKey.getKeyId());
         }
     }
 
@@ -1378,10 +1379,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 }
             } else {
                 TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
-                if(talkPrivateKey != null) {
+                if(talkPrivateKey == null) {
+                    LOG.error("no private key for keyId " + keyId);
+                } else {
                     PrivateKey privateKey = talkPrivateKey.getAsNative();
-                    if(privateKey != null) {
-
+                    if(privateKey == null) {
+                        LOG.error("could not decode private key");
+                    } else {
                         byte[] decryptedKey = null;
                         byte[] decryptedBodyRaw = null;
                         String decryptedBody = "";
@@ -1413,20 +1417,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                             LOG.error("error decrypting", e);
                         }
                         if(decryptedBody != null) {
-                            LOG.info("message: " + decryptedBody);
                             clientMessage.setText(decryptedBody);
                         }
                         if(decryptedAttachment != null) {
-                            LOG.info("attachment: " + decryptedAttachment.getUrl());
                             TalkClientDownload download = new TalkClientDownload();
                             download.initializeAsAttachment(decryptedAttachment, decryptedKey);
                             clientMessage.setAttachmentDownload(download);
                         }
-                    } else {
-                        LOG.warn("could not decode private key");
                     }
-                } else {
-                    LOG.warn("no private key for keyId " + keyId);
                 }
             }
         } catch (SQLException e) {
@@ -1439,14 +1437,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             //return;
         }
 
-        LOG.info("encrypting message " + clientMessage.getClientMessageId());
+        LOG.debug("encrypting message " + clientMessage.getClientMessageId());
 
         TalkClientContact receiver = clientMessage.getConversationContact();
         if(receiver == null) {
             LOG.error("no receiver");
             return;
         }
-        LOG.info("receiver is " + receiver.getClientContactId());
 
         try {
             receiver = mDatabase.findClientContactById(receiver.getClientContactId());
@@ -1460,7 +1457,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             return;
         }
 
-        LOG.info("got tpk");
+        LOG.debug("using private key " + talkPublicKey.getKeyId());
 
         PublicKey publicKey = talkPublicKey.getAsNative();
         if(publicKey == null) {
@@ -1468,16 +1465,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             return;
         }
 
-        LOG.info("got pk");
-
-        LOG.info("generating key");
+        LOG.trace("generating key");
         byte[] plainKey = AESCryptor.makeRandomBytes(32);
         try {
-            LOG.info("encrypting key");
+            LOG.trace("encrypting key");
             byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
             delivery.setKeyId(talkPublicKey.getKeyId());
             delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
-            LOG.info("encrypting body");
+            LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
             message.setBody(Base64.encodeBase64String(encryptedBody));
         } catch (NoSuchPaddingException e) {
