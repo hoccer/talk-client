@@ -262,13 +262,16 @@ public class TalkClientDownload extends TalkTransfer {
             LOG.info("GET " + downloadUrl + " starting");
             // create the GET request
             HttpGet request = new HttpGet(downloadUrl);
-            // if we have a content length then we can do range requests
-            if(contentLength != -1) {
-                long last = contentLength;
-                String range = "bytes=" + downloadProgress + "-" + last;
-                LOG.info("GET " + downloadUrl + " requesting range " + range);
-                request.addHeader("Range", range);
+            // determine the requested range
+            String range = null;
+            if(contentLength == -1) {
+                range = "bytes=" + downloadProgress + "-";
+            } else {
+                long last = contentLength - 1;
+                range = "bytes=" + downloadProgress + "-" + last;
             }
+            LOG.info("GET " + downloadUrl + " requesting range " + range);
+            request.addHeader("Range", range);
             // start performing the request
             HttpResponse response = client.execute(request);
             // process status code
