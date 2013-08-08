@@ -23,12 +23,10 @@ import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hoccer.talk.client.model.TalkClientContact;
-import com.hoccer.talk.client.model.TalkClientDownload;
-import com.hoccer.talk.client.model.TalkClientMessage;
-import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
@@ -473,8 +471,49 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("sql error", e);
         }
+    }
+
+    public void setClientAvatar(final TalkClientUpload upload) {
+        LOG.info("new avatar as upload " + upload);
+        resetIdle();
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                LOG.info("registering avatar");
+                if(!upload.performRegistration(mTransferAgent)) {
+                    LOG.error("avatar upload registration failed");
+                    return;
+                }
+                String downloadUrl = upload.getDownloadUrl();
+                if(downloadUrl == null) {
+                    LOG.error("registered avatar upload without download url");
+                    return;
+                }
+                mTransferAgent.requestUpload(upload);
+                try {
+                    TalkClientContact contact = mDatabase.findSelfContact(false);
+                    if(contact != null) {
+                        TalkPresence presence = contact.getClientPresence();
+                        if(presence != null) {
+                            presence.setAvatarUrl(downloadUrl);
+                        }
+                        contact.setAvatarUpload(upload);
+                        mDatabase.savePresence(presence);
+                        mDatabase.saveContact(contact);
+                        for(ITalkClientListener listener: mListeners) {
+                            listener.onClientPresenceChanged(contact);
+                        }
+                        LOG.info("sending new presence");
+                        sendPresence();
+                    }
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
+
+            }
+        });
     }
 
     public String generatePairingToken() {
@@ -1413,6 +1452,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                             if(rawAttachment != null) {
                                 decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
                                 decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
+                                LOG.info("attachment: " + mJsonMapper.writeValueAsString(decryptedAttachment));
                             }
                         } catch (NoSuchPaddingException e) {
                             LOG.error("error decrypting", e);
@@ -1480,7 +1520,32 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         LOG.trace("generating key");
         byte[] plainKey = AESCryptor.makeRandomBytes(32);
+
+        TalkAttachment attachment = null;
+        TalkClientUpload upload = clientMessage.getAttachmentUpload();
+        if(upload != null) {
+            LOG.info("generating attachment");
+
+            upload.provideEncryptionKey(bytesToHex(plainKey));
+            upload.performEncryption(mTransferAgent);
+            upload.performRegistration(mTransferAgent);
+
+            try {
+                mDatabase.saveClientUpload(upload);
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+            }
+
+            attachment = new TalkAttachment();
+            attachment.setUrl(upload.getDownloadUrl());
+            attachment.setContentSize(Integer.toString(upload.getDataLength()));
+            attachment.setMediaType(upload.getMediaType());
+            attachment.setMimeType(upload.getContentType());
+            attachment.setAspectRatio(upload.getAspectRatio());
+        }
+
         try {
+
             LOG.trace("encrypting key");
             byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
             delivery.setKeyId(talkPublicKey.getKeyId());
@@ -1488,6 +1553,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
             message.setBody(Base64.encodeBase64String(encryptedBody));
+            if(attachment != null) {
+                LOG.info("encrypting attachment");
+                LOG.info("attachment: " + mJsonMapper.writeValueAsString(attachment));
+                byte[] encodedAttachment = mJsonMapper.writeValueAsBytes(attachment);
+                byte[] encryptedAttachment = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, encodedAttachment);
+                message.setAttachment(Base64.encodeBase64String(encryptedAttachment));
+            }
         } catch (NoSuchPaddingException e) {
             LOG.error("error encrypting", e);
         } catch (NoSuchAlgorithmException e) {
@@ -1502,6 +1574,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             LOG.error("error encrypting", e);
         } catch (UnsupportedEncodingException e) {
             LOG.error("error encrypting", e);
+        } catch (JsonProcessingException e) {
+            LOG.error("error encrypting", e);
+        }
+
+        if(upload != null) {
+            mTransferAgent.requestUpload(upload);
         }
     }
 

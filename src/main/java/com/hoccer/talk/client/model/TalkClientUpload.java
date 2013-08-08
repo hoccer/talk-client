@@ -1,21 +1,29 @@
 package com.hoccer.talk.client.model;
 
+import com.google.appengine.api.blobstore.ByteRange;
 import com.hoccer.talk.client.HoccerTalkClient;
 import com.hoccer.talk.client.TalkClientDatabase;
 import com.hoccer.talk.client.TalkTransfer;
 import com.hoccer.talk.client.TalkTransferAgent;
+import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
-import org.apache.http.Header;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
+import org.apache.http.*;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.AbstractHttpEntity;
+import org.apache.http.entity.InputStreamEntity;
 import org.apache.log4j.Logger;
+import org.bouncycastle.util.encoders.Hex;
 
-import java.io.File;
+import javax.crypto.CipherInputStream;
+import java.io.*;
 import java.sql.SQLException;
+import java.util.Date;
+import java.util.UUID;
 
 @DatabaseTable(tableName = "clientUpload")
 public class TalkClientUpload extends TalkTransfer {
@@ -23,7 +31,7 @@ public class TalkClientUpload extends TalkTransfer {
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
     public enum State {
-        NEW, REGISTERED, ENCRYPTING, STARTED, COMPLETE, FAILED
+        NEW, ENCRYPTED, REGISTERED, STARTED, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -43,6 +51,13 @@ public class TalkClientUpload extends TalkTransfer {
     @DatabaseField
     private int dataLength;
 
+    @DatabaseField(width = 2000)
+    private String encryptedFile;
+    @DatabaseField
+    private int encryptedLength;
+    @DatabaseField
+    private String encryptionKey;
+
     /** Size of upload */
     @DatabaseField
     private int uploadLength;
@@ -58,6 +73,12 @@ public class TalkClientUpload extends TalkTransfer {
     @DatabaseField(width = 128)
     private String contentType;
 
+    @DatabaseField(width = 128)
+    private String mediaType;
+
+    @DatabaseField
+    private double aspectRatio;
+
     @DatabaseField
     private int progress;
 
@@ -67,6 +88,7 @@ public class TalkClientUpload extends TalkTransfer {
         this.state = State.NEW;
         this.dataLength = -1;
         this.uploadLength = -1;
+        this.encryptedLength = -1;
     }
 
     public int getClientUploadId() {
@@ -81,7 +103,43 @@ public class TalkClientUpload extends TalkTransfer {
         return type;
     }
 
-    public void initializeAsAvatar(String path) {
+    public String getDataFile() {
+        return dataFile;
+    }
+
+    public String getDownloadUrl() {
+        return downloadUrl;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public String getMediaType() {
+        return mediaType;
+    }
+
+    public int getEncryptedLength() {
+        return encryptedLength;
+    }
+
+    public int getDataLength() {
+        return dataLength;
+    }
+
+    public double getAspectRatio() {
+        return aspectRatio;
+    }
+
+    public int getProgress() {
+        return progress;
+    }
+
+    public void provideEncryptionKey(String key) {
+        this.encryptionKey = key;
+    }
+
+    public void initializeAsAvatar(String path, String contentType) {
         this.type = Type.AVATAR;
 
         File file = new File(path);
@@ -89,31 +147,51 @@ public class TalkClientUpload extends TalkTransfer {
 
         this.dataFile = path;
         this.dataLength = (int)fileSize;
+
+        this.contentType = contentType;
+        this.mediaType = "image";
     }
 
-    public void performUploadRegistration(TalkTransferAgent agent) {
-        TalkClientDatabase database = agent.getDatabase();
-        if(state == State.NEW) {
-            performRegistration(agent);
-            try {
-                database.saveClientUpload(this);
-            } catch (SQLException e) {
-                LOG.error("SQL error", e);
-            }
-        } else {
-            LOG.warn("Tried to register already-registered upload");
+    public void initializeAsAttachment(String path, String contentType, String mediaType, double aspectRatio) {
+        this.type = Type.ATTACHMENT;
+
+        File file = new File(path);
+        long fileSize = file.length();
+
+        this.dataFile = path;
+        this.dataLength = (int)fileSize;
+
+        this.contentType = contentType;
+        this.mediaType = mediaType;
+        this.aspectRatio = aspectRatio;
+
+        this.encryptedFile = UUID.randomUUID().toString();
+    }
+
+    private String computeUploadFile(TalkTransferAgent agent) {
+        String file = null;
+        switch(this.type) {
+            case AVATAR:
+                file = this.dataFile;
+                break;
+            case ATTACHMENT:
+                file = agent.getClient().getEncryptedUploadDirectory() + File.separator + this.encryptedFile;
+                break;
         }
+        return file;
     }
 
     public void performUploadAttempt(TalkTransferAgent agent) {
         TalkClientDatabase database = agent.getDatabase();
         HoccerTalkClient talkClient = agent.getClient();
 
-        boolean changed = false;
-        if(state == State.NEW) {
-            LOG.warn("Tried to perform unregistered upload");
+        String uploadFile = computeUploadFile(agent);
+        if(uploadFile == null) {
+            LOG.error("could not compute upload location for " + clientUploadId);
             return;
         }
+
+        boolean changed = false;
         if(state == State.COMPLETE) {
             LOG.warn("Tried to perform completed upload");
             return;
@@ -123,31 +201,37 @@ public class TalkClientUpload extends TalkTransfer {
             return;
         }
 
-        if(state == State.REGISTERED) {
-            switchState(agent, State.ENCRYPTING);
+        if((this.state == State.NEW && this.encryptionKey == null) || state == State.ENCRYPTED) {
+            if(!performRegistration(agent)) {
+                markFailed(agent);
+            }
             changed = true;
         }
 
-        if(state == State.ENCRYPTING) {
-            performEncryption(agent);
-            changed = true;
-        }
-
-        if(state == State.STARTED) {
+        if(state == State.REGISTERED || state == State.STARTED) {
             int failureCount = 0;
             while(failureCount < 5) {
-                boolean success = performOneRequest(talkClient.getTransferAgent());
-                if(!success) {
+                boolean success = performOneRequest(talkClient.getTransferAgent(), uploadFile);
+                if(success) {
+                    LOG.info("success");
+                    break;
+                } else {
+                    LOG.info("not finished yet");
                     failureCount++;
                 }
                 if(state == State.COMPLETE) {
+                    LOG.info("now finally complete");
                     break;
                 }
                 if(state == State.FAILED) {
+                    LOG.info("failed");
                     break;
                 }
             }
+            changed = true;
         }
+
+        LOG.info("upload attempt finished");
 
         if(changed) {
             try {
@@ -158,94 +242,241 @@ public class TalkClientUpload extends TalkTransfer {
         }
     }
 
-    private void performRegistration(TalkTransferAgent agent) {
+    public boolean performRegistration(TalkTransferAgent agent) {
         HoccerTalkClient talkClient = agent.getClient();
-        ITalkRpcServer.FileHandles handles = talkClient.getServerRpc().createFileForStorage(this.uploadLength);
-        uploadUrl = handles.uploadUrl;
-        downloadUrl = handles.downloadUrl;
-        switchState(agent, State.REGISTERED);
+        if((this.state == State.NEW && this.encryptionKey == null) || state == State.ENCRYPTED) {
+            LOG.info("performing registration of upload " + clientUploadId);
+
+            if(encryptionKey != null) {
+                this.uploadLength = encryptedLength;
+            } else {
+                this.uploadLength = dataLength;
+            }
+            try {
+                ITalkRpcServer.FileHandles handles;
+                if(type == Type.AVATAR) {
+                    handles = talkClient.getServerRpc().createFileForStorage(this.uploadLength);
+                } else {
+                    handles = talkClient.getServerRpc().createFileForTransfer(this.uploadLength);
+                }
+                uploadUrl = handles.uploadUrl;
+                downloadUrl = handles.downloadUrl;
+                switchState(agent, State.REGISTERED);
+            } catch (Exception e) {
+                LOG.error("error registering", e);
+                return false;
+            }
+        }
+        return true;
     }
 
-    private void performEncryption(TalkTransferAgent agent) {
+    public boolean performEncryption(TalkTransferAgent agent) {
+        if(state != State.NEW) {
+            return true;
+        }
+
         LOG.info("performing encryption of upload " + clientUploadId);
 
-/*        File source = getAttachmentFile(new File(agent.getClient().getAttachmentDirectory()));
+        String sourceFile = this.dataFile;
 
-        File destinationDir = new File(agent.getClient().getFilesDirectory());
+        String destinationFile = computeUploadFile(agent);
+        if(destinationFile == null) {
+            LOG.error("could not determine encryption destination");
+            return false;
+        }
 
-        File destination = new File(destinationDir, decryptedFile);
+        File source = new File(sourceFile);
+        File destination = new File(destinationFile);
         if(destination.exists()) {
             destination.delete();
         }
 
-        byte[] key = Hex.decode(decryptionKey);
-
-        int bytesToDecrypt = (int)source.length();
+        byte[] key = Hex.decode(encryptionKey);
 
         try {
             byte[] buffer = new byte[1 << 16];
-            InputStream is = new FileInputStream(source);
             OutputStream os = new FileOutputStream(destination);
-            OutputStream dos = AESCryptor.decryptingOutputStream(os, key, AESCryptor.NULL_SALT);
+            InputStream is = new FileInputStream(source);
+            CipherInputStream eis = AESCryptor.encryptingInputStream(is, key, AESCryptor.NULL_SALT);
 
-            int bytesToGo = bytesToDecrypt;
-            while(bytesToGo > 0) {
-                int bytesToCopy = Math.min(buffer.length, bytesToGo);
-                int bytesRead = is.read(buffer, 0, bytesToCopy);
-                dos.write(buffer, 0, bytesRead);
-                bytesToGo -= bytesRead;
-            }
+            int bytesRead;
+            do {
+                bytesRead = eis.read(buffer, 0, buffer.length);
+                if(bytesRead > 0) {
+                    os.write(buffer, 0, bytesRead);
+                }
+            } while (bytesRead != -1);
 
-            dos.flush();
-            dos.close();
+            eis.close();
+            is.close();
             os.flush();
             os.close();
-            is.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+
+            this.encryptedLength = (int)destination.length();
+
+            switchState(agent, State.ENCRYPTED);
         } catch (Exception e) {
-            e.printStackTrace();
-        }*/
+            LOG.error("encryption error", e);
+            return false;
+        }
+
+        return true;
     }
 
-    private boolean performOneRequest(TalkTransferAgent agent) {
+    private boolean performOneRequest(TalkTransferAgent agent, String filename) {
         HttpClient client = agent.getHttpClient();
         try {
-            HttpHead headRequest = new HttpHead(uploadUrl);
-            HttpResponse headResponse = client.execute(headRequest);
-            int headSc = headResponse.getStatusLine().getStatusCode();
-            LOG.info("HEAD " + uploadUrl + " status " + headSc);
-            if(headSc != HttpStatus.SC_OK) {
-                // client error - mark as failed
-                if(headSc >= 400 && headSc <= 499) {
-                    markFailed(agent);
-                }
-                return false;
+            LOG.info("uploading " + filename);
+
+            LOG.info("plain size " + dataLength);
+            LOG.info("encrypted size " + encryptedLength);
+
+            if(performCheckRequest(agent)) {
+                LOG.info("finished according to check");
+                return true;
             }
 
-            Header[] hdrs = headResponse.getAllHeaders();
-            for(int i = 0; i < hdrs.length; i++) {
-                Header h = hdrs[i];
-                LOG.info("HEAD " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
+            if(performUploadRequest(agent, filename)) {
+                LOG.info("finished with upload");
+                return true;
             }
 
-            return false;
-
-/*            HttpPut putRequest = new HttpPut(uploadUrl);
-            HttpResponse putResponse = client.execute(putRequest);
-            int putSc = putResponse.getStatusLine().getStatusCode();
-            LOG.info("PUT returned " + putSc);
-            if(putSc != HttpStatus.SC_OK) {
-                // client error - mark as failed
-                if(putSc >= 400 && putSc <= 499) {
-                    markFailed(agent);
-                }
-                return false;
-            }*/
         } catch (Exception e) {
             LOG.error("exception in upload", e);
         }
-        return true;
+
+        return false;
+    }
+
+    private boolean performCheckRequest(TalkTransferAgent agent) throws IOException {
+        HttpClient client = agent.getHttpClient();
+
+        int last = uploadLength - 1;
+        int confirmedProgress = 0;
+        // perform a check request to ensure correct progress
+        HttpPut checkRequest = new HttpPut(uploadUrl);
+        checkRequest.addHeader("Content-Range", "bytes */" + uploadLength);
+        LOG.info("PUT-check " + uploadUrl + " commencing");
+        HttpResponse checkResponse = client.execute(checkRequest);
+        StatusLine checkStatus = checkResponse.getStatusLine();
+        int checkSc = checkStatus.getStatusCode();
+        LOG.info("PUT-check " + uploadUrl + " status " + checkSc + ": " + checkStatus.getReasonPhrase());
+        if(checkSc != HttpStatus.SC_OK && checkSc != 308 /* resume incomplete */) {
+            // client error - mark as failed
+            if(checkSc >= 400 && checkSc <= 499) {
+                markFailed(agent);
+            }
+            return false;
+        }
+        // dump headers
+        Header[] hdrs = checkResponse.getAllHeaders();
+        for(int i = 0; i < hdrs.length; i++) {
+            Header h = hdrs[i];
+            LOG.info("PUT-check " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
+        }
+        // process range header from check request
+        Header checkRangeHeader = checkResponse.getFirstHeader("Range");
+        if(checkRangeHeader != null) {
+            if(checkCompletion(agent, checkRangeHeader)) {
+                return true;
+            }
+        } else {
+            LOG.warn("no range header");
+        }
+        return false;
+    }
+
+    private boolean performUploadRequest(TalkTransferAgent agent, String filename) throws IOException {
+        HttpClient client = agent.getHttpClient();
+
+        int last = uploadLength - 1;
+
+        int bytesToGo = uploadLength - this.progress;
+        LOG.info("PUT-upload " + uploadUrl + " " + bytesToGo + " bytes to go ");
+
+        String uploadRange = "bytes " + this.progress + "-" + last + "/" + uploadLength;
+        LOG.info("PUT-upload " + uploadUrl + " range " + uploadRange);
+
+        File sourceFile = new File(filename);
+        InputStream is = new FileInputStream(sourceFile);
+        is.skip(this.progress);
+        HttpEntity entity = new InputStreamEntity(is, bytesToGo);
+        HttpPut uploadRequest = new HttpPut(uploadUrl);
+        uploadRequest.setEntity(entity);
+        uploadRequest.addHeader("Content-Range", uploadRange);
+        LOG.info("PUT-upload " + uploadUrl + " commencing");
+        HttpResponse uploadResponse = client.execute(uploadRequest);
+        this.progress = uploadLength;
+        StatusLine uploadStatus = uploadResponse.getStatusLine();
+        int uploadSc = uploadStatus.getStatusCode();
+        LOG.info("PUT-upload " + uploadUrl + " status " + uploadSc + ": " + uploadStatus.getReasonPhrase());
+        if(uploadSc != HttpStatus.SC_OK && uploadSc != 308 /* resume incomplete */) {
+            // client error - mark as failed
+            if(uploadSc >= 400 && uploadSc <= 499) {
+                markFailed(agent);
+            }
+            return false;
+        }
+
+        // dump headers
+        Header[] uploadHdrs = uploadResponse.getAllHeaders();
+        for(int i = 0; i < uploadHdrs.length; i++) {
+            Header h = uploadHdrs[i];
+            LOG.info("PUT-upload " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
+        }
+        // process range header from upload request
+        Header checkRangeHeader = uploadResponse.getFirstHeader("Range");
+        if(checkRangeHeader != null) {
+            if(checkCompletion(agent, checkRangeHeader)) {
+                return true;
+            }
+        } else {
+            LOG.warn("no range header");
+        }
+
+        return false;
+    }
+
+    private boolean checkCompletion(TalkTransferAgent agent, Header checkRangeHeader) {
+        int last = uploadLength - 1;
+        int confirmedProgress = 0;
+
+        ByteRange uploadedRange = ByteRange.parseContentRange(checkRangeHeader.getValue());
+
+        LOG.info("checking returned range " + uploadedRange.toContentRangeString());
+
+        if(uploadedRange.hasTotal()) {
+            if(uploadedRange.getTotal() != uploadLength) {
+                LOG.error("server returned wrong upload length");
+                markFailed(agent);
+                return false;
+            }
+        }
+
+        if(uploadedRange.hasStart()) {
+            if(uploadedRange.getStart() != 0) {
+                LOG.error("server returned non-zero start");
+                markFailed(agent);
+                return false;
+            }
+        }
+
+        if(uploadedRange.hasEnd()) {
+            confirmedProgress = (int)uploadedRange.getEnd() + 1;
+        }
+
+        LOG.info("progress believed " + progress + " confirmed " + confirmedProgress);
+        this.progress = confirmedProgress;
+
+        if(uploadedRange.hasStart() && uploadedRange.hasEnd()) {
+            if(uploadedRange.getStart() == 0 && uploadedRange.getEnd() == last) {
+                LOG.info("upload complete");
+                switchState(agent, State.COMPLETE);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void markFailed(TalkTransferAgent agent) {
@@ -255,6 +486,11 @@ public class TalkClientUpload extends TalkTransfer {
     private void switchState(TalkTransferAgent agent, State newState) {
         LOG.info("[" + clientUploadId + "] switching to state " + newState);
         state = newState;
+        try {
+            agent.getDatabase().saveClientUpload(this);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
         agent.onUploadStateChanged(this);
     }
 

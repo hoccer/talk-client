@@ -8,7 +8,6 @@ import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
-import com.sun.xml.internal.ws.util.pipe.AbstractSchemaValidationTube;
 import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -308,9 +307,10 @@ public class TalkClientDownload extends TalkTransfer {
             request.addHeader("Range", range);
             // start performing the request
             HttpResponse response = client.execute(request);
-            // process status code
-            int sc = response.getStatusLine().getStatusCode();
-            LOG.info("GET " + downloadUrl + " returned status " + sc);
+            // process status line
+            StatusLine status = response.getStatusLine();
+            int sc = status.getStatusCode();
+            LOG.info("GET " + downloadUrl + " status " + sc + ": " + status.getReasonPhrase());
             if(sc != HttpStatus.SC_OK && sc != HttpStatus.SC_PARTIAL_CONTENT) {
                 // client error - mark as failed
                 if(sc >= 400 && sc <= 499) {

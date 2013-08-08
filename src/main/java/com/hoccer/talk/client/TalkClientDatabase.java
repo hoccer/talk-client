@@ -261,6 +261,10 @@ public class TalkClientDatabase {
         return mPrivateKeys.queryBuilder().where().eq("keyId", keyId).queryForFirst();
     }
 
+    public TalkClientUpload findClientUploadById(int clientUploadId) throws SQLException {
+        return mClientUploads.queryForId(clientUploadId);
+    }
+
     public TalkClientDownload findClientDownloadById(int clientDownloadId) throws SQLException {
         return mClientDownloads.queryForId(clientDownloadId);
     }
