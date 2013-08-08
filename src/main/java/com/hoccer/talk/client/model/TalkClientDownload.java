@@ -1,7 +1,6 @@
 package com.hoccer.talk.client.model;
 
 import com.google.appengine.api.blobstore.ByteRange;
-import com.hoccer.talk.client.HoccerTalkClient;
 import com.hoccer.talk.client.TalkClientDatabase;
 import com.hoccer.talk.client.TalkTransfer;
 import com.hoccer.talk.client.TalkTransferAgent;
@@ -9,6 +8,7 @@ import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
+import com.sun.xml.internal.ws.util.pipe.AbstractSchemaValidationTube;
 import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -53,6 +53,11 @@ public class TalkClientDownload extends TalkTransfer {
     @DatabaseField(width = 2000)
     private String downloadUrl;
 
+    /**
+     * Name of the file the download itself will go to
+     *
+     * This is relative to the result of computeDownloadDirectory().
+     */
     @DatabaseField(width = 2000)
     private String downloadFile;
 
@@ -68,6 +73,8 @@ public class TalkClientDownload extends TalkTransfer {
 
     @DatabaseField
     private double aspectRatio;
+
+    private transient long progressRateLimit;
 
 
     public TalkClientDownload() {
@@ -88,10 +95,10 @@ public class TalkClientDownload extends TalkTransfer {
         LOG.info("initializeAsAvatar(" + url + ")");
         this.type = Type.AVATAR;
         this.downloadUrl = url;
-        this.downloadFile = id + "-" + timestamp.getTime() + ".png";
+        this.downloadFile = id + "-" + timestamp.getTime() + ".png"; // XXX dirty
     }
 
-    public void initializeAsAttachment(TalkAttachment attachment, byte[] key) {
+    public void initializeAsAttachment(TalkAttachment attachment, String id, byte[] key) {
         LOG.info("initializeAsAttachment(" + attachment.getUrl() + ")");
 
         this.type = Type.ATTACHMENT;
@@ -102,16 +109,16 @@ public class TalkClientDownload extends TalkTransfer {
         this.aspectRatio = attachment.getAspectRatio();
 
         this.downloadUrl = attachment.getUrl();
-        this.downloadFile = attachment.getFilename();
-        if(this.downloadFile == null) {
-            this.downloadFile = UUID.randomUUID().toString();
-        }
-        if(key != null) {
-            this.decryptionKey = bytesToHex(key);
-            this.decryptedFile = this.downloadFile;
+        this.downloadFile = id;
+
+        this.decryptionKey = bytesToHex(key);
+        this.decryptedFile = UUID.randomUUID().toString();
+        String filename = attachment.getFilename();
+        if(filename != null) {
+            this.decryptedFile = filename;
         }
 
-        LOG.info("attachment filename " + this.downloadFile);
+        LOG.info("attachment filename " + this.decryptedFile);
     }
 
 
@@ -157,42 +164,65 @@ public class TalkClientDownload extends TalkTransfer {
         return aspectRatio;
     }
 
-    public File getAvatarFile(File avatarDirectory) {
-        return new File(avatarDirectory, this.downloadFile);
-    }
-
-    public File getAttachmentFile(File attachmentDirectory) {
-        return new File(attachmentDirectory, this.downloadFile);
-    }
-
-    public File getAttachmentDecryptedFile(File filesDirectory) {
-        return new File(filesDirectory, this.decryptedFile);
-    }
-
-    private String computeDownloadDestination(HoccerTalkClient client) {
-        if(this.downloadFile == null) {
-            LOG.warn("file without filename");
-            return null;
+    public String getDataFile() {
+        switch(this.type) {
+            case AVATAR:
+                return this.downloadFile;
+            case ATTACHMENT:
+                return this.decryptedFile;
         }
-        if(type == Type.AVATAR) {
-            return client.getAvatarDirectory() + File.separator + this.downloadFile;
-        }
-        if(type == Type.ATTACHMENT) {
-            return client.getAttachmentDirectory() + File.separator + this.downloadFile;
-        }
-        LOG.info("file of unhandled type");
         return null;
+    }
+
+    private String computeDecryptionDirectory(TalkTransferAgent agent) {
+        String directory = null;
+        switch(this.type) {
+            case ATTACHMENT:
+                directory = agent.getClient().getAttachmentDirectory();
+                break;
+        }
+        return directory;
+    }
+
+    private String computeDownloadDirectory(TalkTransferAgent agent) {
+        String directory = null;
+        switch(this.type) {
+            case AVATAR:
+                directory = agent.getClient().getAvatarDirectory();
+                break;
+            case ATTACHMENT:
+                directory = agent.getClient().getEncryptedDownloadDirectory();
+                break;
+        }
+        return directory;
+    }
+
+    private String computeDecryptionFile(TalkTransferAgent agent) {
+        String file = null;
+        String directory = computeDecryptionDirectory(agent);
+        if(directory != null) {
+            file = directory + File.separator + this.decryptedFile;
+        }
+        return file;
+    }
+
+    private String computeDownloadFile(TalkTransferAgent agent) {
+        String file = null;
+        String directory = computeDownloadDirectory(agent);
+        if(directory != null) {
+            file = directory + File.separator + this.downloadFile;
+        }
+        return file;
     }
 
     public void performDownloadAttempt(TalkTransferAgent agent) {
         TalkClientDatabase database = agent.getDatabase();
-        HoccerTalkClient talkClient = agent.getClient();
-        String filename = computeDownloadDestination(talkClient);
-        if(filename == null) {
-            LOG.error("could not determine filename for download " + clientDownloadId);
+        String downloadFilename = computeDownloadFile(agent);
+        if(downloadFilename == null) {
+            LOG.warn("could not determine download filename for " + clientDownloadId);
             return;
         }
-        LOG.info("filename is " + filename);
+        LOG.info("filename is " + downloadFilename);
 
         boolean changed = false;
         if(state == State.COMPLETE) {
@@ -217,7 +247,7 @@ public class TalkClientDownload extends TalkTransfer {
 
         int failureCount = 0;
         while(failureCount < 3) {
-            boolean success = performOneRequest(agent, filename);
+            boolean success = performOneRequest(agent, downloadFilename);
             if(!success) {
                 LOG.info("download attempt failed");
                 failureCount++;
@@ -228,14 +258,18 @@ public class TalkClientDownload extends TalkTransfer {
             }
             if(state == State.DECRYPTING) {
                 LOG.info("download will now be decrypted");
-                try {
-                    performDecryption(agent);
-                } catch (Exception e) {
-                    LOG.error("error decrypting", e);
+                String decryptedFilename = computeDecryptionFile(agent);
+                if(decryptedFilename == null) {
+                    LOG.warn("could not determine decrypted filename for " + clientDownloadId);
                     markFailed(agent);
                     break;
                 }
-                switchState(agent, State.COMPLETE);
+                LOG.info("decrypting to " + decryptedFilename);
+                if(!performDecryption(agent, downloadFilename, decryptedFilename)) {
+                    LOG.error("decryption failed");
+                    markFailed(agent);
+                    break;
+                }
                 break;
             }
             if(state == State.COMPLETE) {
@@ -380,13 +414,10 @@ public class TalkClientDownload extends TalkTransfer {
                 // update db
                 database.saveClientDownload(this);
                 // call listeners
-                agent.onDownloadProgress(this);
+                notifyProgress(agent);
             }
             // update state
             if(downloadProgress == contentLength && state != State.COMPLETE) {
-                LOG.info("file size: " + f.length());
-                LOG.info("progress: " + downloadProgress);
-                LOG.info("length: " + contentLength);
                 if(decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {
@@ -420,14 +451,12 @@ public class TalkClientDownload extends TalkTransfer {
         return true;
     }
 
-    private void performDecryption(TalkTransferAgent agent) {
+    private boolean performDecryption(TalkTransferAgent agent, String sourceFile, String destinationFile) {
         LOG.info("performing decryption of download " + clientDownloadId);
 
-        File source = getAttachmentFile(new File(agent.getClient().getAttachmentDirectory()));
+        File source = new File(sourceFile);
 
-        File destinationDir = new File(agent.getClient().getFilesDirectory());
-
-        File destination = new File(destinationDir, decryptedFile);
+        File destination = new File(destinationFile);
         if(destination.exists()) {
             destination.delete();
         }
@@ -455,11 +484,14 @@ public class TalkClientDownload extends TalkTransfer {
             os.flush();
             os.close();
             is.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+
+            switchState(agent, State.COMPLETE);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error("decryption error", e);
+            return false;
         }
+
+        return true;
     }
 
     private void markFailed(TalkTransferAgent agent) {
@@ -470,6 +502,15 @@ public class TalkClientDownload extends TalkTransfer {
         LOG.info("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
         agent.onDownloadStateChanged(this);
+    }
+
+    private void notifyProgress(TalkTransferAgent agent) {
+        long now = System.currentTimeMillis();
+        long delta = now - progressRateLimit;
+        if(delta > 250) {
+            agent.onDownloadProgress(this);
+        }
+        progressRateLimit = now;
     }
 
     /* XXX junk */

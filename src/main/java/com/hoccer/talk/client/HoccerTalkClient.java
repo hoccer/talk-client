@@ -97,9 +97,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     /* The database instance we use */
     TalkClientDatabase mDatabase;
 
+    /** Directory for avatar images */
     String mAvatarDirectory;
+    /** Directory for received attachments */
     String mAttachmentDirectory;
-    String mFilesDirectory;
+    /** Directory for encrypted intermediate uploads */
+    String mEncryptedUploadDirectory;
+    /** Directory for encrypted intermediate downloads */
+    String mEncryptedDownloadDirectory;
 
     TalkTransferAgent mTransferAgent;
 
@@ -235,12 +240,20 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         this.mAttachmentDirectory = attachmentDirectory;
     }
 
-    public String getFilesDirectory() {
-        return mFilesDirectory;
+    public String getEncryptedUploadDirectory() {
+        return mEncryptedUploadDirectory;
     }
 
-    public void setFilesDirectory(String filesDirectory) {
-        this.mFilesDirectory = filesDirectory;
+    public void setEncryptedUploadDirectory(String encryptedUploadDirectory) {
+        this.mEncryptedUploadDirectory = encryptedUploadDirectory;
+    }
+
+    public String getEncryptedDownloadDirectory() {
+        return mEncryptedDownloadDirectory;
+    }
+
+    public void setEncryptedDownloadDirectory(String encryptedDownloadDirectory) {
+        this.mEncryptedDownloadDirectory = encryptedDownloadDirectory;
     }
 
     public URI getServiceUri() {
@@ -1421,7 +1434,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         }
                         if(decryptedAttachment != null) {
                             TalkClientDownload download = new TalkClientDownload();
-                            download.initializeAsAttachment(decryptedAttachment, decryptedKey);
+                            download.initializeAsAttachment(decryptedAttachment, message.getMessageId(), decryptedKey);
                             clientMessage.setAttachmentDownload(download);
                         }
                     }
