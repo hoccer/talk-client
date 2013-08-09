@@ -485,12 +485,24 @@ public class TalkClientUpload extends TalkTransfer {
 
     private void switchState(TalkTransferAgent agent, State newState) {
         LOG.info("[" + clientUploadId + "] switching to state " + newState);
+
         state = newState;
+
+        if(state == State.COMPLETE || state == State.FAILED) {
+            if(encryptedFile != null) {
+                String path = agent.getClient().getEncryptedUploadDirectory()
+                        + File.separator + encryptedFile;
+                File file = new File(path);
+                file.delete();
+            }
+        }
+
         try {
             agent.getDatabase().saveClientUpload(this);
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
+
         agent.onUploadStateChanged(this);
     }
 
