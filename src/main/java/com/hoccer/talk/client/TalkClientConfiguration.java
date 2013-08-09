@@ -2,7 +2,7 @@ package com.hoccer.talk.client;
 
 public class TalkClientConfiguration {
 
-    public static final boolean USE_BSON_PROTOCOL = false;
+    public static final boolean USE_BSON_PROTOCOL = true;
 
     public static final String PROTOCOL_STRING_JSON = "com.hoccer.talk.v1";
     public static final String PROTOCOL_STRING_BSON = "com.hoccer.talk.v1.bson";
@@ -10,13 +10,15 @@ public class TalkClientConfiguration {
     public static final String SERVER_URI = "wss://server.talk.hoccer.de/";
 
     /** Connection timeout (seconds) */
-    public static final int CONNECT_TIMEOUT = 10;
+    public static final int CONNECT_TIMEOUT = 15;
 
     /** Idle timeout for client activity (seconds) */
     public static final int IDLE_TIMEOUT = 600;
 
-    public static final boolean KEEPALIVE_ENABLED = false;
-    public static final int KEEPALIVE_INTERVAL = 60;
+    /** Send K-A keepalives */
+    public static final boolean KEEPALIVE_ENABLED = true;
+    /** Interval to send K-A keepalives at */
+    public static final int KEEPALIVE_INTERVAL = 120;
 
     /** WS connection idle timeout (msecs) */
     public static final int CONNECTION_IDLE_TIMEOUT = 900 * 1000;
