@@ -86,6 +86,7 @@ public class TalkClientUpload extends TalkTransfer {
     public TalkClientUpload() {
         super(Direction.UPLOAD);
         this.state = State.NEW;
+        this.aspectRatio = 1.0;
         this.dataLength = -1;
         this.uploadLength = -1;
         this.encryptedLength = -1;

@@ -79,6 +79,7 @@ public class TalkClientDownload extends TalkTransfer {
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
         this.state = State.NEW;
+        this.aspectRatio = 1.0;
         this.downloadProgress = 0;
         this.contentLength = -1;
     }
