@@ -196,24 +196,18 @@ public class TalkClientDatabase {
     }
 
     public List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
-        LOG.info("findMessagesForDelivery");
         List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
-
-        LOG.info("found " + newDeliveries.size());
 
         List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
         try {
         for(TalkDelivery d: newDeliveries) {
-            LOG.info("querying for tag " + d.getMessageTag());
             TalkClientMessage m = mClientMessages.queryBuilder()
                                     .where().eq("outgoingDelivery" + "_id", d)
                                     .queryForFirst();
-            LOG.info("returned");
             if(m != null) {
-                LOG.info("found message " + m.getClientMessageId());
                 messages.add(m);
             } else {
-                LOG.info("no message for delivery for tag " + d.getMessageTag());
+                LOG.error("no message for delivery for tag " + d.getMessageTag());
             }
         }
         } catch (Throwable t) {
