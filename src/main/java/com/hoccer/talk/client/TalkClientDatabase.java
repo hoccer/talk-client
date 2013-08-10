@@ -1,7 +1,19 @@
 package com.hoccer.talk.client;
 
-import com.hoccer.talk.client.model.*;
-import com.hoccer.talk.model.*;
+import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientDownload;
+import com.hoccer.talk.client.model.TalkClientMembership;
+import com.hoccer.talk.client.model.TalkClientMessage;
+import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.TalkClientUpload;
+import com.hoccer.talk.model.TalkDelivery;
+import com.hoccer.talk.model.TalkGroup;
+import com.hoccer.talk.model.TalkGroupMember;
+import com.hoccer.talk.model.TalkKey;
+import com.hoccer.talk.model.TalkMessage;
+import com.hoccer.talk.model.TalkPresence;
+import com.hoccer.talk.model.TalkPrivateKey;
+import com.hoccer.talk.model.TalkRelationship;
 import com.j256.ormlite.dao.Dao;
 import org.apache.log4j.Logger;
 

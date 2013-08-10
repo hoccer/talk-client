@@ -1,35 +1,31 @@
 package com.hoccer.talk.client;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.security.*;
-import java.sql.SQLException;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
-import java.util.Vector;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
-
 import better.jsonrpc.websocket.JsonRpcWsClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hoccer.talk.client.model.*;
+import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientDownload;
+import com.hoccer.talk.client.model.TalkClientMessage;
+import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.RSACryptor;
-import com.hoccer.talk.model.*;
+import com.hoccer.talk.model.TalkAttachment;
+import com.hoccer.talk.model.TalkDelivery;
+import com.hoccer.talk.model.TalkGroup;
+import com.hoccer.talk.model.TalkGroupMember;
+import com.hoccer.talk.model.TalkKey;
+import com.hoccer.talk.model.TalkMessage;
+import com.hoccer.talk.model.TalkPresence;
+import com.hoccer.talk.model.TalkPrivateKey;
+import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.TalkToken;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
@@ -47,6 +43,27 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
+import java.util.Vector;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public class HoccerTalkClient implements JsonRpcConnection.Listener {
 

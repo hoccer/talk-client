@@ -9,20 +9,25 @@ import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
-import org.apache.http.*;
-import org.apache.http.client.ClientProtocolException;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
 import javax.crypto.CipherInputStream;
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.sql.SQLException;
-import java.util.Date;
 import java.util.UUID;
 
 @DatabaseTable(tableName = "clientUpload")

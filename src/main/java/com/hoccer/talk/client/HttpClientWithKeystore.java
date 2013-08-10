@@ -1,9 +1,5 @@
 package com.hoccer.talk.client;
 
-import java.security.GeneralSecurityException;
-import java.security.KeyStore;
-import java.util.Enumeration;
-
 import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.scheme.PlainSocketFactory;
 import org.apache.http.conn.scheme.Scheme;
@@ -13,6 +9,10 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.params.HttpParams;
 import org.apache.log4j.Logger;
+
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.util.Enumeration;
 
 /**
  * An HTTP client using a globally configured keystore with a certificate chain. Use static methods to configure the

@@ -1,13 +1,15 @@
 package com.hoccer.talk.client.model;
 
-import com.hoccer.talk.model.*;
+import com.hoccer.talk.model.TalkGroup;
+import com.hoccer.talk.model.TalkGroupMember;
+import com.hoccer.talk.model.TalkKey;
+import com.hoccer.talk.model.TalkPresence;
+import com.hoccer.talk.model.TalkPrivateKey;
+import com.hoccer.talk.model.TalkRelationship;
 import com.j256.ormlite.dao.ForeignCollection;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * These represent a target of communication
