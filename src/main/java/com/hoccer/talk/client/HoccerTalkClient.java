@@ -1794,7 +1794,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         if(contact == null) {
-            LOG.warn("Unknown group: " + group.getGroupId());
+            return;
         }
 
         contact.updateGroupPresence(group);
@@ -1831,7 +1831,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
             if(clientContact != null) {
-                groupContact = mDatabase.findContactByGroupId(member.getGroupId(), clientContact.isSelf()); // XXX also when not self because of ordering
+                // XXX also when not self because of ordering ???
+                boolean createGroup =
+                        clientContact.isSelf()
+                        && member.isInvolved()
+                        && !member.isGroupRemoved();
+                groupContact = mDatabase.findContactByGroupId(member.getGroupId(), createGroup);
             }
         } catch (SQLException e) {
             e.printStackTrace();
