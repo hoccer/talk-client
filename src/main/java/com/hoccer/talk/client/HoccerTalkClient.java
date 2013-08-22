@@ -561,7 +561,31 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     public void deleteContact(final TalkClientContact contact) {
         resetIdle();
-        // XXX
+        if(contact.isClient() || contact.isGroup()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    contact.markAsDeleted();
+
+                    try {
+                        mDatabase.saveContact(contact);
+                    } catch (SQLException e) {
+                        LOG.error("SQL error", e);
+                    }
+
+                    for(ITalkClientListener listener: mListeners) {
+                        listener.onContactRemoved(contact);
+                    }
+
+                    if(contact.isClient() && contact.isClientRelated()) {
+                        mServerRpc.depairClient(contact.getClientId());
+                    }
+                    if(contact.isGroup() && contact.isGroupJoined()) {
+                        mServerRpc.leaveGroup(contact.getGroupId());
+                    }
+                }
+            });
+        }
     }
 
     public void blockContact(final TalkClientContact contact) {

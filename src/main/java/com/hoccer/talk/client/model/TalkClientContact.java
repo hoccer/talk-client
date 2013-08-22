@@ -29,6 +29,9 @@ public class TalkClientContact {
     @DatabaseField
     private String contactType;
 
+    @DatabaseField
+    private boolean deleted;
+
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkKey publicKey;
@@ -90,6 +93,15 @@ public class TalkClientContact {
             this.groupId = id;
         }
     }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
+
+    public void markAsDeleted() {
+        this.deleted = true;
+    }
+
 
     public int getClientContactId() {
         return clientContactId;

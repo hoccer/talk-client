@@ -141,19 +141,25 @@ public class TalkClientDatabase {
     }
 
     public List<TalkClientContact> findAllContacts() throws SQLException {
-        return mClientContacts.queryForAll();
+        return mClientContacts.queryBuilder().where()
+                 .eq("deleted", false)
+               .query();
     }
 
     public List<TalkClientContact> findAllClientContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
-                .query();
+                 .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                 .eq("deleted", false)
+                .and(2)
+               .query();
     }
 
     public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
-                .eq("contactType", TalkClientContact.TYPE_GROUP)
-                .query();
+                 .eq("contactType", TalkClientContact.TYPE_GROUP)
+                 .eq("deleted", false)
+                .and(2)
+               .query();
     }
 
     public TalkClientContact findSelfContact(boolean create) throws SQLException {
@@ -176,6 +182,8 @@ public class TalkClientDatabase {
 
         contact = mClientContacts.queryBuilder()
                     .where().eq("clientId", clientId)
+                            .eq("deleted", false)
+                            .and(2)
                     .queryForFirst();
 
         if(create && contact == null) {
@@ -191,6 +199,8 @@ public class TalkClientDatabase {
 
         contact = mClientContacts.queryBuilder()
                     .where().eq("groupId", groupId)
+                            .eq("deleted", false)
+                            .and(2)
                     .queryForFirst();
 
         if(create && contact == null) {
@@ -204,6 +214,8 @@ public class TalkClientDatabase {
     public TalkClientContact findContactByGroupTag(String groupTag) throws SQLException {
         return mClientContacts.queryBuilder()
                 .where().eq("groupTag", groupTag)
+                        .eq("deleted", false)
+                        .and(2)
                 .queryForFirst();
     }
 
