@@ -1753,9 +1753,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.debug("updateClientRelationship(" + relationship.getOtherClientId() + ")");
         TalkClientContact clientContact = null;
         try {
-            clientContact = mDatabase.findContactByClientId(relationship.getOtherClientId(), true);
+            clientContact = mDatabase.findContactByClientId(relationship.getOtherClientId(), relationship.isRelated());
         } catch (SQLException e) {
             e.printStackTrace();
+            return;
+        }
+
+        if(clientContact == null) {
             return;
         }
 
