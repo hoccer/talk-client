@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoccer.talk.client.model.TalkClientContact;
 import com.hoccer.talk.client.model.TalkClientDownload;
+import com.hoccer.talk.client.model.TalkClientMembership;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientUpload;
@@ -580,8 +581,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     if(contact.isClient() && contact.isClientRelated()) {
                         mServerRpc.depairClient(contact.getClientId());
                     }
+
                     if(contact.isGroup() && contact.isGroupJoined()) {
                         mServerRpc.leaveGroup(contact.getGroupId());
+                        if(contact.isGroupAdmin()) {
+                            mServerRpc.deleteGroup(contact.getGroupId());
+                        }
                     }
                 }
             });
@@ -1860,13 +1865,22 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-            for(ITalkClientListener listener: mListeners) {
-                listener.onGroupMembershipChanged(groupContact);
-            }
         }
         // if this concerns the membership of someone else
         if(clientContact.isClient()) {
             LOG.info("Ignoring group member for other client");
+            try {
+                TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                        groupContact.getClientContactId(), clientContact.getClientContactId(), true);
+                membership.updateGroupMember(member);
+                mDatabase.saveClientMembership(membership);
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+            }
+        }
+
+        for(ITalkClientListener listener: mListeners) {
+            listener.onGroupMembershipChanged(groupContact);
         }
     }
 

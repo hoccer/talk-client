@@ -313,4 +313,27 @@ public class TalkClientDatabase {
         return mClientMessages.queryForEq("seen", false);
     }
 
+    public TalkClientMembership findMembershipByContacts(int groupId, int clientId, boolean create) throws SQLException {
+        TalkClientMembership res = mClientMemberships.queryBuilder().where()
+                  .eq("groupContact_id", groupId)
+                  .eq("clientContact_id", clientId)
+                 .and(2)
+                .queryForFirst();
+
+        if(create && res == null) {
+            TalkClientContact groupContact = findClientContactById(groupId);
+            TalkClientContact clientContact = findClientContactById(clientId);
+            res = new TalkClientMembership();
+            res.setGroupContact(groupContact);
+            res.setClientContact(clientContact);
+            mClientMemberships.create(res);
+        }
+
+        return res;
+    }
+
+    public void saveClientMembership(TalkClientMembership membership) throws SQLException {
+        mClientMemberships.createOrUpdate(membership);
+    }
+
 }
