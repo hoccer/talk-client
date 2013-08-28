@@ -1467,6 +1467,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             String keyId = delivery.getKeyId();
             String keyCiphertext = delivery.getKeyCiphertext();
+            String keySalt = message.getSalt();
             String rawBody = message.getBody();
             String rawAttachment = message.getAttachment();
             if(keyId == null || keyCiphertext == null) {
@@ -1484,6 +1485,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     if(privateKey == null) {
                         LOG.error("could not decode private key");
                     } else {
+                        byte[] decodedSalt = null;
                         byte[] decryptedKey = null;
                         byte[] decryptedBodyRaw = null;
                         String decryptedBody = "";
@@ -1491,6 +1493,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         TalkAttachment decryptedAttachment = null;
                         try {
                             decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
+                            if(keySalt != null) {
+                                decodedSalt = Base64.decodeBase64(keySalt);
+                                if(decodedSalt.length != decryptedKey.length) {
+                                    throw new CryptoException("salt size not equal to key size");
+                                }
+                                for(int i = 0; i < decryptedKey.length; i++) {
+                                    decryptedKey[i] = (byte)(decryptedKey[i] ^ decodedSalt[i]);
+                                }
+                            }
                             if(rawBody != null) {
                                 decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
                                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
@@ -1513,6 +1524,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         } catch (InvalidAlgorithmParameterException e) {
                             LOG.error("error decrypting", e);
                         } catch (IOException e) {
+                            LOG.error("error decrypting", e);
+                        } catch (CryptoException e) {
                             LOG.error("error decrypting", e);
                         }
                         if(decryptedBody != null) {
