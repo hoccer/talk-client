@@ -32,7 +32,6 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
 
     // Static Methods ----------------------------------------------------
 
-    /* currently not used */
     public static synchronized void initializeSsl(KeyStore pTrustStore) throws GeneralSecurityException {
         LOG.debug("initializeSsl()");
 
