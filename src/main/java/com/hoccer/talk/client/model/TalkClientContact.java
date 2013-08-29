@@ -60,6 +60,9 @@ public class TalkClientContact {
     @DatabaseField(canBeNull = true)
     private String groupTag;
 
+    @DatabaseField(canBeNull = true)
+    private String groupKey;
+
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkGroup groupPresence;
 
@@ -68,6 +71,7 @@ public class TalkClientContact {
 
     @ForeignCollectionField(eager = false, foreignFieldName = "groupContact")
     private ForeignCollection<TalkClientMembership> groupMemberships;
+
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
     private TalkClientDownload avatarDownload;
@@ -291,6 +295,16 @@ public class TalkClientContact {
     public TalkGroupMember getGroupMember() {
         ensureGroup();
         return groupMember;
+    }
+
+    public String getGroupKey() {
+        ensureGroup();
+        return groupKey;
+    }
+
+    public void setGroupKey(String groupKey) {
+        ensureGroup();
+        this.groupKey = groupKey;
     }
 
     public ForeignCollection<TalkClientMembership> getGroupMemberships() {
