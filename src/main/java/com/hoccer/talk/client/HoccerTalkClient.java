@@ -31,6 +31,7 @@ import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
 import com.hoccer.talk.srp.SRP6VerifyingClient;
+import com.j256.ormlite.dao.ForeignCollection;
 import de.undercouch.bson4jackson.BsonFactory;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
@@ -999,7 +1000,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: syncing groups");
                     TalkGroup[] groups = mServerRpc.getGroups(never);
                     for(TalkGroup group: groups) {
-                        updateGroupPresence(group);
+                        if(group.getState().equals(TalkGroup.STATE_EXISTS)) {
+                            updateGroupPresence(group);
+                        }
                     }
                     LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
@@ -1462,92 +1465,141 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
 
+        TalkClientContact contact = clientMessage.getConversationContact();
+
         clientMessage.setText("<Unreadable>");
 
-        try {
-            String keyId = delivery.getKeyId();
-            String keyCiphertext = delivery.getKeyCiphertext();
-            String keySalt = message.getSalt();
-            String rawBody = message.getBody();
-            String rawAttachment = message.getAttachment();
-            if(keyId == null || keyCiphertext == null) {
-                if(rawBody == null) {
-                    clientMessage.setText("");
-                } else {
-                    clientMessage.setText(message.getBody());
-                }
-            } else {
-                TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
+        String keyId = delivery.getKeyId();
+        String keyCiphertext = delivery.getKeyCiphertext();
+        String keySalt = message.getSalt();
+        String rawBody = message.getBody();
+        String rawAttachment = message.getAttachment();
+
+        // get decryption key
+        byte[] decryptedKey = null;
+        if(contact.isClient()) {
+            LOG.info("decrypting using our private key and a message key");
+            try {
+                TalkPrivateKey talkPrivateKey = null;
+                talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
+
                 if(talkPrivateKey == null) {
                     LOG.error("no private key for keyId " + keyId);
+                    return;
                 } else {
                     PrivateKey privateKey = talkPrivateKey.getAsNative();
                     if(privateKey == null) {
                         LOG.error("could not decode private key");
+                        return;
                     } else {
-                        byte[] decodedSalt = null;
-                        byte[] decryptedKey = null;
-                        byte[] decryptedBodyRaw = null;
-                        String decryptedBody = "";
-                        byte[] decryptedAttachmentRaw = null;
-                        TalkAttachment decryptedAttachment = null;
-                        try {
-                            decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
-                            if(keySalt != null) {
-                                decodedSalt = Base64.decodeBase64(keySalt);
-                                if(decodedSalt.length != decryptedKey.length) {
-                                    throw new CryptoException("salt size not equal to key size");
-                                }
-                                for(int i = 0; i < decryptedKey.length; i++) {
-                                    decryptedKey[i] = (byte)(decryptedKey[i] ^ decodedSalt[i]);
-                                }
-                            }
-                            if(rawBody != null) {
-                                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
-                                decryptedBody = new String(decryptedBodyRaw, "UTF-8");
-                            }
-                            if(rawAttachment != null) {
-                                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
-                                decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
-                                LOG.info("attachment: " + mJsonMapper.writeValueAsString(decryptedAttachment));
-                            }
-                        } catch (NoSuchPaddingException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (NoSuchAlgorithmException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (InvalidKeyException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (BadPaddingException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (IllegalBlockSizeException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (InvalidAlgorithmParameterException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (IOException e) {
-                            LOG.error("error decrypting", e);
-                        } catch (CryptoException e) {
-                            LOG.error("error decrypting", e);
-                        }
-                        if(decryptedBody != null) {
-                            clientMessage.setText(decryptedBody);
-                        }
-                        if(decryptedAttachment != null) {
-                            TalkClientDownload download = new TalkClientDownload();
-                            download.initializeAsAttachment(decryptedAttachment, message.getMessageId(), decryptedKey);
-                            clientMessage.setAttachmentDownload(download);
-                        }
+                        decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
                     }
                 }
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+                return;
+            } catch (IllegalBlockSizeException e) {
+                LOG.error("decryption error", e);
+                return;
+            } catch (InvalidKeyException e) {
+                LOG.error("decryption error", e);
+                return;
+            } catch (BadPaddingException e) {
+                LOG.error("decryption error", e);
+                return;
+            } catch (NoSuchAlgorithmException e) {
+                LOG.error("decryption error", e);
+                return;
+            } catch (NoSuchPaddingException e) {
+                LOG.error("decryption error", e);
+                return;
             }
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } else if(contact.isGroup()) {
+            LOG.info("decrypting using group key");
+            String groupKey = contact.getGroupKey();
+            if(groupKey == null) {
+                LOG.warn("no group key");
+                return;
+            }
+            LOG.info("GK-b64 " + groupKey);
+            decryptedKey = Base64.decodeBase64(contact.getGroupKey());
+            LOG.info("GK-hex " + bytesToHex(decryptedKey));
+        } else {
+            LOG.error("don't know how to decrypt messages from contact of type " + contact.getContactType());
+            return;
+        }
+
+        // check that we have a key
+        if(decryptedKey == null) {
+            LOG.error("could not determine decryption key");
+            return;
+        }
+
+        // apply salt if present
+        if(keySalt != null) {
+            LOG.info("SALT-b64 " + keySalt);
+            byte[] decodedSalt = Base64.decodeBase64(keySalt);
+            if(decodedSalt.length != decryptedKey.length) {
+                LOG.error("message salt has wrong size");
+                return;
+            }
+            for(int i = 0; i < decryptedKey.length; i++) {
+                decryptedKey[i] = (byte)(decryptedKey[i] ^ decodedSalt[i]);
+            }
+            LOG.info("GK-hex-salted " + bytesToHex(decryptedKey));
+        }
+
+        // decrypt both body and attachment dtor
+        byte[] decryptedBodyRaw;
+        String decryptedBody = "";
+        byte[] decryptedAttachmentRaw;
+        TalkAttachment decryptedAttachment = null;
+        try {
+            // decrypt body
+            if(rawBody != null) {
+                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
+                decryptedBody = new String(decryptedBodyRaw, "UTF-8");
+            }
+            // decrypt attachment
+            if(rawAttachment != null) {
+                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
+                decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
+            }
+        } catch (NoSuchPaddingException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (NoSuchAlgorithmException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (InvalidKeyException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (BadPaddingException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (IllegalBlockSizeException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (InvalidAlgorithmParameterException e) {
+            LOG.error("error decrypting", e);
+            return;
+        } catch (IOException e) {
+            LOG.error("error decrypting", e);
+            return;
+        }
+
+        // add decrypted information to message
+        if(decryptedBody != null) {
+            clientMessage.setText(decryptedBody);
+        }
+        if(decryptedAttachment != null) {
+            TalkClientDownload download = new TalkClientDownload();
+            download.initializeAsAttachment(decryptedAttachment, message.getMessageId(), decryptedKey);
+            clientMessage.setAttachmentDownload(download);
         }
     }
 
     private void encryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
-        if(message.getBody() != null) {
-            //return;
-        }
 
         LOG.debug("encrypting message " + clientMessage.getClientMessageId());
 
@@ -1561,24 +1613,78 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             receiver = mDatabase.findClientContactById(receiver.getClientContactId());
         } catch (SQLException e) {
             LOG.error("SQL error", e);
-        }
-
-        TalkKey talkPublicKey = receiver.getPublicKey();
-        if(talkPublicKey == null) {
-            LOG.error("no pubkey for encryption");
             return;
         }
 
-        LOG.debug("using private key " + talkPublicKey.getKeyId());
+        byte[] plainKey = null;
+        byte[] keySalt = null;
+        if(receiver.isClient()) {
+            LOG.info("generating key for message");
+            plainKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            TalkKey talkPublicKey = receiver.getPublicKey();
+            if(talkPublicKey == null) {
+                LOG.error("no pubkey for encryption");
+                return;
+            }
+            LOG.info("using private key " + talkPublicKey.getKeyId());
+            PublicKey publicKey = talkPublicKey.getAsNative();
+            if(publicKey == null) {
+                LOG.error("could not get public key for encryption");
+                return;
+            }
+            LOG.info("encrypting key");
+            try {
+                byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
+                delivery.setKeyId(talkPublicKey.getKeyId());
+                delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
+            } catch (NoSuchPaddingException e) {
+                LOG.error("error encrypting", e);
+                return;
+            } catch (NoSuchAlgorithmException e) {
+                LOG.error("error encrypting", e);
+                return;
+            } catch (InvalidKeyException e) {
+                LOG.error("error encrypting", e);
+                return;
+            } catch (BadPaddingException e) {
+                LOG.error("error encrypting", e);
+                return;
+            } catch (IllegalBlockSizeException e) {
+                LOG.error("error encrypting", e);
+                return;
+            }
+        } else {
+            LOG.info("using group key for message");
+            String groupKey = receiver.getGroupKey();
+            if(groupKey == null) {
+                LOG.warn("no group key");
+                return;
+            }
 
-        PublicKey publicKey = talkPublicKey.getAsNative();
-        if(publicKey == null) {
-            LOG.error("could not get public key for encryption");
-            return;
+            LOG.info("GK-b64 " + groupKey);
+
+            plainKey = Base64.decodeBase64(groupKey);
+
+            LOG.info("GK-hex " + bytesToHex(plainKey));
+
+            keySalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            String encodedSalt = Base64.encodeBase64String(keySalt);
+            LOG.info("SALT-b64 " + encodedSalt);
+            message.setSalt(encodedSalt);
         }
 
-        LOG.trace("generating key");
-        byte[] plainKey = AESCryptor.makeRandomBytes(32);
+        // apply salt if present
+        if(keySalt != null) {
+            LOG.info("SALT-hex " + bytesToHex(keySalt));
+            if(keySalt.length != plainKey.length) {
+                LOG.error("message salt has wrong size");
+                return;
+            }
+            for(int i = 0; i < plainKey.length; i++) {
+                plainKey[i] = (byte)(plainKey[i] ^ keySalt[i]);
+            }
+            LOG.info("GK-hex-salted " + bytesToHex(plainKey));
+        }
 
         TalkAttachment attachment = null;
         TalkClientUpload upload = clientMessage.getAttachmentUpload();
@@ -1604,17 +1710,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         try {
-
-            LOG.trace("encrypting key");
-            byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
-            delivery.setKeyId(talkPublicKey.getKeyId());
-            delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
             LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
             message.setBody(Base64.encodeBase64String(encryptedBody));
             if(attachment != null) {
-                LOG.info("encrypting attachment");
-                LOG.info("attachment: " + mJsonMapper.writeValueAsString(attachment));
+                LOG.trace("encrypting attachment");
                 byte[] encodedAttachment = mJsonMapper.writeValueAsBytes(attachment);
                 byte[] encryptedAttachment = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, encodedAttachment);
                 message.setAttachment(Base64.encodeBase64String(encryptedAttachment));
@@ -1649,6 +1749,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             clientContact = mDatabase.findContactByClientId(presence.getClientId(), true);
         } catch (SQLException e) {
             e.printStackTrace();
+            return;
+        }
+
+        if(clientContact.isSelf()) {
+            LOG.warn("server sent self-presence due to group presence bug, ignoring");
+            return;
+        }
+
+        if(!clientContact.isClient()) {
+            LOG.warn("contact is not a client contact!? " + clientContact.getContactType());
             return;
         }
 
@@ -1871,7 +1981,20 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
         // if this concerns our own membership
         if(clientContact.isSelf()) {
+            LOG.info("gm is about us, decrypting group key");
             groupContact.updateGroupMember(member);
+            decryptGroupKey(groupContact, member);
+            boolean renew = false;
+            if(groupContact.isGroupAdmin()) {
+                if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
+                    LOG.info("we have no key, renewing");
+                    renew = true;
+                }
+                if(renew) {
+                    LOG.info("initiating key renewal");
+                    renewGroupKey(groupContact);
+                }
+            }
             try {
                 mDatabase.saveGroupMember(groupContact.getGroupMember());
                 mDatabase.saveContact(groupContact);
@@ -1881,11 +2004,35 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
         // if this concerns the membership of someone else
         if(clientContact.isClient()) {
-            LOG.info("Ignoring group member for other client");
             try {
                 TalkClientMembership membership = mDatabase.findMembershipByContacts(
                         groupContact.getClientContactId(), clientContact.getClientContactId(), true);
+                TalkGroupMember oldMember = membership.getMember();
+                LOG.info("old member " + ((oldMember == null) ? "null" : "there"));
+                if(oldMember != null) {
+                    LOG.info("old " + oldMember.getState() + " new " + member.getState());
+                }
+                if(groupContact.isGroupAdmin()) {
+                    boolean renew = false;
+                    if(oldMember == null) {
+                        LOG.info("client is new, renewing");
+                        renew = true;
+                    }
+                    if(oldMember != null && !oldMember.isJoined()) {
+                        LOG.info("client is newly joined, renewing");
+                        renew = true;
+                    }
+                    if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
+                        LOG.info("client has no key, renewing");
+                        renew = true;
+                    }
+                    if(renew) {
+                        LOG.info("initiating key renewal");
+                        renewGroupKey(groupContact);
+                    }
+                }
                 membership.updateGroupMember(member);
+                mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveClientMembership(membership);
             } catch (SQLException e) {
                 LOG.error("sql error", e);
@@ -1894,6 +2041,96 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         for(ITalkClientListener listener: mListeners) {
             listener.onGroupMembershipChanged(groupContact);
+        }
+    }
+
+    private void decryptGroupKey(TalkClientContact group, TalkGroupMember member) {
+        LOG.info("decrypting group key");
+        String keyId = member.getMemberKeyId();
+        String encryptedGroupKey = member.getEncryptedGroupKey();
+        try {
+            TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
+            if(talkPrivateKey == null) {
+                LOG.error("no private key for keyId " + keyId);
+            } else {
+                PrivateKey privateKey = talkPrivateKey.getAsNative();
+                if(privateKey == null) {
+                    LOG.error("could not decode private key");
+                } else {
+                    byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey);
+                    byte[] rawGroupKey = RSACryptor.decryptRSA(privateKey, rawEncryptedGroupKey);
+                    LOG.info("successfully decrypted group key");
+                    String groupKey = Base64.encodeBase64String(rawGroupKey);
+                    group.setGroupKey(groupKey);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (IllegalBlockSizeException e) {
+            e.printStackTrace();
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void renewGroupKey(TalkClientContact group) {
+        LOG.info("renewing group key for group contact " + group.getClientContactId());
+
+        if(!group.isGroupAdmin()) {
+            LOG.warn("we are not admin, should not and can't renew group key");
+            return;
+        }
+
+        // generate the new key
+        byte[] newGroupKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+        // remember the group key for ourselves
+        group.setGroupKey(Base64.encodeBase64String(newGroupKey));
+        // distribute the group key
+        ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
+        for(TalkClientMembership membership: memberships) {
+            TalkGroupMember member = membership.getMember();
+            if(member != null && member.isJoined()) {
+                try {
+                    TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
+                    LOG.info("encrypting new group key for client contact " + client.getClientContactId());
+                    TalkKey clientPubKey = client.getPublicKey();
+                    if(clientPubKey == null) {
+                        LOG.warn("no public key for client contact " + client.getClientContactId());
+                    } else {
+                        // encrypt and encode key for client
+                        PublicKey clientKey = clientPubKey.getAsNative();
+                        byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, newGroupKey);
+                        String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
+                        // send the key to the server for distribution
+                        mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+                    }
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                } catch (IllegalBlockSizeException e) {
+                    LOG.error("encryption error", e);
+                } catch (InvalidKeyException e) {
+                    LOG.error("encryption error", e);
+                } catch (BadPaddingException e) {
+                    LOG.error("encryption error", e);
+                } catch (NoSuchAlgorithmException e) {
+                    LOG.error("encryption error", e);
+                } catch (NoSuchPaddingException e) {
+                    LOG.error("encryption error", e);
+                }
+            }
+        }
+
+        // save the new group key
+        try {
+            mDatabase.saveContact(group);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
         }
     }
 
