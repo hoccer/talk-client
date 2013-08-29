@@ -1464,11 +1464,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
+        LOG.info("decryptMessage()");
 
+        // contact (provides decryption context)
         TalkClientContact contact = clientMessage.getConversationContact();
 
+        // default message text
         clientMessage.setText("<Unreadable>");
 
+        // get various fields
         String keyId = delivery.getKeyId();
         String keyCiphertext = delivery.getKeyCiphertext();
         String keySalt = message.getSalt();
@@ -1478,11 +1482,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // get decryption key
         byte[] decryptedKey = null;
         if(contact.isClient()) {
-            LOG.info("decrypting using our private key and a message key");
+            LOG.trace("decrypting using private key");
+            // decrypt the provided key using our private key
             try {
                 TalkPrivateKey talkPrivateKey = null;
                 talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
-
                 if(talkPrivateKey == null) {
                     LOG.error("no private key for keyId " + keyId);
                     return;
@@ -1515,15 +1519,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 return;
             }
         } else if(contact.isGroup()) {
-            LOG.info("decrypting using group key");
+            LOG.trace("decrypting using group key");
+            // get the group key for decryption
             String groupKey = contact.getGroupKey();
             if(groupKey == null) {
                 LOG.warn("no group key");
                 return;
             }
-            LOG.info("GK-b64 " + groupKey);
             decryptedKey = Base64.decodeBase64(contact.getGroupKey());
-            LOG.info("GK-hex " + bytesToHex(decryptedKey));
         } else {
             LOG.error("don't know how to decrypt messages from contact of type " + contact.getContactType());
             return;
@@ -1619,20 +1622,22 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         byte[] plainKey = null;
         byte[] keySalt = null;
         if(receiver.isClient()) {
-            LOG.info("generating key for message");
+            LOG.trace("using client key for encryption");
+            // generate message key
             plainKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            // get public key for encrypting the key
             TalkKey talkPublicKey = receiver.getPublicKey();
             if(talkPublicKey == null) {
                 LOG.error("no pubkey for encryption");
                 return;
             }
-            LOG.info("using private key " + talkPublicKey.getKeyId());
+            // retrieve native version of the key
             PublicKey publicKey = talkPublicKey.getAsNative();
             if(publicKey == null) {
                 LOG.error("could not get public key for encryption");
                 return;
             }
-            LOG.info("encrypting key");
+            // encrypt the message key
             try {
                 byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
                 delivery.setKeyId(talkPublicKey.getKeyId());
@@ -1654,28 +1659,23 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 return;
             }
         } else {
-            LOG.info("using group key for message");
+            LOG.trace("using group key for encryption");
+            // get and decode the group key
             String groupKey = receiver.getGroupKey();
             if(groupKey == null) {
                 LOG.warn("no group key");
                 return;
             }
-
-            LOG.info("GK-b64 " + groupKey);
-
             plainKey = Base64.decodeBase64(groupKey);
-
-            LOG.info("GK-hex " + bytesToHex(plainKey));
-
+            // generate message-specific salt
             keySalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            // encode the salt for transmission
             String encodedSalt = Base64.encodeBase64String(keySalt);
-            LOG.info("SALT-b64 " + encodedSalt);
             message.setSalt(encodedSalt);
         }
 
         // apply salt if present
         if(keySalt != null) {
-            LOG.info("SALT-hex " + bytesToHex(keySalt));
             if(keySalt.length != plainKey.length) {
                 LOG.error("message salt has wrong size");
                 return;
@@ -1683,9 +1683,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             for(int i = 0; i < plainKey.length; i++) {
                 plainKey[i] = (byte)(plainKey[i] ^ keySalt[i]);
             }
-            LOG.info("GK-hex-salted " + bytesToHex(plainKey));
         }
 
+        // initialize attachment upload
         TalkAttachment attachment = null;
         TalkClientUpload upload = clientMessage.getAttachmentUpload();
         if(upload != null) {
@@ -1709,10 +1709,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             attachment.setAspectRatio(upload.getAspectRatio());
         }
 
+        // encrypt body and attachment dtor
         try {
+            // encrypt body
             LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
             message.setBody(Base64.encodeBase64String(encryptedBody));
+            // encrypt attachment dtor
             if(attachment != null) {
                 LOG.trace("encrypting attachment");
                 byte[] encodedAttachment = mJsonMapper.writeValueAsBytes(attachment);
@@ -1737,6 +1740,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             LOG.error("error encrypting", e);
         }
 
+        // start the attachment upload
         if(upload != null) {
             mTransferAgent.requestUpload(upload);
         }
