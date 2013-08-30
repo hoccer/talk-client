@@ -1962,6 +1962,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         boolean needGroupUpdate = false;
+        boolean needRenewal = false;
         try {
             clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
             if(clientContact != null) {
@@ -1995,15 +1996,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             LOG.info("gm is about us, decrypting group key");
             groupContact.updateGroupMember(member);
             decryptGroupKey(groupContact, member);
-            boolean renew = false;
             if(groupContact.isGroupAdmin()) {
                 if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
                     LOG.info("we have no key, renewing");
-                    renew = true;
-                }
-                if(renew) {
-                    LOG.info("initiating key renewal");
-                    renewGroupKey(groupContact);
+                    needRenewal = true;
                 }
             }
             try {
@@ -2024,22 +2020,17 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     LOG.info("old " + oldMember.getState() + " new " + member.getState());
                 }
                 if(groupContact.isGroupAdmin()) {
-                    boolean renew = false;
                     if(oldMember == null) {
                         LOG.info("client is new, renewing");
-                        renew = true;
+                        needRenewal = true;
                     }
                     if(oldMember != null && !oldMember.isJoined()) {
                         LOG.info("client is newly joined, renewing");
-                        renew = true;
+                        needRenewal = true;
                     }
                     if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
                         LOG.info("client has no key, renewing");
-                        renew = true;
-                    }
-                    if(renew) {
-                        LOG.info("initiating key renewal");
-                        renewGroupKey(groupContact);
+                        needRenewal = true;
                     }
                 }
                 membership.updateGroupMember(member);
@@ -2068,6 +2059,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     }
                 }
             });
+        }
+
+        if(needRenewal) {
+            LOG.info("initiating key renewal");
+            renewGroupKey(groupContact);
         }
     }
 
