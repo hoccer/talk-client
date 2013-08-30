@@ -583,9 +583,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         mServerRpc.depairClient(contact.getClientId());
                     }
 
-                    if(contact.isGroup() && contact.isGroupJoined()) {
-                        mServerRpc.leaveGroup(contact.getGroupId());
-                        if(contact.isGroupAdmin()) {
+                    if(contact.isGroup()) {
+                        if(contact.isGroupJoined()) {
+                            mServerRpc.leaveGroup(contact.getGroupId());
+                        }
+                        if(contact.isGroupExisting() && contact.isGroupAdmin()) {
                             mServerRpc.deleteGroup(contact.getGroupId());
                         }
                     }
@@ -633,6 +635,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        LOG.info("new group contact " + contact.getClientContactId());
         mServerRpc.createGroup(groupPresence);
         return contact;
     }
@@ -1001,6 +1004,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     TalkGroup[] groups = mServerRpc.getGroups(never);
                     for(TalkGroup group: groups) {
                         if(group.getState().equals(TalkGroup.STATE_EXISTS)) {
+                            LOG.info("updating group " + group.getGroupId());
                             updateGroupPresence(group);
                         }
                     }
@@ -1911,14 +1915,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     private void updateGroupPresence(TalkGroup group) {
         LOG.debug("updateGroupPresence(" + group.getGroupId() + ")");
+
         TalkClientContact contact = null;
         try {
-            contact = mDatabase.findContactByGroupId(group.getGroupId(), false);
+            contact = mDatabase.findContactByGroupTag(group.getGroupTag());
             if(contact == null) {
-                contact = mDatabase.findContactByGroupTag(group.getGroupTag());
-            }
-            if(contact == null) {
-                contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
+                contact = mDatabase.findContactByGroupId(group.getGroupId(), false);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -1926,6 +1928,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         if(contact == null) {
+            LOG.warn("gp update for unknown group " + group.getGroupId());
             return;
         }
 
@@ -1960,15 +1963,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         LOG.debug("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
+        boolean needGroupUpdate = false;
         try {
             clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
             if(clientContact != null) {
-                // XXX also when not self because of ordering ???
-                boolean createGroup =
-                        clientContact.isSelf()
-                        && member.isInvolved()
-                        && !member.isGroupRemoved();
-                groupContact = mDatabase.findContactByGroupId(member.getGroupId(), createGroup);
+                groupContact = mDatabase.findContactByGroupId(member.getGroupId(), false);
+                if(groupContact == null) {
+                    boolean createGroup =
+                            clientContact.isSelf()
+                            && member.isInvolved();
+                    if(createGroup) {
+                        LOG.info("CREATING GROUP FOR MEMBER IN STATE " + member.getState() + " GROUP " + member.getGroupId());
+                        groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
+                        needGroupUpdate = true;
+                    }
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -2046,12 +2055,32 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         for(ITalkClientListener listener: mListeners) {
             listener.onGroupMembershipChanged(groupContact);
         }
+
+        if(needGroupUpdate) {
+            LOG.info("we now require a group update to retrieve presences");
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    TalkGroup[] groups = mServerRpc.getGroups(new Date(0));
+                    for(TalkGroup group: groups) {
+                        if(group.getState().equals(TalkGroup.STATE_EXISTS)) {
+                            LOG.info("updating group " + group.getGroupId());
+                            updateGroupPresence(group);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     private void decryptGroupKey(TalkClientContact group, TalkGroupMember member) {
         LOG.info("decrypting group key");
         String keyId = member.getMemberKeyId();
         String encryptedGroupKey = member.getEncryptedGroupKey();
+        if(keyId == null || encryptedGroupKey == null) {
+            LOG.warn("can't decrypt group key because there isn't one yet");
+            return;
+        }
         try {
             TalkPrivateKey talkPrivateKey = mDatabase.findPrivateKeyByKeyId(keyId);
             if(talkPrivateKey == null) {
@@ -2097,35 +2126,37 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         group.setGroupKey(Base64.encodeBase64String(newGroupKey));
         // distribute the group key
         ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
-        for(TalkClientMembership membership: memberships) {
-            TalkGroupMember member = membership.getMember();
-            if(member != null && member.isJoined()) {
-                try {
-                    TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
-                    LOG.info("encrypting new group key for client contact " + client.getClientContactId());
-                    TalkKey clientPubKey = client.getPublicKey();
-                    if(clientPubKey == null) {
-                        LOG.warn("no public key for client contact " + client.getClientContactId());
-                    } else {
-                        // encrypt and encode key for client
-                        PublicKey clientKey = clientPubKey.getAsNative();
-                        byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, newGroupKey);
-                        String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
-                        // send the key to the server for distribution
-                        mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+        if(memberships != null) {
+            for(TalkClientMembership membership: memberships) {
+                TalkGroupMember member = membership.getMember();
+                if(member != null && member.isJoined()) {
+                    try {
+                        TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
+                        LOG.info("encrypting new group key for client contact " + client.getClientContactId());
+                        TalkKey clientPubKey = client.getPublicKey();
+                        if(clientPubKey == null) {
+                            LOG.warn("no public key for client contact " + client.getClientContactId());
+                        } else {
+                            // encrypt and encode key for client
+                            PublicKey clientKey = clientPubKey.getAsNative();
+                            byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, newGroupKey);
+                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
+                            // send the key to the server for distribution
+                            mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+                        }
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    } catch (IllegalBlockSizeException e) {
+                        LOG.error("encryption error", e);
+                    } catch (InvalidKeyException e) {
+                        LOG.error("encryption error", e);
+                    } catch (BadPaddingException e) {
+                        LOG.error("encryption error", e);
+                    } catch (NoSuchAlgorithmException e) {
+                        LOG.error("encryption error", e);
+                    } catch (NoSuchPaddingException e) {
+                        LOG.error("encryption error", e);
                     }
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
-                } catch (IllegalBlockSizeException e) {
-                    LOG.error("encryption error", e);
-                } catch (InvalidKeyException e) {
-                    LOG.error("encryption error", e);
-                } catch (BadPaddingException e) {
-                    LOG.error("encryption error", e);
-                } catch (NoSuchAlgorithmException e) {
-                    LOG.error("encryption error", e);
-                } catch (NoSuchPaddingException e) {
-                    LOG.error("encryption error", e);
                 }
             }
         }

@@ -143,6 +143,10 @@ public class TalkClientContact {
         return isGroup() && this.groupId != null;
     }
 
+    public boolean isGroupExisting() {
+        return isGroup() && this.groupPresence != null && this.groupPresence.getState().equals(TalkGroup.STATE_EXISTS);
+    }
+
     public boolean isGroupAdmin() {
         return isGroup() && this.groupMember != null && this.groupMember.isAdmin();
     }
