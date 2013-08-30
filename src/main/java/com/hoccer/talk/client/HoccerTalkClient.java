@@ -1544,7 +1544,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         // apply salt if present
         if(keySalt != null) {
-            LOG.info("SALT-b64 " + keySalt);
             byte[] decodedSalt = Base64.decodeBase64(keySalt);
             if(decodedSalt.length != decryptedKey.length) {
                 LOG.error("message salt has wrong size");
@@ -1553,7 +1552,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             for(int i = 0; i < decryptedKey.length; i++) {
                 decryptedKey[i] = (byte)(decryptedKey[i] ^ decodedSalt[i]);
             }
-            LOG.info("GK-hex-salted " + bytesToHex(decryptedKey));
         }
 
         // decrypt both body and attachment dtor
