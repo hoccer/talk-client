@@ -535,6 +535,68 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
+    public void setGroupName(final TalkClientContact group, final String groupName) {
+       mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                LOG.info("registering group avatar");
+                try {
+                    TalkGroup presence = group.getGroupPresence();
+                    if(presence == null) {
+                        LOG.error("group has no presence");
+                        return;
+                    }
+                    presence.setGroupName(groupName);
+                    mDatabase.saveGroup(presence);
+                    mDatabase.saveContact(group);
+                    for(ITalkClientListener listener: mListeners) {
+                        listener.onGroupPresenceChanged(group);
+                    }
+                    LOG.info("sending new group presence");
+                    mServerRpc.updateGroup(presence);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
+            }
+       });
+    }
+
+    public void setGroupAvatar(final TalkClientContact group, final TalkClientUpload upload) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                LOG.info("registering group avatar");
+                if(!upload.performRegistration(mTransferAgent)) {
+                    LOG.error("avatar registration failed");
+                    return;
+                }
+                String downloadUrl = upload.getDownloadUrl();
+                if(downloadUrl == null) {
+                    LOG.error("registered avatar upload without download url");
+                    return;
+                }
+                TalkGroup presence = group.getGroupPresence();
+                if(presence == null) {
+                    LOG.error("group has no presence");
+                    return;
+                }
+                mTransferAgent.requestUpload(upload);
+                try {
+                    presence.setGroupAvatarUrl(downloadUrl);
+                    mDatabase.saveGroup(presence);
+                    mDatabase.saveContact(group);
+                    for(ITalkClientListener listener: mListeners) {
+                        listener.onGroupPresenceChanged(group);
+                    }
+                    LOG.info("sending new group presence");
+                    mServerRpc.updateGroup(presence);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
+            }
+        });
+    }
+
     public String generatePairingToken() {
         resetIdle();
         String tokenPurpose = TalkToken.PURPOSE_PAIRING;
