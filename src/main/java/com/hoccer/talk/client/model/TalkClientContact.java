@@ -32,6 +32,9 @@ public class TalkClientContact {
     @DatabaseField
     private boolean deleted;
 
+    @DatabaseField
+    private boolean everRelated;
+
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkKey publicKey;
@@ -106,6 +109,13 @@ public class TalkClientContact {
         this.deleted = true;
     }
 
+    public boolean isEverRelated() {
+        return everRelated;
+    }
+
+    public void markAsRelated() {
+        this.everRelated = true;
+    }
 
     public int getClientContactId() {
         return clientContactId;
@@ -151,12 +161,30 @@ public class TalkClientContact {
         return isGroup() && this.groupMember != null && this.groupMember.isAdmin();
     }
 
+    public boolean isGroupInvolved() {
+        return isGroup() && this.groupMember != null && this.groupMember.isInvolved();
+    }
+
     public boolean isGroupInvited() {
         return isGroup() && this.groupMember != null && this.groupMember.isInvited();
     }
 
     public boolean isGroupJoined() {
         return isGroup() && this.groupMember != null && this.groupMember.isJoined();
+    }
+
+    public boolean isClientGroupMember(TalkClientContact group) {
+        if(!isClient()) {
+            return false;
+        }
+        int myId = getClientContactId();
+        ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
+        for(TalkClientMembership membership: memberships) {
+            if(membership.getClientContact().getClientContactId() == myId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String getName() {
@@ -361,6 +389,9 @@ public class TalkClientContact {
             my.setOtherClientId(relationship.getOtherClientId());
             my.setLastChanged(relationship.getLastChanged());
             my.setState(relationship.getState());
+            if(my.isRelated()) {
+                markAsRelated();
+            }
         }
     }
 
@@ -394,6 +425,9 @@ public class TalkClientContact {
             my.setMemberKeyId(member.getMemberKeyId());
             my.setEncryptedGroupKey(member.getEncryptedGroupKey());
             my.setRole(member.getRole());
+            if(my.isInvolved()) {
+                markAsRelated();
+            }
         }
     }
 
