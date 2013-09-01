@@ -500,7 +500,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.info("registering avatar");
+                LOG.info("registering client avatar");
                 if(!upload.performRegistration(mTransferAgent)) {
                     LOG.error("avatar upload registration failed");
                     return;
@@ -1119,18 +1119,18 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void ping() {
-            LOG.debug("server: ping()");
+            LOG.info("server: ping()");
         }
 
         @Override
         public void alertUser(String message) {
-            LOG.debug("server: alertUser()");
+            LOG.info("server: alertUser()");
             LOG.info("ALERTING USER: \"" + message + "\"");
         }
 
         @Override
         public void pushNotRegistered() {
-            LOG.debug("server: pushNotRegistered()");
+            LOG.info("server: pushNotRegistered()");
             for(ITalkClientListener listener: mListeners) {
                 listener.onPushRegistrationRequested();
             }
@@ -1150,25 +1150,25 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
-            LOG.debug("server: presenceUpdated(" + presence.getClientId() + ")");
+            LOG.info("server: presenceUpdated(" + presence.getClientId() + ")");
             updateClientPresence(presence);
         }
 
         @Override
         public void relationshipUpdated(TalkRelationship relationship) {
-            LOG.debug("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
+            LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
             updateClientRelationship(relationship);
         }
 
         @Override
         public void groupUpdated(TalkGroup group) {
-            LOG.debug("server: groupUpdated(" + group.getGroupId() + ")");
+            LOG.info("server: groupUpdated(" + group.getGroupId() + ")");
             updateGroupPresence(group);
         }
 
         @Override
         public void groupMemberUpdated(TalkGroupMember member) {
-            LOG.debug("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
+            LOG.info("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
             updateGroupMember(member);
         }
 
@@ -2183,9 +2183,11 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // distribute the group key
         ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
         if(memberships != null) {
+            LOG.info("will send key to " + memberships.size() + " members");
             for(TalkClientMembership membership: memberships) {
                 TalkGroupMember member = membership.getMember();
                 if(member != null && member.isJoined()) {
+                    LOG.info("joined member contact " + membership.getClientContact().getClientContactId());
                     try {
                         TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
                         LOG.info("encrypting new group key for client contact " + client.getClientContactId());
