@@ -77,6 +77,8 @@ public class TalkTransferAgent implements ITalkTransferListener {
                 }
 
                 LOG.debug("requesting download " + downloadId);
+                download.noteRequested();
+                onDownloadStarted(download);
 
                 mDownloadsById.put(downloadId, download);
 
@@ -84,7 +86,6 @@ public class TalkTransferAgent implements ITalkTransferListener {
                     @Override
                     public void run() {
                         LOG.info("performing download " + downloadId + " in state " + download.getState());
-                        onDownloadStarted(download);
                         download.performDownloadAttempt(TalkTransferAgent.this);
                         synchronized (mDownloadsById) {
                             mDownloadsById.remove(downloadId);

@@ -226,6 +226,12 @@ public class TalkClientDownload extends TalkTransfer {
         return file;
     }
 
+    public void noteRequested() {
+        if(state == State.NEW) {
+            state = State.REQUESTED;
+        }
+    }
+
     public void performDownloadAttempt(TalkTransferAgent agent) {
         TalkClientDatabase database = agent.getDatabase();
         String downloadFilename = computeDownloadFile(agent);
