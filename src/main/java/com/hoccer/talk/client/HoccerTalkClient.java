@@ -712,6 +712,16 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         });
     }
 
+    public void kickClientFromGroup(final String groupId, final String clientId) {
+        resetIdle();
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.removeGroupMember(groupId, clientId);
+            }
+        });
+    }
+
     public void joinGroup(final String groupId) {
         resetIdle();
         mExecutor.execute(new Runnable() {
