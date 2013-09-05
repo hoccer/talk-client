@@ -409,9 +409,10 @@ public class TalkClientContact {
             my.setOtherClientId(relationship.getOtherClientId());
             my.setLastChanged(relationship.getLastChanged());
             my.setState(relationship.getState());
-            if(my.isRelated()) {
-                markAsRelated();
-            }
+
+        }
+        if(this.clientRelationship.isRelated()) {
+            markAsRelated();
         }
     }
 
@@ -445,9 +446,9 @@ public class TalkClientContact {
             my.setMemberKeyId(member.getMemberKeyId());
             my.setEncryptedGroupKey(member.getEncryptedGroupKey());
             my.setRole(member.getRole());
-            if(my.isInvolved()) {
-                markAsRelated();
-            }
+        }
+        if(this.groupMember.isInvolved()) {
+            markAsRelated();
         }
     }
 
