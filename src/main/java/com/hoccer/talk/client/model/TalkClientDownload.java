@@ -16,8 +16,15 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.log4j.Logger;
+import org.apache.tika.detect.DefaultDetector;
+import org.apache.tika.detect.Detector;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.mime.MediaType;
+import org.apache.tika.mime.MimeType;
+import org.apache.tika.mime.MimeTypes;
 import org.bouncycastle.util.encoders.Hex;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -34,6 +41,9 @@ import java.util.UUID;
 public class TalkClientDownload extends TalkTransfer {
 
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
+
+    private static final Detector MIME_DETECTOR = new DefaultDetector(
+                            MimeTypes.getDefaultMimeTypes());
 
     public enum State {
         NEW, REQUESTED, STARTED, DECRYPTING, COMPLETE, FAILED
@@ -106,7 +116,7 @@ public class TalkClientDownload extends TalkTransfer {
         LOG.info("initializeAsAvatar(" + url + ")");
         this.type = Type.AVATAR;
         this.downloadUrl = url;
-        this.downloadFile = id + "-" + timestamp.getTime() + ".png"; // XXX dirty
+        this.downloadFile = id + "-" + timestamp.getTime();
     }
 
     public void initializeAsAttachment(TalkAttachment attachment, String id, byte[] key) {
@@ -265,6 +275,7 @@ public class TalkClientDownload extends TalkTransfer {
         int failureCount = 0;
         while(failureCount < 3) {
             boolean success = performOneRequest(agent, downloadFilename);
+
             if(!success) {
                 LOG.info("download attempt failed");
                 failureCount++;
@@ -291,6 +302,15 @@ public class TalkClientDownload extends TalkTransfer {
             }
             if(state == State.COMPLETE) {
                 LOG.info("download is complete");
+                String detectionFile = null;
+                if(this.decryptedFile != null) {
+                    detectionFile = computeDecryptionFile(agent);
+                } else {
+                    detectionFile = computeDownloadFile(agent);
+                }
+                if(detectionFile != null) {
+                    performDetection(agent, detectionFile);
+                }
                 break;
             }
         }
@@ -511,6 +531,56 @@ public class TalkClientDownload extends TalkTransfer {
 
         return true;
     }
+
+    private boolean performDetection(TalkTransferAgent agent, String destinationFile) {
+        LOG.info("performDetection(" + destinationFile + ")");
+        File destination = new File(destinationFile);
+
+        try {
+            InputStream tis = new FileInputStream(destination);
+            BufferedInputStream btis = new BufferedInputStream(tis);
+
+            Metadata metadata = new Metadata();
+            if(contentType != null && !contentType.equals("application/octet-stream")) {
+                metadata.add(Metadata.CONTENT_TYPE, contentType);
+            }
+            if(decryptedFile != null) {
+                metadata.add(Metadata.RESOURCE_NAME_KEY, decryptedFile);
+            }
+
+            MediaType mt = MIME_DETECTOR.detect(btis, metadata);
+
+            tis.close();
+
+            if(mt != null) {
+                String mimeType = mt.toString();
+                LOG.info("detected type " + mimeType);
+                this.contentType = mimeType;
+                MimeType mimet = MimeTypes.getDefaultMimeTypes().getRegisteredMimeType(mimeType);
+                if(mimet != null) {
+                    String extension = mimet.getExtension();
+                    if(extension != null) {
+                        LOG.info("renaming to extension " + mimet.getExtension());
+                        File newName = new File(destinationFile + extension);
+                        if(destination.renameTo(newName)) {
+                            if(decryptedFile != null) {
+                                this.decryptedFile = this.decryptedFile + extension;
+                            } else {
+                                this.downloadFile = this.downloadFile + extension;
+                            }
+                        } else {
+                            LOG.warn("could not rename file");
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("detection error", e);
+            return false;
+        }
+        return true;
+    }
+
 
     private void markFailed(TalkTransferAgent agent) {
         switchState(agent, State.FAILED);
