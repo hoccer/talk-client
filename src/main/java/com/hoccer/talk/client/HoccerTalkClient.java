@@ -495,12 +495,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void setClientAvatar(final TalkClientUpload upload) {
-        LOG.info("new avatar as upload " + upload);
+        LOG.debug("new avatar as upload " + upload);
         resetIdle();
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.info("registering client avatar");
+                LOG.debug("registering client avatar");
                 if(!upload.performRegistration(mTransferAgent)) {
                     LOG.error("avatar upload registration failed");
                     return;
@@ -524,7 +524,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         for(ITalkClientListener listener: mListeners) {
                             listener.onClientPresenceChanged(contact);
                         }
-                        LOG.info("sending new presence");
+                        LOG.debug("sending new presence");
                         sendPresence();
                     }
                 } catch (SQLException e) {
@@ -539,7 +539,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
        mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.info("registering group avatar");
+                LOG.debug("registering group avatar");
                 try {
                     TalkGroup presence = group.getGroupPresence();
                     if(presence == null) {
@@ -552,7 +552,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     for(ITalkClientListener listener: mListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
-                    LOG.info("sending new group presence");
+                    LOG.debug("sending new group presence");
                     mServerRpc.updateGroup(presence);
                 } catch (SQLException e) {
                     LOG.error("sql error", e);
@@ -565,7 +565,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.info("registering group avatar");
+                LOG.debug("registering group avatar");
                 if(!upload.performRegistration(mTransferAgent)) {
                     LOG.error("avatar registration failed");
                     return;
@@ -588,7 +588,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     for(ITalkClientListener listener: mListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
-                    LOG.info("sending new group presence");
+                    LOG.debug("sending new group presence");
                     mServerRpc.updateGroup(presence);
                 } catch (SQLException e) {
                     LOG.error("sql error", e);
@@ -697,7 +697,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        LOG.info("new group contact " + contact.getClientContactId());
+        LOG.debug("new group contact " + contact.getClientContactId());
         mServerRpc.createGroup(groupPresence);
         return contact;
     }
@@ -899,7 +899,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         try {
             mConnection.connect(TalkClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            LOG.info("exception while connecting: " + e.toString());
+            LOG.warn("exception while connecting: " + e.toString());
         }
     }
 
@@ -1076,7 +1076,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     TalkGroup[] groups = mServerRpc.getGroups(never);
                     for(TalkGroup group: groups) {
                         if(group.getState().equals(TalkGroup.STATE_EXISTS)) {
-                            LOG.info("updating group " + group.getGroupId());
                             updateGroupPresence(group);
                         }
                     }
@@ -1268,7 +1267,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             TalkMessage[] messages = new TalkMessage[clientMessages.size()];
             int i = 0;
             for(TalkClientMessage clientMessage: clientMessages) {
-                LOG.info("preparing " + clientMessage.getClientMessageId());
+                LOG.debug("preparing " + clientMessage.getClientMessageId());
                 deliveries[i] = clientMessage.getOutgoingDelivery();
                 messages[i] = clientMessage.getMessage();
                 try {
@@ -1279,7 +1278,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 i++;
             }
             for(i = 0; i < messages.length; i++) {
-                LOG.info("delivering " + i);
+                LOG.debug("delivering " + i);
                 TalkDelivery[] delivery = new TalkDelivery[1];
                 delivery[0] = deliveries[i];
                 TalkDelivery[] resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
@@ -1540,7 +1539,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
-        LOG.info("decryptMessage()");
+        LOG.debug("decryptMessage()");
 
         // contact (provides decryption context)
         TalkClientContact contact = clientMessage.getConversationContact();
@@ -1763,7 +1762,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         TalkAttachment attachment = null;
         TalkClientUpload upload = clientMessage.getAttachmentUpload();
         if(upload != null) {
-            LOG.info("generating attachment");
+            LOG.debug("generating attachment");
 
             upload.provideEncryptionKey(bytesToHex(plainKey));
             upload.performEncryption(mTransferAgent);
@@ -1902,9 +1901,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             String downloadUrl = avatarDownload.getDownloadUrl();
             if(haveUrl) {
                 if(downloadUrl == null || !downloadUrl.equals(avatarUrl)) {
-                    LOG.info("new avatar for contact " + contact.getClientContactId());
-                    LOG.info("o: " + downloadUrl);
-                    LOG.info("n: " + avatarUrl);
+                    LOG.debug("new avatar for contact " + contact.getClientContactId());
                     avatarDownload = new TalkClientDownload();
                     avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
                     wantDownload = true;
@@ -2030,11 +2027,15 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     public void updateGroupMember(TalkGroupMember member) {
+        updateGroupMember(member, false);
+    }
+
+    public void updateGroupMember(TalkGroupMember member, boolean alwaysRenew) {
         LOG.debug("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         boolean needGroupUpdate = false;
-        boolean needRenewal = false;
+        boolean needRenewal = alwaysRenew;
         try {
             clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
             if(clientContact != null) {
@@ -2044,7 +2045,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                             clientContact.isSelf()
                             && member.isInvolved();
                     if(createGroup) {
-                        LOG.info("CREATING GROUP FOR MEMBER IN STATE " + member.getState() + " GROUP " + member.getGroupId());
+                        LOG.debug("creating group for member in state " + member.getState() + " group " + member.getGroupId());
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
                         needGroupUpdate = true;
                     }
@@ -2065,12 +2066,12 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
         // if this concerns our own membership
         if(clientContact.isSelf()) {
-            LOG.info("gm is about us, decrypting group key");
+            LOG.debug("gm is about us, decrypting group key");
             groupContact.updateGroupMember(member);
             decryptGroupKey(groupContact, member);
             if(groupContact.isGroupAdmin()) {
                 if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
-                    LOG.info("we have no key, renewing");
+                    LOG.debug("we have no key, renewing");
                     needRenewal = true;
                 }
             }
@@ -2087,21 +2088,21 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 TalkClientMembership membership = mDatabase.findMembershipByContacts(
                         groupContact.getClientContactId(), clientContact.getClientContactId(), true);
                 TalkGroupMember oldMember = membership.getMember();
-                LOG.info("old member " + ((oldMember == null) ? "null" : "there"));
+                LOG.debug("old member " + ((oldMember == null) ? "null" : "there"));
                 if(oldMember != null) {
-                    LOG.info("old " + oldMember.getState() + " new " + member.getState());
+                    LOG.debug("old " + oldMember.getState() + " new " + member.getState());
                 }
                 if(groupContact.isGroupAdmin()) {
                     if(oldMember == null) {
-                        LOG.info("client is new, renewing");
+                        LOG.debug("client is new, renewing");
                         needRenewal = true;
                     }
                     if(oldMember != null && !oldMember.isJoined()) {
-                        LOG.info("client is newly joined, renewing");
+                        LOG.debug("client is newly joined, renewing");
                         needRenewal = true;
                     }
                     if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
-                        LOG.info("client has no key, renewing");
+                        LOG.debug("client has no key, renewing");
                         needRenewal = true;
                     }
                 }
@@ -2118,14 +2119,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         }
 
         if(needGroupUpdate) {
-            LOG.info("we now require a group update to retrieve presences");
+            LOG.debug("we now require a group update to retrieve presences");
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     TalkGroup[] groups = mServerRpc.getGroups(new Date(0));
                     for(TalkGroup group: groups) {
                         if(group.getState().equals(TalkGroup.STATE_EXISTS)) {
-                            LOG.info("updating group " + group.getGroupId());
+                            LOG.debug("updating group " + group.getGroupId());
                             updateGroupPresence(group);
                         }
                     }
@@ -2133,8 +2134,8 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             });
         }
 
-        if(needRenewal) {
-            LOG.info("initiating key renewal");
+        if(needRenewal && groupContact.isGroupAdmin()) {
+            LOG.debug("initiating key renewal");
             final TalkClientContact finalGroup = groupContact;
             mExecutor.schedule(new Runnable() {
                 @Override
@@ -2146,7 +2147,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     }
 
     private void decryptGroupKey(TalkClientContact group, TalkGroupMember member) {
-        LOG.info("decrypting group key");
+        LOG.debug("decrypting group key");
         String keyId = member.getMemberKeyId();
         String encryptedGroupKey = member.getEncryptedGroupKey();
         if(keyId == null || encryptedGroupKey == null) {
@@ -2164,7 +2165,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                 } else {
                     byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey);
                     byte[] rawGroupKey = RSACryptor.decryptRSA(privateKey, rawEncryptedGroupKey);
-                    LOG.info("successfully decrypted group key");
+                    LOG.debug("successfully decrypted group key");
                     String groupKey = Base64.encodeBase64String(rawGroupKey);
                     group.setGroupKey(groupKey);
                 }
@@ -2199,14 +2200,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         // distribute the group key
         ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
         if(memberships != null) {
-            LOG.info("will send key to " + memberships.size() + " members");
+            LOG.debug("will send key to " + memberships.size() + " members");
             for(TalkClientMembership membership: memberships) {
                 TalkGroupMember member = membership.getMember();
                 if(member != null && member.isJoined()) {
-                    LOG.info("joined member contact " + membership.getClientContact().getClientContactId());
+                    LOG.debug("joined member contact " + membership.getClientContact().getClientContactId());
                     try {
                         TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
-                        LOG.info("encrypting new group key for client contact " + client.getClientContactId());
+                        LOG.debug("encrypting new group key for client contact " + client.getClientContactId());
                         TalkKey clientPubKey = client.getPublicKey();
                         if(clientPubKey == null) {
                             LOG.warn("no public key for client contact " + client.getClientContactId());
