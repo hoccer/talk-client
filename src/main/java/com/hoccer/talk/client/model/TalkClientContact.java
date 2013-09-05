@@ -173,7 +173,7 @@ public class TalkClientContact {
         return isGroup() && this.groupMember != null && this.groupMember.isJoined();
     }
 
-    public boolean isClientGroupMember(TalkClientContact group) {
+    public boolean isClientGroupJoined(TalkClientContact group) {
         if(!isClient()) {
             return false;
         }
@@ -182,6 +182,23 @@ public class TalkClientContact {
         for(TalkClientMembership membership: memberships) {
             TalkGroupMember member = membership.getMember();
             if(member != null && member.isJoined()) {
+                if(membership.getClientContact().getClientContactId() == myId) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean isClientGroupInvited(TalkClientContact group) {
+        if(!isClient()) {
+            return false;
+        }
+        int myId = getClientContactId();
+        ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
+        for(TalkClientMembership membership: memberships) {
+            TalkGroupMember member = membership.getMember();
+            if(member != null && member.isInvited()) {
                 if(membership.getClientContact().getClientContactId() == myId) {
                     return true;
                 }
