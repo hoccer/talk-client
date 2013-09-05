@@ -2135,7 +2135,13 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         if(needRenewal) {
             LOG.info("initiating key renewal");
-            renewGroupKey(groupContact);
+            final TalkClientContact finalGroup = groupContact;
+            mExecutor.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    renewGroupKey(finalGroup);
+                }
+            }, 500, TimeUnit.MILLISECONDS);
         }
     }
 
