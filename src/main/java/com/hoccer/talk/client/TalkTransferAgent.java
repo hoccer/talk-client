@@ -5,6 +5,7 @@ import com.hoccer.talk.client.model.TalkClientUpload;
 import org.apache.http.client.HttpClient;
 import org.apache.log4j.Logger;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -78,7 +79,12 @@ public class TalkTransferAgent implements ITalkTransferListener {
 
                 LOG.debug("requesting download " + downloadId);
                 download.noteRequested();
-                onDownloadStarted(download);
+
+                try {
+                    mDatabase.saveClientDownload(download);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
 
                 mDownloadsById.put(downloadId, download);
 
@@ -86,6 +92,7 @@ public class TalkTransferAgent implements ITalkTransferListener {
                     @Override
                     public void run() {
                         LOG.info("performing download " + downloadId + " in state " + download.getState());
+                        onDownloadStarted(download);
                         download.performDownloadAttempt(TalkTransferAgent.this);
                         synchronized (mDownloadsById) {
                             mDownloadsById.remove(downloadId);
