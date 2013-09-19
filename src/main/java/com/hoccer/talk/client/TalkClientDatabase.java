@@ -5,6 +5,7 @@ import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMembership;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.model.TalkDelivery;
 import com.hoccer.talk.model.TalkGroup;
@@ -46,6 +47,8 @@ public class TalkClientDatabase {
     Dao<TalkClientDownload, Integer> mClientDownloads;
     Dao<TalkClientUpload, Integer> mClientUploads;
 
+    Dao<TalkClientSmsToken, Integer> mSmsTokens;
+
 
     public TalkClientDatabase(ITalkClientDatabaseBackend backend) {
         mBackend = backend;
@@ -70,6 +73,8 @@ public class TalkClientDatabase {
 
         mClientDownloads = mBackend.getDao(TalkClientDownload.class);
         mClientUploads = mBackend.getDao(TalkClientUpload.class);
+
+        mSmsTokens = mBackend.getDao(TalkClientSmsToken.class);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
@@ -160,6 +165,10 @@ public class TalkClientDatabase {
                  .eq("deleted", false)
                 .and(2)
                .query();
+    }
+
+    public List<TalkClientSmsToken> findAllSmsTokens() throws SQLException {
+        return mSmsTokens.queryForAll();
     }
 
     public TalkClientContact findSelfContact(boolean create) throws SQLException {
@@ -334,6 +343,18 @@ public class TalkClientDatabase {
 
     public void saveClientMembership(TalkClientMembership membership) throws SQLException {
         mClientMemberships.createOrUpdate(membership);
+    }
+
+    public TalkClientSmsToken findSmsTokenById(int smsTokenId) throws SQLException {
+        return mSmsTokens.queryForId(smsTokenId);
+    }
+
+    public void saveSmsToken(TalkClientSmsToken token) throws SQLException {
+        mSmsTokens.createOrUpdate(token);
+    }
+
+    public void deleteSmsToken(TalkClientSmsToken token) throws SQLException {
+        mSmsTokens.delete(token);
     }
 
 }
