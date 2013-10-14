@@ -10,8 +10,15 @@ import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.params.HttpParams;
 import org.apache.log4j.Logger;
 
+import javax.net.ssl.SSLSocket;
+import java.io.IOException;
+import java.net.Socket;
 import java.security.GeneralSecurityException;
+import java.security.KeyManagementException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
 import java.util.Enumeration;
 
 /**
@@ -22,16 +29,25 @@ import java.util.Enumeration;
  */
 public class HttpClientWithKeystore extends DefaultHttpClient {
 
-    // Constants ---------------------------------------------------------
-
     private static final Logger LOG = Logger.getLogger(HttpClientWithKeystore.class);
 
-    // Static Variables --------------------------------------------------
-
+    /**
+     * Global URL scheme registry
+     *
+     * This will be initialized in initializeSsl() and will be
+     * set up with a socket factory that enforces our policy.
+     */
     private static SchemeRegistry sRegistry;
 
-    // Static Methods ----------------------------------------------------
-
+    /**
+     * Global initializer
+     *
+     * This must be called with an appropriate KeyStore
+     * before attempting to use the Talk client.
+     *
+     * @param pTrustStore to use
+     * @throws GeneralSecurityException
+     */
     public static synchronized void initializeSsl(KeyStore pTrustStore) throws GeneralSecurityException {
         LOG.debug("initializeSsl()");
 
@@ -42,39 +58,36 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
         }
 
         LOG.debug("creating socket factory");
-        SSLSocketFactory socketFactory = new SSLSocketFactory(pTrustStore);
+        SSLSocketFactory socketFactory = new SocketFactory(pTrustStore);
         socketFactory.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
         LOG.debug("creating scheme registry");
-        sRegistry = new SchemeRegistry();
-        sRegistry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
-        sRegistry.register(new Scheme("https", socketFactory, 443));
-        sRegistry.register(new Scheme("http", socketFactory, 443)); // appears to be necessary...whatever...
+        SchemeRegistry registry = new SchemeRegistry();
+        registry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
+        registry.register(new Scheme("https", socketFactory, 443));
+        registry.register(new Scheme("http", socketFactory, 443)); // appears to be necessary...whatever...
+        sRegistry = registry;
     }
 
+    /**
+     * @return the scheme registry, if initialized
+     */
     public static SchemeRegistry getSchemeRegistry() {
-
         return sRegistry;
     }
-
-    // Constructors ------------------------------------------------------
+    
 
     public HttpClientWithKeystore() {
-
         super();
     }
 
     public HttpClientWithKeystore(ClientConnectionManager pConman, HttpParams pParams) {
-
         super(pConman, pParams);
     }
 
     public HttpClientWithKeystore(HttpParams pParams) {
-
         super(pParams);
     }
-
-    // Protected Instance Methods ----------------------------------------
 
     @Override
     protected ClientConnectionManager createClientConnectionManager() {
@@ -90,5 +103,22 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
         return new ThreadSafeClientConnManager(getParams(), sRegistry);
     }
 
+    private static class SocketFactory extends SSLSocketFactory {
+        public SocketFactory(KeyStore truststore)
+                throws NoSuchAlgorithmException, KeyManagementException,
+                        KeyStoreException, UnrecoverableKeyException
+        {
+            super(truststore);
+        }
+
+        @Override
+        public Socket createSocket() throws IOException {
+            LOG.debug("createSocket()");
+            SSLSocket s = (SSLSocket)super.createSocket();
+            s.setEnabledCipherSuites(TalkClientConfiguration.TLS_CIPHERS);
+            s.setEnabledProtocols(TalkClientConfiguration.TLS_PROTOCOLS);
+            return s;
+        }
+    }
 
 }

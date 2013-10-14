@@ -36,4 +36,27 @@ public class TalkClientConfiguration {
     /** Variable reconnect backoff delay - time maximum (seconds) */
     public static final double RECONNECT_BACKOFF_VARIABLE_MAXIMUM = 120.0;
 
+    static final String TLS_CIPHERS[] = {
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_DHE_DSS_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_RC4_128_SHA",
+        "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA",
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "SSL_RSA_WITH_3DES_EDE_CBC_SHA",
+        "SSL_RSA_WITH_RC4_128_SHA",
+        "SSL_RSA_WITH_RC4_128_MD5",
+    };
+
+    static final String TLS_PROTOCOLS[] = {
+            "TLSv1.2",
+            "TLSv1.1",
+            "TLSv1"
+    };
+
 }
