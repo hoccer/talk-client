@@ -11,8 +11,10 @@ public interface ITalkClientListener {
 
     void onContactAdded(TalkClientContact contact);
     void onContactRemoved(TalkClientContact contact);
+
     void onClientPresenceChanged(TalkClientContact contact);
     void onClientRelationshipChanged(TalkClientContact contact);
+
     void onGroupPresenceChanged(TalkClientContact contact);
     void onGroupMembershipChanged(TalkClientContact contact);
 
