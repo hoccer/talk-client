@@ -136,6 +136,7 @@ public class TalkClientDownload extends TalkTransfer {
         this.decryptedFile = UUID.randomUUID().toString();
         String filename = attachment.getFilename();
         if(filename != null) {
+            // XXX should avoid collisions here
             this.decryptedFile = filename;
         }
 
