@@ -165,7 +165,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     /**
      * Create a Hoccer Talk client using the given client database
      */
-	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor, ITalkClientDatabaseBackend databaseBackend) {
+	public HoccerTalkClient(ScheduledExecutorService backgroundExecutor,
+                            ITalkClientDatabaseBackend databaseBackend,
+                            WebSocketClientFactory wscFactory) {
         // remember the executor provided by the client
         mExecutor = backgroundExecutor;
         // as well as the database backend
@@ -201,12 +203,6 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         ObjectMapper rpcMapper = createObjectMapper(rpcFactory);
 
         // create websocket client
-        WebSocketClientFactory wscFactory = new WebSocketClientFactory();
-        try {
-            wscFactory.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
         WebSocketClient wsClient = wscFactory.newWebSocketClient();
 
         // create json-rpc client
