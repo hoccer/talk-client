@@ -145,10 +145,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
     ScheduledFuture<?> mAutoDisconnectFuture;
     ScheduledFuture<?> mKeepAliveFuture;
 
-    /** All our listeners */
-    Vector<ITalkClientListener> mListeners = new Vector<ITalkClientListener>();
-
-    /** Listeners for unseen messages */
+    Vector<ITalkContactListener> mContactListeners = new Vector<ITalkContactListener>();
+    Vector<ITalkMessageListener> mMessageListeners = new Vector<ITalkMessageListener>();
+    Vector<ITalkStateListener> mStateListeners = new Vector<ITalkStateListener>();
     Vector<ITalkUnseenListener> mUnseenListeners = new Vector<ITalkUnseenListener>();
 
     /** The current state of this client */
@@ -321,7 +320,9 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      * @param listener
      */
     public void registerListener(ITalkClientListener listener) {
-        mListeners.add(listener);
+        mContactListeners.add(listener);
+        mMessageListeners.add(listener);
+        mStateListeners.add(listener);
     }
 
     /**
@@ -329,7 +330,33 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
      * @param listener
      */
     public void unregisterListener(ITalkClientListener listener) {
-        mListeners.remove(listener);
+        mContactListeners.remove(listener);
+        mMessageListeners.remove(listener);
+        mStateListeners.remove(listener);
+    }
+
+    public void registerStateListener(ITalkStateListener listener) {
+        mStateListeners.add(listener);
+    }
+
+    public void unregisterStateListener(ITalkStateListener listener) {
+        mStateListeners.remove(listener);
+    }
+
+    public void registerContactListener(ITalkContactListener listener) {
+        mContactListeners.add(listener);
+    }
+
+    public void unregisterContactListener(ITalkContactListener listener) {
+        mContactListeners.remove(listener);
+    }
+
+    public void registerMessageListener(ITalkMessageListener listener) {
+        mMessageListeners.add(listener);
+    }
+
+    public void unregisterMessageListener(ITalkMessageListener listener) {
+        mMessageListeners.remove(listener);
     }
 
     public void registerUnseenListener(ITalkUnseenListener listener) {
@@ -338,6 +365,14 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
     public void unregisterUnseenListener(ITalkUnseenListener listener) {
         mUnseenListeners.remove(listener);
+    }
+
+    public void registerTransferListener(ITalkTransferListener listener) {
+        mTransferAgent.registerListener(listener);
+    }
+
+    public void unregisterTransferListener(ITalkTransferListener listener) {
+        mTransferAgent.unregisterListener(listener);
     }
 
     private void notifyUnseenMessages(boolean notify) {
@@ -517,7 +552,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         contact.setAvatarUpload(upload);
                         mDatabase.savePresence(presence);
                         mDatabase.saveContact(contact);
-                        for(ITalkClientListener listener: mListeners) {
+                        for(ITalkContactListener listener: mContactListeners) {
                             listener.onClientPresenceChanged(contact);
                         }
                         LOG.debug("sending new presence");
@@ -545,7 +580,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     presence.setGroupName(groupName);
                     mDatabase.saveGroup(presence);
                     mDatabase.saveContact(group);
-                    for(ITalkClientListener listener: mListeners) {
+                    for(ITalkContactListener listener: mContactListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
                     LOG.debug("sending new group presence");
@@ -581,7 +616,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                     presence.setGroupAvatarUrl(downloadUrl);
                     mDatabase.saveGroup(presence);
                     mDatabase.saveContact(group);
-                    for(ITalkClientListener listener: mListeners) {
+                    for(ITalkContactListener listener: mContactListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
                     LOG.debug("sending new group presence");
@@ -633,7 +668,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
                         LOG.error("SQL error", e);
                     }
 
-                    for(ITalkClientListener listener: mListeners) {
+                    for(ITalkContactListener listener: mContactListeners) {
                         listener.onContactRemoved(contact);
                     }
 
@@ -833,7 +868,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
 
         // call listeners
         if(previousState != newState) {
-            for(ITalkClientListener listener: mListeners) {
+            for(ITalkStateListener listener: mStateListeners) {
                 listener.onClientStateChange(this, newState);
             }
         }
@@ -1136,9 +1171,10 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
         @Override
         public void pushNotRegistered() {
             LOG.info("server: pushNotRegistered()");
-            for(ITalkClientListener listener: mListeners) {
-                listener.onPushRegistrationRequested();
-            }
+            // XXX
+            //for(ITalkClientListener listener: mListeners) {
+            //    listener.onPushRegistrationRequested();
+            //}
         }
 
         @Override
@@ -1451,7 +1487,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             });
         }
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkMessageListener listener: mMessageListeners) {
             listener.onMessageStateChanged(clientMessage);
         }
     }
@@ -1523,7 +1559,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mTransferAgent.requestDownload(attachmentDownload);
         }
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkMessageListener listener: mMessageListeners) {
             if(newMessage) {
                 listener.onMessageAdded(clientMessage);
             } else {
@@ -1866,7 +1902,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             }
         });
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkContactListener listener: mContactListeners) {
             listener.onClientPresenceChanged(clientContact);
         }
     }
@@ -1971,7 +2007,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             e.printStackTrace();
         }
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkContactListener listener: mContactListeners) {
             listener.onClientRelationshipChanged(clientContact);
         }
     }
@@ -2017,7 +2053,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             mTransferAgent.requestDownload(avatarDownload);
         }
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkContactListener listener: mContactListeners) {
             listener.onGroupPresenceChanged(contact);
         }
     }
@@ -2110,7 +2146,7 @@ public class HoccerTalkClient implements JsonRpcConnection.Listener {
             }
         }
 
-        for(ITalkClientListener listener: mListeners) {
+        for(ITalkContactListener listener: mContactListeners) {
             listener.onGroupMembershipChanged(groupContact);
         }
 

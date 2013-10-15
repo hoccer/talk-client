@@ -2,7 +2,7 @@ package com.hoccer.talk.client;
 
 import com.hoccer.talk.client.model.TalkClientContact;
 
-public interface ITalkContactsListener {
+public interface ITalkContactListener {
 
     void onContactAdded(TalkClientContact contact);
     void onContactRemoved(TalkClientContact contact);
