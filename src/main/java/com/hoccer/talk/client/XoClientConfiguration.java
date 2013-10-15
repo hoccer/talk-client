@@ -1,6 +1,6 @@
 package com.hoccer.talk.client;
 
-public class TalkClientConfiguration {
+public class XoClientConfiguration {
 
     public static final boolean USE_BSON_PROTOCOL = true;
 

@@ -1,9 +1,9 @@
 package com.hoccer.talk.client.model;
 
 import com.google.appengine.api.blobstore.ByteRange;
-import com.hoccer.talk.client.TalkClientDatabase;
-import com.hoccer.talk.client.TalkTransfer;
-import com.hoccer.talk.client.TalkTransferAgent;
+import com.hoccer.talk.client.XoClientDatabase;
+import com.hoccer.talk.client.XoTransfer;
+import com.hoccer.talk.client.XoTransferAgent;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
@@ -38,7 +38,7 @@ import java.util.Date;
 import java.util.UUID;
 
 @DatabaseTable(tableName = "clientDownload")
-public class TalkClientDownload extends TalkTransfer {
+public class TalkClientDownload extends XoTransfer {
 
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
@@ -196,7 +196,7 @@ public class TalkClientDownload extends TalkTransfer {
         return null;
     }
 
-    private String computeDecryptionDirectory(TalkTransferAgent agent) {
+    private String computeDecryptionDirectory(XoTransferAgent agent) {
         String directory = null;
         switch(this.type) {
             case ATTACHMENT:
@@ -206,7 +206,7 @@ public class TalkClientDownload extends TalkTransfer {
         return directory;
     }
 
-    private String computeDownloadDirectory(TalkTransferAgent agent) {
+    private String computeDownloadDirectory(XoTransferAgent agent) {
         String directory = null;
         switch(this.type) {
             case AVATAR:
@@ -219,7 +219,7 @@ public class TalkClientDownload extends TalkTransfer {
         return directory;
     }
 
-    private String computeDecryptionFile(TalkTransferAgent agent) {
+    private String computeDecryptionFile(XoTransferAgent agent) {
         String file = null;
         String directory = computeDecryptionDirectory(agent);
         if(directory != null) {
@@ -228,7 +228,7 @@ public class TalkClientDownload extends TalkTransfer {
         return file;
     }
 
-    private String computeDownloadFile(TalkTransferAgent agent) {
+    private String computeDownloadFile(XoTransferAgent agent) {
         String file = null;
         String directory = computeDownloadDirectory(agent);
         if(directory != null) {
@@ -243,8 +243,8 @@ public class TalkClientDownload extends TalkTransfer {
         }
     }
 
-    public void performDownloadAttempt(TalkTransferAgent agent) {
-        TalkClientDatabase database = agent.getDatabase();
+    public void performDownloadAttempt(XoTransferAgent agent) {
+        XoClientDatabase database = agent.getDatabase();
         String downloadFilename = computeDownloadFile(agent);
         if(downloadFilename == null) {
             LOG.warn("could not determine download filename for " + clientDownloadId);
@@ -325,9 +325,9 @@ public class TalkClientDownload extends TalkTransfer {
         }
     }
 
-    private boolean performOneRequest(TalkTransferAgent agent, String filename) {
+    private boolean performOneRequest(XoTransferAgent agent, String filename) {
         HttpClient client = agent.getHttpClient();
-        TalkClientDatabase database = agent.getDatabase();
+        XoClientDatabase database = agent.getDatabase();
         RandomAccessFile raf = null;
         FileDescriptor fd = null;
         try {
@@ -490,7 +490,7 @@ public class TalkClientDownload extends TalkTransfer {
         return true;
     }
 
-    private boolean performDecryption(TalkTransferAgent agent, String sourceFile, String destinationFile) {
+    private boolean performDecryption(XoTransferAgent agent, String sourceFile, String destinationFile) {
         LOG.info("performing decryption of download " + clientDownloadId);
 
         File source = new File(sourceFile);
@@ -533,7 +533,7 @@ public class TalkClientDownload extends TalkTransfer {
         return true;
     }
 
-    private boolean performDetection(TalkTransferAgent agent, String destinationFile) {
+    private boolean performDetection(XoTransferAgent agent, String destinationFile) {
         LOG.info("performDetection(" + destinationFile + ")");
         File destination = new File(destinationFile);
 
@@ -583,17 +583,17 @@ public class TalkClientDownload extends TalkTransfer {
     }
 
 
-    private void markFailed(TalkTransferAgent agent) {
+    private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
     }
 
-    private void switchState(TalkTransferAgent agent, State newState) {
+    private void switchState(XoTransferAgent agent, State newState) {
         LOG.info("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
         agent.onDownloadStateChanged(this);
     }
 
-    private void notifyProgress(TalkTransferAgent agent) {
+    private void notifyProgress(XoTransferAgent agent) {
         long now = System.currentTimeMillis();
         long delta = now - progressRateLimit;
         if(delta > 250) {

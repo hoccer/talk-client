@@ -13,27 +13,27 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class TalkTransferAgent implements ITalkTransferListener {
+public class XoTransferAgent implements IXoTransferListener {
 
-    private static final Logger LOG = Logger.getLogger(TalkTransferAgent.class);
+    private static final Logger LOG = Logger.getLogger(XoTransferAgent.class);
 
-    HoccerTalkClient mClient;
-    TalkClientDatabase mDatabase;
+    XoClient mClient;
+    XoClientDatabase mDatabase;
 
     ScheduledExecutorService mExecutor;
 
-    List<ITalkTransferListener> mListeners;
+    List<IXoTransferListener> mListeners;
 
     HttpClient mHttpClient;
 
     Map<Integer, TalkClientDownload> mDownloadsById;
     Map<Integer, TalkClientUpload> mUploadsById;
 
-    public TalkTransferAgent(HoccerTalkClient client) {
+    public XoTransferAgent(XoClient client) {
         mClient = client;
         mDatabase = mClient.getDatabase();
         mExecutor = Executors.newSingleThreadScheduledExecutor();
-        mListeners = new ArrayList<ITalkTransferListener>();
+        mListeners = new ArrayList<IXoTransferListener>();
         mDownloadsById = new HashMap<Integer, TalkClientDownload>();
         mUploadsById = new HashMap<Integer, TalkClientUpload>();
         initializeHttpClient();
@@ -43,11 +43,11 @@ public class TalkTransferAgent implements ITalkTransferListener {
         mHttpClient = new HttpClientWithKeystore();
     }
 
-    public HoccerTalkClient getClient() {
+    public XoClient getClient() {
         return mClient;
     }
 
-    public TalkClientDatabase getDatabase() {
+    public XoClientDatabase getDatabase() {
         return mDatabase;
     }
 
@@ -55,11 +55,11 @@ public class TalkTransferAgent implements ITalkTransferListener {
         return mHttpClient;
     }
 
-    public void registerListener(ITalkTransferListener listener) {
+    public void registerListener(IXoTransferListener listener) {
         mListeners.add(listener);
     }
 
-    public void unregisterListener(ITalkTransferListener listener) {
+    public void unregisterListener(IXoTransferListener listener) {
         mListeners.remove(listener);
     }
 
@@ -93,7 +93,7 @@ public class TalkTransferAgent implements ITalkTransferListener {
                     public void run() {
                         LOG.info("performing download " + downloadId + " in state " + download.getState());
                         onDownloadStarted(download);
-                        download.performDownloadAttempt(TalkTransferAgent.this);
+                        download.performDownloadAttempt(XoTransferAgent.this);
                         synchronized (mDownloadsById) {
                             mDownloadsById.remove(downloadId);
                             onDownloadFinished(download);
@@ -125,7 +125,7 @@ public class TalkTransferAgent implements ITalkTransferListener {
                     public void run() {
                         LOG.info("performing upload " + uploadId + " in state " + upload.getState());
                         onUploadStarted(upload);
-                        upload.performUploadAttempt(TalkTransferAgent.this);
+                        upload.performUploadAttempt(XoTransferAgent.this);
                         synchronized (mUploadsById) {
                             mUploadsById.remove(uploadId);
                             onUploadFinished(upload);
@@ -138,56 +138,56 @@ public class TalkTransferAgent implements ITalkTransferListener {
 
     @Override
     public void onDownloadStarted(TalkClientDownload download) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onDownloadStarted(download);
         }
     }
 
     @Override
     public void onDownloadProgress(TalkClientDownload download) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onDownloadProgress(download);
         }
     }
 
     @Override
     public void onDownloadFinished(TalkClientDownload download) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onDownloadFinished(download);
         }
     }
 
     @Override
     public void onDownloadStateChanged(TalkClientDownload download) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onDownloadStateChanged(download);
         }
     }
 
     @Override
     public void onUploadStarted(TalkClientUpload upload) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onUploadStarted(upload);
         }
     }
 
     @Override
     public void onUploadProgress(TalkClientUpload upload) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onUploadProgress(upload);
         }
     }
 
     @Override
     public void onUploadFinished(TalkClientUpload upload) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onUploadFinished(upload);
         }
     }
 
     @Override
     public void onUploadStateChanged(TalkClientUpload upload) {
-        for(ITalkTransferListener listener: mListeners) {
+        for(IXoTransferListener listener: mListeners) {
             listener.onUploadStateChanged(upload);
         }
     }

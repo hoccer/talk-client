@@ -22,11 +22,11 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TalkClientDatabase {
+public class XoClientDatabase {
 
-    private static final Logger LOG = Logger.getLogger(TalkClientDatabase.class);
+    private static final Logger LOG = Logger.getLogger(XoClientDatabase.class);
 
-    ITalkClientDatabaseBackend mBackend;
+    IXoClientDatabaseBackend mBackend;
 
     Dao<TalkClientContact, Integer> mClientContacts;
     Dao<TalkClientSelf, Integer> mClientSelfs;
@@ -50,7 +50,7 @@ public class TalkClientDatabase {
     Dao<TalkClientSmsToken, Integer> mSmsTokens;
 
 
-    public TalkClientDatabase(ITalkClientDatabaseBackend backend) {
+    public XoClientDatabase(IXoClientDatabaseBackend backend) {
         mBackend = backend;
     }
 

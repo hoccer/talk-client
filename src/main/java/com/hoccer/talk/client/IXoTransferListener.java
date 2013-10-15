@@ -3,7 +3,7 @@ package com.hoccer.talk.client;
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientUpload;
 
-public interface ITalkTransferListener {
+public interface IXoTransferListener {
 
     public void onDownloadStarted(TalkClientDownload download);
     public void onDownloadProgress(TalkClientDownload download);

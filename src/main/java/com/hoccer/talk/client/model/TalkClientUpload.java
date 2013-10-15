@@ -1,10 +1,10 @@
 package com.hoccer.talk.client.model;
 
 import com.google.appengine.api.blobstore.ByteRange;
-import com.hoccer.talk.client.HoccerTalkClient;
-import com.hoccer.talk.client.TalkClientDatabase;
-import com.hoccer.talk.client.TalkTransfer;
-import com.hoccer.talk.client.TalkTransferAgent;
+import com.hoccer.talk.client.XoClient;
+import com.hoccer.talk.client.XoClientDatabase;
+import com.hoccer.talk.client.XoTransfer;
+import com.hoccer.talk.client.XoTransferAgent;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.j256.ormlite.field.DatabaseField;
@@ -31,7 +31,7 @@ import java.sql.SQLException;
 import java.util.UUID;
 
 @DatabaseTable(tableName = "clientUpload")
-public class TalkClientUpload extends TalkTransfer {
+public class TalkClientUpload extends XoTransfer {
 
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
@@ -174,7 +174,7 @@ public class TalkClientUpload extends TalkTransfer {
         this.encryptedFile = UUID.randomUUID().toString();
     }
 
-    private String computeUploadFile(TalkTransferAgent agent) {
+    private String computeUploadFile(XoTransferAgent agent) {
         String file = null;
         switch(this.type) {
             case AVATAR:
@@ -187,9 +187,9 @@ public class TalkClientUpload extends TalkTransfer {
         return file;
     }
 
-    public void performUploadAttempt(TalkTransferAgent agent) {
-        TalkClientDatabase database = agent.getDatabase();
-        HoccerTalkClient talkClient = agent.getClient();
+    public void performUploadAttempt(XoTransferAgent agent) {
+        XoClientDatabase database = agent.getDatabase();
+        XoClient talkClient = agent.getClient();
 
         String uploadFile = computeUploadFile(agent);
         if(uploadFile == null) {
@@ -248,8 +248,8 @@ public class TalkClientUpload extends TalkTransfer {
         }
     }
 
-    public boolean performRegistration(TalkTransferAgent agent) {
-        HoccerTalkClient talkClient = agent.getClient();
+    public boolean performRegistration(XoTransferAgent agent) {
+        XoClient talkClient = agent.getClient();
         if((this.state == State.NEW && this.encryptionKey == null) || state == State.ENCRYPTED) {
             LOG.info("performing registration of upload " + clientUploadId);
 
@@ -276,7 +276,7 @@ public class TalkClientUpload extends TalkTransfer {
         return true;
     }
 
-    public boolean performEncryption(TalkTransferAgent agent) {
+    public boolean performEncryption(XoTransferAgent agent) {
         if(state != State.NEW) {
             return true;
         }
@@ -329,7 +329,7 @@ public class TalkClientUpload extends TalkTransfer {
         return true;
     }
 
-    private boolean performOneRequest(TalkTransferAgent agent, String filename) {
+    private boolean performOneRequest(XoTransferAgent agent, String filename) {
         HttpClient client = agent.getHttpClient();
         try {
             LOG.info("uploading " + filename);
@@ -354,7 +354,7 @@ public class TalkClientUpload extends TalkTransfer {
         return false;
     }
 
-    private boolean performCheckRequest(TalkTransferAgent agent) throws IOException {
+    private boolean performCheckRequest(XoTransferAgent agent) throws IOException {
         HttpClient client = agent.getHttpClient();
 
         int last = uploadLength - 1;
@@ -392,7 +392,7 @@ public class TalkClientUpload extends TalkTransfer {
         return false;
     }
 
-    private boolean performUploadRequest(TalkTransferAgent agent, String filename) throws IOException {
+    private boolean performUploadRequest(XoTransferAgent agent, String filename) throws IOException {
         HttpClient client = agent.getHttpClient();
 
         int last = uploadLength - 1;
@@ -443,7 +443,7 @@ public class TalkClientUpload extends TalkTransfer {
         return false;
     }
 
-    private boolean checkCompletion(TalkTransferAgent agent, Header checkRangeHeader) {
+    private boolean checkCompletion(XoTransferAgent agent, Header checkRangeHeader) {
         int last = uploadLength - 1;
         int confirmedProgress = 0;
 
@@ -485,11 +485,11 @@ public class TalkClientUpload extends TalkTransfer {
         return false;
     }
 
-    private void markFailed(TalkTransferAgent agent) {
+    private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
     }
 
-    private void switchState(TalkTransferAgent agent, State newState) {
+    private void switchState(XoTransferAgent agent, State newState) {
         LOG.info("[" + clientUploadId + "] switching to state " + newState);
 
         state = newState;

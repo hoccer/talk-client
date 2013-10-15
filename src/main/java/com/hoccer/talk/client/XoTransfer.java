@@ -1,6 +1,6 @@
 package com.hoccer.talk.client;
 
-public abstract class TalkTransfer {
+public abstract class XoTransfer {
 
     public enum Direction {
         UPLOAD, DOWNLOAD
@@ -12,7 +12,7 @@ public abstract class TalkTransfer {
 
     private Direction mDirection;
 
-    protected TalkTransfer(Direction direction) {
+    protected XoTransfer(Direction direction) {
         mDirection = direction;
     }
 
