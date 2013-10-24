@@ -72,13 +72,6 @@ public class XoTransferAgent implements IXoTransferListener {
                     LOG.debug("no need to download " + downloadId);
                     return;
                 }
-                if(state == TalkClientDownload.State.FAILED) {
-                    LOG.warn("can't resume failed download " + downloadId);
-                    return;
-                }
-
-                LOG.debug("requesting download " + downloadId);
-                download.noteRequested();
 
                 try {
                     mDatabase.saveClientDownload(download);
@@ -111,9 +104,6 @@ public class XoTransferAgent implements IXoTransferListener {
                 TalkClientUpload.State state = upload.getState();
                 if(state == TalkClientUpload.State.COMPLETE) {
                     LOG.debug("no need to upload " + uploadId);
-                }
-                if(state == TalkClientUpload.State.FAILED) {
-                    LOG.warn("can't resume failed upload " + uploadId);
                 }
 
                 LOG.info("requesting upload " + uploadId);

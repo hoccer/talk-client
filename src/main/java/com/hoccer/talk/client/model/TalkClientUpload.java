@@ -5,8 +5,12 @@ import com.hoccer.talk.client.XoClient;
 import com.hoccer.talk.client.XoClientDatabase;
 import com.hoccer.talk.client.XoTransfer;
 import com.hoccer.talk.client.XoTransferAgent;
+import com.hoccer.talk.content.ContentState;
+import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.rpc.ITalkRpcServer;
+import com.hoccer.talk.util.IProgressListener;
+import com.hoccer.talk.util.ProgressOutputHttpEntity;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 import org.apache.http.Header;
@@ -16,7 +20,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.InputStreamEntity;
 import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
@@ -27,16 +30,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.sql.SQLException;
 import java.util.UUID;
 
 @DatabaseTable(tableName = "clientUpload")
-public class TalkClientUpload extends XoTransfer {
+public class TalkClientUpload extends XoTransfer implements IContentObject {
 
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
     public enum State {
-        NEW, ENCRYPTED, REGISTERED, STARTED, COMPLETE, FAILED
+        NEW, ENCRYPTING, REGISTERING, UPLOADING, PAUSED, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -59,7 +64,7 @@ public class TalkClientUpload extends XoTransfer {
     @DatabaseField(width = 2000)
     private String encryptedFile;
     @DatabaseField
-    private int encryptedLength;
+    private int encryptedLength = -1;
     @DatabaseField
     private String encryptionKey;
 
@@ -90,12 +95,63 @@ public class TalkClientUpload extends XoTransfer {
 
     public TalkClientUpload() {
         super(Direction.UPLOAD);
-        this.state = State.NEW;
+        this.state = State.ENCRYPTING;
         this.aspectRatio = 1.0;
         this.dataLength = -1;
         this.uploadLength = -1;
         this.encryptedLength = -1;
     }
+
+    /* IContentObject */
+    @Override
+    public boolean isContentAvailable() {
+        // uploaded content is always available
+        return true;
+    }
+    @Override
+    public ContentState getContentState() {
+        switch(this.state) {
+            case NEW:
+                return ContentState.UPLOAD_NEW;
+            case ENCRYPTING:
+            case REGISTERING:
+            case UPLOADING:
+                return ContentState.UPLOAD_IN_PROGRESS;
+            case PAUSED:
+                return ContentState.UPLOAD_PAUSED;
+            case COMPLETE:
+                return ContentState.UPLOAD_COMPLETE;
+            case FAILED:
+                return ContentState.UPLOAD_FAILED;
+            default:
+                throw new RuntimeException("Unknown upload state");
+        }
+    }
+    @Override
+    public int getTransferLength() {
+        return encryptedLength;
+    }
+    @Override
+    public int getTransferProgress() {
+        return progress;
+    }
+    @Override
+    public String getContentMediaType() {
+        return mediaType;
+    }
+    @Override
+    public double getContentAspectRatio() {
+        return aspectRatio;
+    }
+    @Override
+    public String getContentUrl() {
+        return dataFile;
+    }
+    @Override
+    public int getContentLength() {
+        return dataLength;
+    }
+
 
     public int getClientUploadId() {
         return clientUploadId;
@@ -145,27 +201,24 @@ public class TalkClientUpload extends XoTransfer {
         this.encryptionKey = key;
     }
 
-    public void initializeAsAvatar(String path, String contentType) {
+    public void initializeAsAvatar(String url, String contentType, int contentLength) {
+        LOG.info("[new] initializing as avatar: " + url);
         this.type = Type.AVATAR;
 
-        File file = new File(path);
-        long fileSize = file.length();
-
-        this.dataFile = path;
-        this.dataLength = (int)fileSize;
+        this.dataFile = url;
+        this.dataLength = contentLength;
 
         this.contentType = contentType;
         this.mediaType = "image";
     }
 
-    public void initializeAsAttachment(String path, String contentType, String mediaType, double aspectRatio) {
+    public void initializeAsAttachment(String url, String contentType, String mediaType, double aspectRatio, int contentLength) {
+        LOG.info("[new] initializing as attachment: " + url);
+
         this.type = Type.ATTACHMENT;
 
-        File file = new File(path);
-        long fileSize = file.length();
-
-        this.dataFile = path;
-        this.dataLength = (int)fileSize;
+        this.dataFile = url;
+        this.dataLength = contentLength;
 
         this.contentType = contentType;
         this.mediaType = mediaType;
@@ -189,7 +242,6 @@ public class TalkClientUpload extends XoTransfer {
 
     public void performUploadAttempt(XoTransferAgent agent) {
         XoClientDatabase database = agent.getDatabase();
-        XoClient talkClient = agent.getClient();
 
         String uploadFile = computeUploadFile(agent);
         if(uploadFile == null) {
@@ -197,61 +249,49 @@ public class TalkClientUpload extends XoTransfer {
             return;
         }
 
-        boolean changed = false;
         if(state == State.COMPLETE) {
             LOG.warn("Tried to perform completed upload");
             return;
         }
-        if(state == State.FAILED) {
-            LOG.warn("Tried to perform failed upload");
-            return;
+
+        if(state == State.NEW) {
+            if(this.encryptionKey != null) {
+                switchState(agent, State.ENCRYPTING);
+            } else {
+                switchState(agent, State.REGISTERING);
+            }
         }
 
-        if((this.state == State.NEW && this.encryptionKey == null) || state == State.ENCRYPTED) {
+        if(state == State.ENCRYPTING) {
+            if(!performEncryption(agent)) {
+                markFailed(agent);
+            }
+        }
+
+
+        if(state == State.REGISTERING) {
             if(!performRegistration(agent)) {
                 markFailed(agent);
             }
-            changed = true;
         }
 
-        if(state == State.REGISTERED || state == State.STARTED) {
-            int failureCount = 0;
-            while(failureCount < 5) {
-                boolean success = performOneRequest(talkClient.getTransferAgent(), uploadFile);
-                if(success) {
-                    LOG.info("success");
-                    break;
-                } else {
-                    LOG.info("not finished yet");
-                    failureCount++;
-                }
-                if(state == State.COMPLETE) {
-                    LOG.info("now finally complete");
-                    break;
-                }
-                if(state == State.FAILED) {
-                    LOG.info("failed");
-                    break;
-                }
-            }
-            changed = true;
-        }
-
-        LOG.info("upload attempt finished");
-
-        if(changed) {
+        if(state == State.UPLOADING) {
             try {
-                database.saveClientUpload(this);
-            } catch (SQLException e) {
-                LOG.error("SQL error", e);
+                performCheckRequest(agent);
+                performUploadRequest(agent, uploadFile);
+            } catch (IOException e) {
+                LOG.error("problem during upload", e);
             }
+            saveProgress(agent);
         }
+
+        LOG.info("upload attempt finished in state" + this.state);
     }
 
     public boolean performRegistration(XoTransferAgent agent) {
         XoClient talkClient = agent.getClient();
-        if((this.state == State.NEW && this.encryptionKey == null) || state == State.ENCRYPTED) {
-            LOG.info("performing registration of upload " + clientUploadId);
+        if((this.state == State.ENCRYPTING && this.encryptionKey == null) || state == State.REGISTERING) {
+            LOG.info("[" + clientUploadId + "] performing registration");
 
             if(encryptionKey != null) {
                 this.uploadLength = encryptedLength;
@@ -267,7 +307,7 @@ public class TalkClientUpload extends XoTransfer {
                 }
                 uploadUrl = handles.uploadUrl;
                 downloadUrl = handles.downloadUrl;
-                switchState(agent, State.REGISTERED);
+                switchState(agent, State.UPLOADING);
             } catch (Exception e) {
                 LOG.error("error registering", e);
                 return false;
@@ -277,13 +317,7 @@ public class TalkClientUpload extends XoTransfer {
     }
 
     public boolean performEncryption(XoTransferAgent agent) {
-        if(state != State.NEW) {
-            return true;
-        }
-
-        LOG.info("performing encryption of upload " + clientUploadId);
-
-        String sourceFile = this.dataFile;
+        LOG.info("[" + clientUploadId + "] performing encryption");
 
         String destinationFile = computeUploadFile(agent);
         if(destinationFile == null) {
@@ -291,7 +325,6 @@ public class TalkClientUpload extends XoTransfer {
             return false;
         }
 
-        File source = new File(sourceFile);
         File destination = new File(destinationFile);
         if(destination.exists()) {
             destination.delete();
@@ -300,11 +333,14 @@ public class TalkClientUpload extends XoTransfer {
         byte[] key = Hex.decode(encryptionKey);
 
         try {
-            byte[] buffer = new byte[1 << 16];
+            URL url = new URL(this.dataFile);
+            URLConnection urlConnection = url.openConnection();
+
             OutputStream os = new FileOutputStream(destination);
-            InputStream is = new FileInputStream(source);
+            InputStream is = urlConnection.getInputStream();
             CipherInputStream eis = AESCryptor.encryptingInputStream(is, key, AESCryptor.NULL_SALT);
 
+            byte[] buffer = new byte[1 << 16];
             int bytesRead;
             do {
                 bytesRead = eis.read(buffer, 0, buffer.length);
@@ -320,7 +356,7 @@ public class TalkClientUpload extends XoTransfer {
 
             this.encryptedLength = (int)destination.length();
 
-            switchState(agent, State.ENCRYPTED);
+            switchState(agent, State.REGISTERING);
         } catch (Exception e) {
             LOG.error("encryption error", e);
             return false;
@@ -329,44 +365,21 @@ public class TalkClientUpload extends XoTransfer {
         return true;
     }
 
-    private boolean performOneRequest(XoTransferAgent agent, String filename) {
-        HttpClient client = agent.getHttpClient();
-        try {
-            LOG.info("uploading " + filename);
-
-            LOG.info("plain size " + dataLength);
-            LOG.info("encrypted size " + encryptedLength);
-
-            if(performCheckRequest(agent)) {
-                LOG.info("finished according to check");
-                return true;
-            }
-
-            if(performUploadRequest(agent, filename)) {
-                LOG.info("finished with upload");
-                return true;
-            }
-
-        } catch (Exception e) {
-            LOG.error("exception in upload", e);
-        }
-
-        return false;
-    }
-
     private boolean performCheckRequest(XoTransferAgent agent) throws IOException {
         HttpClient client = agent.getHttpClient();
+
+        LOG.info("[" + clientUploadId + "] performing check request");
 
         int last = uploadLength - 1;
         int confirmedProgress = 0;
         // perform a check request to ensure correct progress
         HttpPut checkRequest = new HttpPut(uploadUrl);
         checkRequest.addHeader("Content-Range", "bytes */" + uploadLength);
-        LOG.info("PUT-check " + uploadUrl + " commencing");
+        LOG.trace("PUT-check " + uploadUrl + " commencing");
         HttpResponse checkResponse = client.execute(checkRequest);
         StatusLine checkStatus = checkResponse.getStatusLine();
         int checkSc = checkStatus.getStatusCode();
-        LOG.info("PUT-check " + uploadUrl + " status " + checkSc + ": " + checkStatus.getReasonPhrase());
+        LOG.trace("PUT-check " + uploadUrl + " status " + checkSc + ": " + checkStatus.getReasonPhrase());
         if(checkSc != HttpStatus.SC_OK && checkSc != 308 /* resume incomplete */) {
             // client error - mark as failed
             if(checkSc >= 400 && checkSc <= 499) {
@@ -378,7 +391,7 @@ public class TalkClientUpload extends XoTransfer {
         Header[] hdrs = checkResponse.getAllHeaders();
         for(int i = 0; i < hdrs.length; i++) {
             Header h = hdrs[i];
-            LOG.info("PUT-check " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
+            LOG.trace("PUT-check " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
         }
         // process range header from check request
         Header checkRangeHeader = checkResponse.getFirstHeader("Range");
@@ -387,35 +400,46 @@ public class TalkClientUpload extends XoTransfer {
                 return true;
             }
         } else {
-            LOG.warn("no range header");
+            LOG.warn("[" + clientUploadId + "] no range header in check response");
         }
         return false;
     }
 
-    private boolean performUploadRequest(XoTransferAgent agent, String filename) throws IOException {
+    private boolean performUploadRequest(final XoTransferAgent agent, String filename) throws IOException {
         HttpClient client = agent.getHttpClient();
+
+        LOG.info("[" + clientUploadId + "] performing upload request");
 
         int last = uploadLength - 1;
 
         int bytesToGo = uploadLength - this.progress;
-        LOG.info("PUT-upload " + uploadUrl + " " + bytesToGo + " bytes to go ");
+        LOG.trace("PUT-upload " + uploadUrl + " " + bytesToGo + " bytes to go ");
 
         String uploadRange = "bytes " + this.progress + "-" + last + "/" + uploadLength;
-        LOG.info("PUT-upload " + uploadUrl + " range " + uploadRange);
+        LOG.trace("PUT-upload " + uploadUrl + " range " + uploadRange);
 
         File sourceFile = new File(filename);
         InputStream is = new FileInputStream(sourceFile);
         is.skip(this.progress);
-        HttpEntity entity = new InputStreamEntity(is, bytesToGo);
+        final int startProgress = this.progress;
+        IProgressListener progressListener = new IProgressListener() {
+            @Override
+            public void onProgress(int progress) {
+                TalkClientUpload.this.progress = startProgress + progress;
+                agent.onUploadProgress(TalkClientUpload.this);
+                saveProgress(agent);
+            }
+        };
+        HttpEntity entity = new ProgressOutputHttpEntity(is, bytesToGo, progressListener);
         HttpPut uploadRequest = new HttpPut(uploadUrl);
         uploadRequest.setEntity(entity);
         uploadRequest.addHeader("Content-Range", uploadRange);
-        LOG.info("PUT-upload " + uploadUrl + " commencing");
+        LOG.trace("PUT-upload " + uploadUrl + " commencing");
         HttpResponse uploadResponse = client.execute(uploadRequest);
         this.progress = uploadLength;
         StatusLine uploadStatus = uploadResponse.getStatusLine();
         int uploadSc = uploadStatus.getStatusCode();
-        LOG.info("PUT-upload " + uploadUrl + " status " + uploadSc + ": " + uploadStatus.getReasonPhrase());
+        LOG.trace("PUT-upload " + uploadUrl + " status " + uploadSc + ": " + uploadStatus.getReasonPhrase());
         if(uploadSc != HttpStatus.SC_OK && uploadSc != 308 /* resume incomplete */) {
             // client error - mark as failed
             if(uploadSc >= 400 && uploadSc <= 499) {
@@ -428,7 +452,7 @@ public class TalkClientUpload extends XoTransfer {
         Header[] uploadHdrs = uploadResponse.getAllHeaders();
         for(int i = 0; i < uploadHdrs.length; i++) {
             Header h = uploadHdrs[i];
-            LOG.info("PUT-upload " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
+            LOG.trace("PUT-upload " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
         }
         // process range header from upload request
         Header checkRangeHeader = uploadResponse.getFirstHeader("Range");
@@ -437,7 +461,7 @@ public class TalkClientUpload extends XoTransfer {
                 return true;
             }
         } else {
-            LOG.warn("no range header");
+            LOG.warn("[" + clientUploadId + "] no range header in upload response");
         }
 
         return false;
@@ -449,7 +473,7 @@ public class TalkClientUpload extends XoTransfer {
 
         ByteRange uploadedRange = ByteRange.parseContentRange(checkRangeHeader.getValue());
 
-        LOG.info("checking returned range " + uploadedRange.toContentRangeString());
+        LOG.info("probe returned uploaded range " + uploadedRange.toContentRangeString());
 
         if(uploadedRange.hasTotal()) {
             if(uploadedRange.getTotal() != uploadLength) {
@@ -473,6 +497,7 @@ public class TalkClientUpload extends XoTransfer {
 
         LOG.info("progress believed " + progress + " confirmed " + confirmedProgress);
         this.progress = confirmedProgress;
+        agent.onUploadProgress(this);
 
         if(uploadedRange.hasStart() && uploadedRange.hasEnd()) {
             if(uploadedRange.getStart() == 0 && uploadedRange.getEnd() == last) {
@@ -503,13 +528,17 @@ public class TalkClientUpload extends XoTransfer {
             }
         }
 
+        saveProgress(agent);
+
+        agent.onUploadStateChanged(this);
+    }
+
+    private void saveProgress(XoTransferAgent agent) {
         try {
             agent.getDatabase().saveClientUpload(this);
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
-
-        agent.onUploadStateChanged(this);
     }
 
 }

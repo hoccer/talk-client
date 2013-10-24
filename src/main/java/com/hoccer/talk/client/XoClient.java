@@ -1797,8 +1797,6 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.debug("generating attachment");
 
             upload.provideEncryptionKey(bytesToHex(plainKey));
-            upload.performEncryption(mTransferAgent);
-            upload.performRegistration(mTransferAgent);
 
             try {
                 mDatabase.saveClientUpload(upload);

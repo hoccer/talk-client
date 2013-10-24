@@ -4,6 +4,8 @@ import com.google.appengine.api.blobstore.ByteRange;
 import com.hoccer.talk.client.XoClientDatabase;
 import com.hoccer.talk.client.XoTransfer;
 import com.hoccer.talk.client.XoTransferAgent;
+import com.hoccer.talk.content.ContentState;
+import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
@@ -38,7 +40,7 @@ import java.util.Date;
 import java.util.UUID;
 
 @DatabaseTable(tableName = "clientDownload")
-public class TalkClientDownload extends XoTransfer {
+public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
@@ -46,7 +48,7 @@ public class TalkClientDownload extends XoTransfer {
                             MimeTypes.getDefaultMimeTypes());
 
     public enum State {
-        NEW, REQUESTED, STARTED, DECRYPTING, COMPLETE, FAILED
+        NEW, DOWNLOADING, PAUSED, DECRYPTING, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -103,6 +105,50 @@ public class TalkClientDownload extends XoTransfer {
         this.aspectRatio = 1.0;
         this.downloadProgress = 0;
         this.contentLength = -1;
+    }
+
+    /* IContentObject implementation */
+    @Override
+    public boolean isContentAvailable() {
+        return state == State.COMPLETE;
+    }
+    @Override
+    public ContentState getContentState() {
+        switch(state) {
+            case NEW:
+                return ContentState.DOWNLOAD_NEW;
+            case PAUSED:
+                return ContentState.DOWNLOAD_PAUSED;
+            case DOWNLOADING:
+            case DECRYPTING:
+                return ContentState.DOWNLOAD_IN_PROGRESS;
+            case COMPLETE:
+                return ContentState.DOWNLOAD_COMPLETE;
+            case FAILED:
+                return ContentState.DOWNLOAD_FAILED;
+            default:
+                throw new RuntimeException("Unknown download state");
+        }
+    }
+    @Override
+    public int getTransferLength() {
+        return contentLength;
+    }
+    @Override
+    public int getTransferProgress() {
+        return downloadProgress;
+    }
+    @Override
+    public String getContentMediaType() {
+        return mediaType;
+    }
+    @Override
+    public double getContentAspectRatio() {
+        return aspectRatio;
+    }
+    @Override
+    public String getContentUrl() {
+        return getDataFile();
     }
 
     /**
@@ -237,12 +283,6 @@ public class TalkClientDownload extends XoTransfer {
         return file;
     }
 
-    public void noteRequested() {
-        if(state == State.NEW) {
-            state = State.REQUESTED;
-        }
-    }
-
     public void performDownloadAttempt(XoTransferAgent agent) {
         XoClientDatabase database = agent.getDatabase();
         String downloadFilename = computeDownloadFile(agent);
@@ -257,11 +297,9 @@ public class TalkClientDownload extends XoTransfer {
             LOG.warn("Tried to perform completed download");
             return;
         }
-        if(state == State.FAILED) {
-            LOG.warn("Tried to perform failed download");
-        }
+
         if(state == State.NEW) {
-            switchState(agent, State.STARTED);
+            switchState(agent, State.DOWNLOADING);
             changed = true;
         }
 
