@@ -109,8 +109,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    /** The database backend we use */
-    IXoClientDatabaseBackend mDatabaseBackend;
+    /** Host of this client */
+    IXoClientHost mHost;
+
     /* The database instance we use */
     XoClientDatabase mDatabase;
 
@@ -164,16 +165,15 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * Create a Hoccer Talk client using the given client database
      */
-	public XoClient(ScheduledExecutorService backgroundExecutor,
-                    IXoClientDatabaseBackend databaseBackend,
-                    WebSocketClientFactory wscFactory) {
-        // remember the executor provided by the client
-        mExecutor = backgroundExecutor;
-        // as well as the database backend
-        mDatabaseBackend = databaseBackend;
+	public XoClient(IXoClientHost host) {
+        // remember the host
+        mHost = host;
+
+        // fetch executor and db immediately
+        mExecutor = host.getBackgroundExecutor();
 
         // create and initialize the database
-        mDatabase = new XoClientDatabase(mDatabaseBackend);
+        mDatabase = new XoClientDatabase(mHost.getDatabaseBackend());
         try {
             mDatabase.initialize();
         } catch (SQLException e) {
@@ -202,7 +202,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         ObjectMapper rpcMapper = createObjectMapper(rpcFactory);
 
         // create websocket client
-        WebSocketClient wsClient = wscFactory.newWebSocketClient();
+        WebSocketClient wsClient = host.getWebSocketFactory().newWebSocketClient();
 
         // create json-rpc client
         String protocol = XoClientConfiguration.USE_BSON_PROTOCOL
@@ -277,6 +277,10 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(mState >= STATE_IDLE) {
             reconnect("URI changed");
         }
+    }
+
+    public IXoClientHost getHost() {
+        return mHost;
     }
 
     public XoClientDatabase getDatabase() {

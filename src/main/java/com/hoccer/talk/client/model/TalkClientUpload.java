@@ -30,8 +30,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URL;
-import java.net.URLConnection;
 import java.sql.SQLException;
 import java.util.UUID;
 
@@ -333,11 +331,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         byte[] key = Hex.decode(encryptionKey);
 
         try {
-            URL url = new URL(this.dataFile);
-            URLConnection urlConnection = url.openConnection();
-
             OutputStream os = new FileOutputStream(destination);
-            InputStream is = urlConnection.getInputStream();
+            InputStream is = agent.getClient().getHost().openInputStreamForUrl(this.dataFile);
             CipherInputStream eis = AESCryptor.encryptingInputStream(is, key, AESCryptor.NULL_SALT);
 
             byte[] buffer = new byte[1 << 16];
