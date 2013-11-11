@@ -14,6 +14,7 @@ import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMembership;
 import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.RSACryptor;
@@ -150,6 +151,8 @@ public class XoClient implements JsonRpcConnection.Listener {
     Vector<IXoMessageListener> mMessageListeners = new Vector<IXoMessageListener>();
     Vector<IXoStateListener> mStateListeners = new Vector<IXoStateListener>();
     Vector<IXoUnseenListener> mUnseenListeners = new Vector<IXoUnseenListener>();
+    Vector<IXoTokenListener> mTokenListeners = new Vector<IXoTokenListener>();
+
 
     /** The current state of this client */
     int mState = STATE_INACTIVE;
@@ -377,6 +380,14 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void unregisterTransferListener(IXoTransferListener listener) {
         mTransferAgent.unregisterListener(listener);
+    }
+
+    public void registerTokenListener(IXoTokenListener listener) {
+        mTokenListeners.add(listener);
+    }
+
+    public void unregisterTokenListener(IXoTokenListener listener) {
+        mTokenListeners.remove(listener);
     }
 
     private void notifyUnseenMessages(boolean notify) {
@@ -2280,6 +2291,36 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void requestDownload(TalkClientDownload download) {
         mTransferAgent.requestDownload(download);
+    }
+
+    public void handleSmsUrl(String sender, String urlString) {
+        LOG.info("handleSmsUrl(" + sender + "," + urlString + ")");
+        // check if the url is for a pairing token
+        if(urlString.startsWith("hxo://")) {
+            String token = urlString.substring(6);
+            // build new token object
+            TalkClientSmsToken tokenObject = new TalkClientSmsToken();
+            tokenObject.setSender(sender);
+            tokenObject.setToken(token);
+            try {
+                mDatabase.saveSmsToken(tokenObject);
+            } catch (SQLException e) {
+                LOG.error("sql error", e);
+            }
+            // call listeners
+            notifySmsTokensChanged(true);
+        }
+    }
+
+    private void notifySmsTokensChanged(boolean notifyUser) {
+        try {
+            List<TalkClientSmsToken> tokens = mDatabase.findAllSmsTokens();
+            for(IXoTokenListener listener: mTokenListeners) {
+                listener.onTokensChanged(tokens);
+            }
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
     }
 
     public void markAsSeen(final TalkClientMessage message) {
