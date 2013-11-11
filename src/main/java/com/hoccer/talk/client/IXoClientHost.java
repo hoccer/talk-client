@@ -7,7 +7,7 @@ import java.io.InputStream;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- *
+ * Interface implemented by programs that host a XoClient
  */
 public interface IXoClientHost {
 
