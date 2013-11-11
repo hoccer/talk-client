@@ -2293,34 +2293,71 @@ public class XoClient implements JsonRpcConnection.Listener {
         mTransferAgent.requestDownload(download);
     }
 
-    public void handleSmsUrl(String sender, String urlString) {
+    public void handleSmsUrl(final String sender, final String urlString) {
         LOG.info("handleSmsUrl(" + sender + "," + urlString + ")");
-        // check if the url is for a pairing token
-        if(urlString.startsWith("hxo://")) {
-            String token = urlString.substring(6);
-            // build new token object
-            TalkClientSmsToken tokenObject = new TalkClientSmsToken();
-            tokenObject.setSender(sender);
-            tokenObject.setToken(token);
-            try {
-                mDatabase.saveSmsToken(tokenObject);
-            } catch (SQLException e) {
-                LOG.error("sql error", e);
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                // check if the url is for a pairing token
+                if(urlString.startsWith("hxo://")) {
+                    String token = urlString.substring(6);
+                    // build new token object
+                    TalkClientSmsToken tokenObject = new TalkClientSmsToken();
+                    tokenObject.setSender(sender);
+                    tokenObject.setToken(token);
+                    try {
+                        mDatabase.saveSmsToken(tokenObject);
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    }
+                    // call listeners
+                    notifySmsTokensChanged(true);
+                }
             }
-            // call listeners
-            notifySmsTokensChanged(true);
-        }
+        });
     }
 
     private void notifySmsTokensChanged(boolean notifyUser) {
         try {
             List<TalkClientSmsToken> tokens = mDatabase.findAllSmsTokens();
             for(IXoTokenListener listener: mTokenListeners) {
-                listener.onTokensChanged(tokens);
+                listener.onTokensChanged(tokens, true);
             }
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
+    }
+
+    public void useSmsToken(final TalkClientSmsToken token) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                boolean success = performTokenPairing(token.getToken());
+                if(success) {
+                    try {
+                        mDatabase.deleteSmsToken(token);
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    }
+                    notifySmsTokensChanged(false);
+                }
+                // XXX failure
+            }
+        });
+    }
+
+    public void rejectSmsToken(final TalkClientSmsToken token) {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mDatabase.deleteSmsToken(token);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
+                notifySmsTokensChanged(false);
+            }
+        });
     }
 
     public void markAsSeen(final TalkClientMessage message) {

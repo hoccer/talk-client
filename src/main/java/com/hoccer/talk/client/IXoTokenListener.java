@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface IXoTokenListener {
 
-    public void onTokensChanged(List<TalkClientSmsToken> tokens);
+    public void onTokensChanged(List<TalkClientSmsToken> tokens, boolean newTokens);
 
 }
