@@ -101,6 +101,10 @@ public class TalkClientContact {
         }
     }
 
+    public boolean isEditable() {
+        return isSelf() || isGroupAdmin() || (isGroup() && !isGroupRegistered());
+    }
+
     public boolean isDeleted() {
         return deleted;
     }
@@ -174,6 +178,9 @@ public class TalkClientContact {
     }
 
     public boolean isClientGroupJoined(TalkClientContact group) {
+        if(!group.isGroupRegistered()) {
+            return false;
+        }
         if(!isClient()) {
             return false;
         }
@@ -191,6 +198,9 @@ public class TalkClientContact {
     }
 
     public boolean isClientGroupInvited(TalkClientContact group) {
+        if(!group.isGroupRegistered()) {
+            return false;
+        }
         if(!isClient()) {
             return false;
         }

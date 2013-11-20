@@ -585,23 +585,25 @@ public class XoClient implements JsonRpcConnection.Listener {
        mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.debug("registering group avatar");
-                try {
-                    TalkGroup presence = group.getGroupPresence();
-                    if(presence == null) {
-                        LOG.error("group has no presence");
-                        return;
+                LOG.debug("changing group name");
+                TalkGroup presence = group.getGroupPresence();
+                if(presence == null) {
+                    LOG.error("group has no presence");
+                    return;
+                }
+                presence.setGroupName(groupName);
+                if(group.isGroupRegistered()) {
+                    try {
+                        mDatabase.saveGroup(presence);
+                        mDatabase.saveContact(group);
+                        LOG.debug("sending new group presence");
+                        mServerRpc.updateGroup(presence);
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
                     }
-                    presence.setGroupName(groupName);
-                    mDatabase.saveGroup(presence);
-                    mDatabase.saveContact(group);
-                    for(IXoContactListener listener: mContactListeners) {
-                        listener.onGroupPresenceChanged(group);
-                    }
-                    LOG.debug("sending new group presence");
-                    mServerRpc.updateGroup(presence);
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+                }
+                for(IXoContactListener listener: mContactListeners) {
+                    listener.onGroupPresenceChanged(group);
                 }
             }
        });
@@ -746,6 +748,24 @@ public class XoClient implements JsonRpcConnection.Listener {
         LOG.debug("new group contact " + contact.getClientContactId());
         mServerRpc.createGroup(groupPresence);
         return contact;
+    }
+
+    public void createGroup(final TalkClientContact contact) {
+        resetIdle();
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                TalkGroup groupPresence = contact.getGroupPresence();
+                try {
+                    mDatabase.saveGroup(groupPresence);
+                    mDatabase.saveContact(contact);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                LOG.debug("new group contact " + contact.getClientContactId());
+                mServerRpc.createGroup(groupPresence);
+            }
+        });
     }
 
     public void inviteClientToGroup(final String groupId, final String clientId) {
