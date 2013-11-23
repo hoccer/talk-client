@@ -2311,7 +2311,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mTransferAgent.requestDownload(download);
     }
 
-    public void handleSmsUrl(final String sender, final String urlString) {
+    public void handleSmsUrl(final String sender, final String body, final String urlString) {
         LOG.info("handleSmsUrl(" + sender + "," + urlString + ")");
         mExecutor.execute(new Runnable() {
             @Override
