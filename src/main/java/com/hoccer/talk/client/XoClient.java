@@ -546,7 +546,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             @Override
             public void run() {
                 LOG.debug("registering client avatar");
-                if(!upload.performRegistration(mTransferAgent)) {
+                if(!upload.performRegistration(mTransferAgent, false)) {
                     LOG.error("avatar upload registration failed");
                     return;
                 }
@@ -613,7 +613,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             @Override
             public void run() {
                 LOG.debug("registering group avatar");
-                if(!upload.performRegistration(mTransferAgent)) {
+                if(!upload.performRegistration(mTransferAgent, false)) {
                     LOG.error("avatar registration failed");
                     return;
                 }
@@ -1335,6 +1335,12 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.debug("preparing " + clientMessage.getClientMessageId());
                 deliveries[i] = clientMessage.getOutgoingDelivery();
                 messages[i] = clientMessage.getMessage();
+                TalkClientUpload attachmentUpload = clientMessage.getAttachmentUpload();
+                if(attachmentUpload != null) {
+                    if(!attachmentUpload.performRegistration(mTransferAgent, true)) {
+                        LOG.error("could not register attachment");
+                    }
+                }
                 try {
                     encryptMessage(clientMessage, deliveries[i], messages[i]);
                 } catch (Throwable t) {
@@ -1836,6 +1842,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             } catch (SQLException e) {
                 LOG.error("sql error", e);
             }
+
+            LOG.debug("attachment download url is " + upload.getDownloadUrl());
 
             attachment = new TalkAttachment();
             attachment.setUrl(upload.getDownloadUrl());

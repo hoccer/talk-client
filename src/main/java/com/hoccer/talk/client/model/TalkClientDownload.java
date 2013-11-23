@@ -48,7 +48,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                             MimeTypes.getDefaultMimeTypes());
 
     public enum State {
-        NEW, DOWNLOADING, PAUSED, DECRYPTING, COMPLETE, FAILED
+        NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -69,6 +69,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     @DatabaseField(width = 64)
     private String mediaType;
+
+
+    @DatabaseField
+    private String dataFile;
 
 
     /** URL to download */
@@ -233,13 +237,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     public String getDataFile() {
-        switch(this.type) {
-            case AVATAR:
-                return this.downloadFile;
-            case ATTACHMENT:
-                return this.decryptedFile;
-        }
-        return null;
+        return dataFile;
+    }
+
+    public boolean isAvatar() {
+        return type == Type.AVATAR;
+    }
+
+    public boolean isAttachment() {
+        return type == Type.ATTACHMENT;
     }
 
     private String computeDecryptionDirectory(XoTransferAgent agent) {
@@ -311,50 +317,45 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             }
         }
 
-        int failureCount = 0;
-        while(failureCount < 3) {
-            boolean success = performOneRequest(agent, downloadFilename);
-
-            if(!success) {
-                LOG.info("download attempt failed");
-                failureCount++;
-            }
-            if(state == State.FAILED) {
-                LOG.error("download finally failed");
-                break;
-            }
-            if(state == State.DECRYPTING) {
-                LOG.info("download will now be decrypted");
-                String decryptedFilename = computeDecryptionFile(agent);
-                if(decryptedFilename == null) {
-                    LOG.warn("could not determine decrypted filename for " + clientDownloadId);
-                    markFailed(agent);
+        if(state == State.DOWNLOADING) {
+            int attempt = 0;
+            while(attempt < 5) {
+                boolean success = performOneRequest(agent, downloadFilename);
+                if(success) {
                     break;
                 }
-                LOG.info("decrypting to " + decryptedFilename);
-                if(!performDecryption(agent, downloadFilename, decryptedFilename)) {
-                    LOG.error("decryption failed");
-                    markFailed(agent);
-                    break;
-                }
-                break;
+                attempt++;
             }
-            if(state == State.COMPLETE) {
-                LOG.info("download is complete");
-                String detectionFile = null;
-                if(this.decryptedFile != null) {
-                    detectionFile = computeDecryptionFile(agent);
-                } else {
-                    detectionFile = computeDownloadFile(agent);
-                }
-                if(detectionFile != null) {
-                    performDetection(agent, detectionFile);
-                }
-                break;
+        }
+        if(state == State.DECRYPTING) {
+            LOG.info("download will now be decrypted");
+            String decryptedFilename = computeDecryptionFile(agent);
+            if(decryptedFilename == null) {
+                LOG.warn("could not determine decrypted filename for " + clientDownloadId);
+                markFailed(agent);
+                return;
+            }
+            LOG.info("decrypting to " + decryptedFilename);
+            if(!performDecryption(agent, downloadFilename, decryptedFilename)) {
+                LOG.error("decryption failed");
+                markFailed(agent);
+                return;
+            }
+        }
+        if(state == State.DETECTING) {
+            LOG.info("download will now be detected");
+            String detectionFile = null;
+            if(this.decryptedFile != null) {
+                detectionFile = computeDecryptionFile(agent);
+            } else {
+                detectionFile = computeDownloadFile(agent);
+            }
+            if(detectionFile != null) {
+                performDetection(agent, detectionFile);
             }
         }
 
-        LOG.info("download attempt finished");
+        LOG.info("download attempt finished in state " + state);
 
         try {
             database.saveClientDownload(this);
@@ -374,14 +375,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             HttpGet request = new HttpGet(downloadUrl);
             // determine the requested range
             String range = null;
-            if(contentLength == -1) {
-                range = "bytes=" + downloadProgress + "-";
-            } else {
+            if(contentLength != -1) {
                 long last = contentLength - 1;
                 range = "bytes=" + downloadProgress + "-" + last;
+                LOG.info("GET " + downloadUrl + " requesting range " + range);
+                request.addHeader("Range", range);
             }
-            LOG.info("GET " + downloadUrl + " requesting range " + range);
-            request.addHeader("Range", range);
             // start performing the request
             HttpResponse response = client.execute(request);
             // process status line
@@ -478,7 +477,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 int bytesRead = is.read(buffer, 0, bytesToRead);
                 LOG.trace("reading " + bytesToRead + " returned " + bytesRead);
                 if(bytesRead == -1) {
-                    LOG.warn("eof!?");
+                    LOG.trace("eof with " + bytesToGo + " bytes to go");
                     return false;
                 }
                 raf.write(buffer, 0, bytesRead);
@@ -494,11 +493,13 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 notifyProgress(agent);
             }
             // update state
-            if(downloadProgress == contentLength && state != State.COMPLETE) {
+            if(downloadProgress == contentLength) {
                 if(decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {
-                    switchState(agent, State.COMPLETE);
+                    LOG.info("final location after download: " + filename);
+                    dataFile = "file://" + filename;
+                    switchState(agent, State.DETECTING);
                 }
             }
             // update db
@@ -562,7 +563,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             os.close();
             is.close();
 
-            switchState(agent, State.COMPLETE);
+            LOG.info("final location after decryption: " + destinationFile);
+            dataFile = "file://" + destinationFile;
+            switchState(agent, State.DETECTING);
         } catch (Exception e) {
             LOG.error("decryption error", e);
             return false;
@@ -604,15 +607,19 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                         if(destination.renameTo(newName)) {
                             if(decryptedFile != null) {
                                 this.decryptedFile = this.decryptedFile + extension;
+                                this.dataFile = "file://" + computeDecryptionFile(agent);
                             } else {
                                 this.downloadFile = this.downloadFile + extension;
+                                this.dataFile = "file://" + computeDownloadFile(agent);
                             }
+                            LOG.info("final file after detection: " + dataFile);
                         } else {
                             LOG.warn("could not rename file");
                         }
                     }
                 }
             }
+            switchState(agent, State.COMPLETE);
         } catch (Exception e) {
             LOG.error("detection error", e);
             return false;
@@ -628,6 +635,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     private void switchState(XoTransferAgent agent, State newState) {
         LOG.info("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
+        try {
+            agent.getDatabase().saveClientDownload(this);
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
         agent.onDownloadStateChanged(this);
     }
 
