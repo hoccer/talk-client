@@ -1,9 +1,13 @@
 package com.hoccer.talk.util;
 
+import org.apache.log4j.Logger;
+
 import java.io.IOException;
 import java.io.OutputStream;
 
 public class ProgressOutputStream extends OutputStream {
+
+    private static final Logger LOG = Logger.getLogger(ProgressOutputStream.class);
 
     int mProgress;
 
@@ -42,6 +46,7 @@ public class ProgressOutputStream extends OutputStream {
     }
 
     private void callListener() {
+        LOG.debug("progress " + mProgress);
         if(mListener != null) {
             mListener.onProgress(mProgress);
         }
