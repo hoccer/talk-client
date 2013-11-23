@@ -663,9 +663,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         return token;
     }
 
-    public boolean performTokenPairing(final String token) {
+    public void performTokenPairing(final String token) {
         resetIdle();
-        return mServerRpc.pairByToken(token);
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mServerRpc.pairByToken(token);
+            }
+        });
     }
 
     public void depairContact(final TalkClientContact contact) {
@@ -2358,16 +2363,13 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                boolean success = performTokenPairing(token.getToken());
-                if(success) {
-                    try {
-                        mDatabase.deleteSmsToken(token);
-                    } catch (SQLException e) {
-                        LOG.error("sql error", e);
-                    }
-                    notifySmsTokensChanged(false);
+                performTokenPairing(token.getToken());
+                try {
+                    mDatabase.deleteSmsToken(token);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
                 }
-                // XXX failure
+                notifySmsTokensChanged(false);
             }
         });
     }
