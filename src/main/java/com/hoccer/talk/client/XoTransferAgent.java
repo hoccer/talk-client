@@ -98,6 +98,7 @@ public class XoTransferAgent implements IXoTransferListener {
     }
 
     public void requestUpload(final TalkClientUpload upload) {
+        LOG.info("requestUpload()");
         synchronized (mUploadsById) {
             final int uploadId = upload.getClientUploadId();
             if(!mUploadsById.containsKey(uploadId)) {
@@ -107,6 +108,12 @@ public class XoTransferAgent implements IXoTransferListener {
                 }
 
                 LOG.info("requesting upload " + uploadId);
+
+                try {
+                    mDatabase.saveClientUpload(upload);
+                } catch (SQLException e) {
+                    LOG.error("sql error", e);
+                }
 
                 mUploadsById.put(uploadId, upload);
 

@@ -62,7 +62,6 @@ import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -628,18 +627,28 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.error("group has no presence");
                     return;
                 }
-                mTransferAgent.requestUpload(upload);
+                LOG.info("setting and requesting upload");
                 try {
                     presence.setGroupAvatarUrl(downloadUrl);
-                    mDatabase.saveGroup(presence);
-                    mDatabase.saveContact(group);
+                    group.setAvatarUpload(upload);
+                    mDatabase.saveClientUpload(upload);
+                    if(group.isGroupRegistered()) {
+                        try {
+                            mDatabase.saveGroup(presence);
+                            mDatabase.saveContact(group);
+                            LOG.debug("sending new group presence");
+                            mServerRpc.updateGroup(presence);
+                        } catch (SQLException e) {
+                            LOG.error("sql error", e);
+                        }
+                    }
+                    mTransferAgent.requestUpload(upload);
+                    LOG.info("group presence update");
                     for(IXoContactListener listener: mContactListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
-                    LOG.debug("sending new group presence");
-                    mServerRpc.updateGroup(presence);
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+                } catch (Exception e) {
+                    LOG.error("error creating group avatar", e);
                 }
             }
         });
@@ -730,39 +739,28 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    public TalkClientContact createGroup() {
-        resetIdle();
-        String groupTag = UUID.randomUUID().toString();
-        TalkClientContact contact = new TalkClientContact(TalkClientContact.TYPE_GROUP);
-        contact.updateGroupTag(groupTag);
-        TalkGroup groupPresence = new TalkGroup();
-        groupPresence.setGroupTag(groupTag);
-        groupPresence.setGroupName("Group");
-        contact.updateGroupPresence(groupPresence);
-        try {
-            mDatabase.saveGroup(groupPresence);
-            mDatabase.saveContact(contact);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        LOG.debug("new group contact " + contact.getClientContactId());
-        mServerRpc.createGroup(groupPresence);
-        return contact;
-    }
-
     public void createGroup(final TalkClientContact contact) {
+        LOG.info("createGroup()");
         resetIdle();
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 TalkGroup groupPresence = contact.getGroupPresence();
+                TalkClientUpload avatarUpload = contact.getAvatarUpload();
+                LOG.info("saving in db");
                 try {
+                    if(avatarUpload != null) {
+                        mDatabase.saveClientUpload(avatarUpload);
+                    }
                     mDatabase.saveGroup(groupPresence);
                     mDatabase.saveContact(contact);
                 } catch (SQLException e) {
-                    e.printStackTrace();
+                    LOG.error("sql error", e);
                 }
-                LOG.debug("new group contact " + contact.getClientContactId());
+
+                LOG.info("new group contact " + contact.getClientContactId());
+
+                LOG.info("creating group on server");
                 mServerRpc.createGroup(groupPresence);
             }
         });

@@ -254,12 +254,12 @@ public class TalkClientContact {
     }
 
     public TalkClientUpload getAvatarUpload() {
-        ensureSelf();
+        ensureGroupOrSelf();
         return avatarUpload;
     }
 
     public void setAvatarUpload(TalkClientUpload avatarUpload) {
-        ensureSelf();
+        ensureGroupOrSelf();
         this.avatarUpload = avatarUpload;
     }
 
@@ -290,6 +290,12 @@ public class TalkClientContact {
     private void ensureGroup() {
         if(!isGroup()) {
             throw new RuntimeException("Client is not of type group");
+        }
+    }
+
+    private void ensureGroupOrSelf() {
+        if(!(isGroup() || isSelf())) {
+            throw new RuntimeException("Client is not of type group or self");
         }
     }
 
