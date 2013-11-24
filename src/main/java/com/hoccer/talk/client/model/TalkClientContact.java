@@ -244,7 +244,6 @@ public class TalkClientContact {
     }
 
     public TalkClientDownload getAvatarDownload() {
-        ensureClientOrGroup();
         return avatarDownload;
     }
 
@@ -254,7 +253,6 @@ public class TalkClientContact {
     }
 
     public TalkClientUpload getAvatarUpload() {
-        ensureGroupOrSelf();
         return avatarUpload;
     }
 
