@@ -612,13 +612,13 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
             if(mt != null) {
                 String mimeType = mt.toString();
-                LOG.info("detected type " + mimeType);
+                LOG.info("[" + clientDownloadId + "] detected type " + mimeType);
                 this.contentType = mimeType;
                 MimeType mimet = MimeTypes.getDefaultMimeTypes().getRegisteredMimeType(mimeType);
                 if(mimet != null) {
                     String extension = mimet.getExtension();
                     if(extension != null) {
-                        LOG.info("renaming to extension " + mimet.getExtension());
+                        LOG.info("[" + clientDownloadId + "] renaming to extension " + mimet.getExtension());
                         File newName = new File(destinationFile + extension);
                         if(destination.renameTo(newName)) {
                             if(decryptedFile != null) {
