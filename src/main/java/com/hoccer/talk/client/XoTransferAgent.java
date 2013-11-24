@@ -65,6 +65,13 @@ public class XoTransferAgent implements IXoTransferListener {
 
     public void requestDownload(final TalkClientDownload download) {
         LOG.info("requestDownload()");
+
+        try {
+            mDatabase.saveClientDownload(download);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
+
         synchronized (mDownloadsById) {
             final int downloadId = download.getClientDownloadId();
             if(!mDownloadsById.containsKey(downloadId)) {
@@ -72,12 +79,6 @@ public class XoTransferAgent implements IXoTransferListener {
                 if(state == TalkClientDownload.State.COMPLETE) {
                     LOG.debug("no need to download " + downloadId);
                     return;
-                }
-
-                try {
-                    mDatabase.saveClientDownload(download);
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
                 }
 
                 LOG.info("requesting download " + downloadId);
@@ -108,18 +109,19 @@ public class XoTransferAgent implements IXoTransferListener {
 
     public void requestUpload(final TalkClientUpload upload) {
         LOG.info("requestUpload()");
+
+        try {
+            mDatabase.saveClientUpload(upload);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
+
         synchronized (mUploadsById) {
             final int uploadId = upload.getClientUploadId();
             if(!mUploadsById.containsKey(uploadId)) {
                 TalkClientUpload.State state = upload.getState();
                 if(state == TalkClientUpload.State.COMPLETE) {
                     LOG.debug("no need to upload " + uploadId);
-                }
-
-                try {
-                    mDatabase.saveClientUpload(upload);
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
                 }
 
                 LOG.info("requesting upload " + uploadId);
