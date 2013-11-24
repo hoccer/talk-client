@@ -179,7 +179,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             mDatabase.initialize();
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("sql error in database initialization", e);
         }
 
         // create URI object referencing the server
