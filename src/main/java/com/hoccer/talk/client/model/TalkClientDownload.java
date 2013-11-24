@@ -10,6 +10,7 @@ import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -24,7 +25,6 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.mime.MediaType;
 import org.apache.tika.mime.MimeType;
 import org.apache.tika.mime.MimeTypes;
-import org.bouncycastle.util.encoders.Hex;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -182,7 +182,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = id;
 
-        this.decryptionKey = bytesToHex(key);
+        this.decryptionKey = Hex.encodeHexString(key);
         this.decryptedFile = UUID.randomUUID().toString();
         String filename = attachment.getFilename();
         if(filename != null) {
@@ -556,11 +556,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             destination.delete();
         }
 
-        byte[] key = Hex.decode(decryptionKey);
-
-        int bytesToDecrypt = (int)source.length();
-
         try {
+            byte[] key = Hex.decodeHex(decryptionKey.toCharArray());
+            int bytesToDecrypt = (int)source.length();
             byte[] buffer = new byte[1 << 16];
             InputStream is = new FileInputStream(source);
             OutputStream os = new FileOutputStream(destination);
@@ -665,19 +663,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             agent.onDownloadProgress(this);
         }
         progressRateLimit = now;
-    }
-
-    /* XXX junk */
-    private static String bytesToHex(byte[] bytes) {
-        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-        char[] hexChars = new char[bytes.length * 2];
-        int v;
-        for ( int j = 0; j < bytes.length; j++ ) {
-            v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
     }
 
 }

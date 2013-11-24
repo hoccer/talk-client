@@ -35,8 +35,8 @@ import com.hoccer.talk.srp.SRP6VerifyingClient;
 import com.j256.ormlite.dao.ForeignCollection;
 import de.undercouch.bson4jackson.BsonFactory;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
-import org.bouncycastle.crypto.CryptoException;
 import org.bouncycastle.crypto.Digest;
 import org.bouncycastle.crypto.agreement.srp.SRP6VerifierGenerator;
 import org.bouncycastle.crypto.digests.SHA256Digest;
@@ -1266,8 +1266,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         SRP_RANDOM.nextBytes(salt);
         SRP_RANDOM.nextBytes(secret);
 
-        String saltString = bytesToHex(salt);
-        String secretString = bytesToHex(secret);
+        String saltString = Hex.encodeHexString(salt);
+        String secretString = Hex.encodeHexString(secret);
 
         String clientId = mServerRpc.generateId();
 
@@ -1275,7 +1275,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
 
-        mServerRpc.srpRegister(verifier.toString(16), bytesToHex(salt));
+        mServerRpc.srpRegister(verifier.toString(16), Hex.encodeHexString(salt));
 
         LOG.debug("registration: finished");
 
@@ -1303,26 +1303,23 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         LOG.debug("login: performing phase 1");
 
-        byte[] loginId = clientId.getBytes();
-        byte[] loginSalt = fromHexString(self.getSrpSalt());
-        byte[] loginSecret = fromHexString(self.getSrpSecret());
-        BigInteger A = vc.generateClientCredentials(loginSalt, loginId, loginSecret);
-
-        String Bs = mServerRpc.srpPhase1(clientId,  A.toString(16));
         try {
+            byte[] loginId = clientId.getBytes();
+            byte[] loginSalt = Hex.decodeHex(self.getSrpSalt().toCharArray());
+            byte[] loginSecret = Hex.decodeHex(self.getSrpSecret().toCharArray());
+            BigInteger A = vc.generateClientCredentials(loginSalt, loginId, loginSecret);
+
+            String Bs = mServerRpc.srpPhase1(clientId,  A.toString(16));
             vc.calculateSecret(new BigInteger(Bs, 16));
-        } catch (CryptoException e) {
-            e.printStackTrace();
-        }
 
-        LOG.debug("login: performing phase 2");
+            LOG.debug("login: performing phase 2");
 
-        String Vc = bytesToHex(vc.calculateVerifier());
-        String Vs = mServerRpc.srpPhase2(Vc);
-        try {
-            vc.verifyServer(fromHexString(Vs));
-        } catch (CryptoException e) {
-            throw new RuntimeException("Server verification failed");
+            String Vc = Hex.encodeHexString(vc.calculateVerifier());
+            String Vs = mServerRpc.srpPhase2(Vc);
+            vc.verifyServer(Hex.decodeHex(Vs.toCharArray()));
+        } catch (Exception e) {
+            LOG.error("decoder exception in login", e);
+            throw new RuntimeException("exception during login", e);
         }
 
         LOG.debug("login: successful");
@@ -1840,7 +1837,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(upload != null) {
             LOG.debug("generating attachment");
 
-            upload.provideEncryptionKey(bytesToHex(plainKey));
+            upload.provideEncryptionKey(Hex.encodeHexString(plainKey));
 
             try {
                 mDatabase.saveClientUpload(upload);
@@ -2403,35 +2400,6 @@ public class XoClient implements JsonRpcConnection.Listener {
                 notifyUnseenMessages(false);
             }
         });
-    }
-
-
-    /** XXX junk */
-    private static String bytesToHex(byte[] bytes) {
-        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-        char[] hexChars = new char[bytes.length * 2];
-        int v;
-        for ( int j = 0; j < bytes.length; j++ ) {
-            v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
-    private static byte[] fromHexString(final String encoded) {
-        if ((encoded.length() % 2) != 0) {
-            throw new IllegalArgumentException("Input string must contain an even number of characters");
-        }
-
-        final byte result[] = new byte[encoded.length()/2];
-        final char enc[] = encoded.toCharArray();
-        for (int i = 0; i < enc.length; i += 2) {
-            StringBuilder curr = new StringBuilder(2);
-            curr.append(enc[i]).append(enc[i + 1]);
-            result[i/2] = (byte) Integer.parseInt(curr.toString(), 16);
-        }
-        return result;
     }
 	
 }

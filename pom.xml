@@ -66,6 +66,12 @@
       <artifactId>tika-core</artifactId>
       <version>${apache.tika.version}</version>
     </dependency>
+    <!-- Apache Commons Codec (BASE64 and hex encoding) -->
+    <dependency>
+      <groupId>commons-codec</groupId>
+      <artifactId>commons-codec</artifactId>
+      <version>${commons-codec.version}</version>
+    </dependency>
   </dependencies>
   
   <build>
