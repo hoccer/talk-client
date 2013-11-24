@@ -9,13 +9,13 @@ public class TalkClientSmsToken {
     @DatabaseField(generatedId = true)
     int smsTokenId;
 
-    @DatabaseField
+    @DatabaseField(width = 64)
     String sender;
 
-    @DatabaseField
+    @DatabaseField(width = 200)
     String token;
 
-    @DatabaseField
+    @DatabaseField(width = 200)
     String body;
 
     public TalkClientSmsToken() {

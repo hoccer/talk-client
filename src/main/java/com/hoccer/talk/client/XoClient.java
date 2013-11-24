@@ -2336,6 +2336,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     TalkClientSmsToken tokenObject = new TalkClientSmsToken();
                     tokenObject.setSender(sender);
                     tokenObject.setToken(token);
+                    tokenObject.setBody(body);
                     try {
                         mDatabase.saveSmsToken(tokenObject);
                     } catch (SQLException e) {
