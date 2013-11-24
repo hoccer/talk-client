@@ -1,6 +1,8 @@
 package com.hoccer.talk.client;
 
-public abstract class XoTransfer {
+import com.hoccer.talk.content.IContentObject;
+
+public abstract class XoTransfer implements IContentObject {
 
     public enum Direction {
         UPLOAD, DOWNLOAD
@@ -16,8 +18,28 @@ public abstract class XoTransfer {
         mDirection = direction;
     }
 
+
     public Direction getDirection() {
         return mDirection;
+    }
+
+    public boolean isDownload() {
+        return mDirection == Direction.DOWNLOAD;
+    }
+
+    public boolean isUpload() {
+        return mDirection == Direction.UPLOAD;
+    }
+
+
+    public abstract Type getTransferType();
+
+    public boolean isAvatar() {
+        return getTransferType() == Type.AVATAR;
+    }
+
+    public boolean isAttachment() {
+        return getTransferType() == Type.ATTACHMENT;
     }
 
 }
