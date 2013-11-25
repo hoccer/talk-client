@@ -111,6 +111,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         this.contentLength = -1;
     }
 
+    /* XoTransfer implementation */
+    @Override
+    public Type getTransferType() {
+        return type;
+    }
+
     /* IContentObject implementation */
     @Override
     public boolean isContentAvailable() {

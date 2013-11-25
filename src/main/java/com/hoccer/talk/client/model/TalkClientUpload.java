@@ -98,7 +98,13 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.encryptedLength = -1;
     }
 
-    /* IContentObject */
+    /* XoTransfer implementation */
+    @Override
+    public Type getTransferType() {
+        return type;
+    }
+
+    /* IContentObject implementation */
     @Override
     public boolean isContentAvailable() {
         // uploaded content is always available
