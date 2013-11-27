@@ -129,17 +129,18 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             case INITIALIZING:
             case NEW:
                 return ContentState.DOWNLOAD_NEW;
-            case PAUSED:
-                return ContentState.DOWNLOAD_PAUSED;
             case DOWNLOADING:
+                return ContentState.DOWNLOAD_DOWNLOADING;
             case DECRYPTING:
-                return ContentState.DOWNLOAD_IN_PROGRESS;
+                return ContentState.DOWNLOAD_DECRYPTING;
+            case DETECTING:
+                return ContentState.DOWNLOAD_DETECTING;
             case COMPLETE:
                 return ContentState.DOWNLOAD_COMPLETE;
             case FAILED:
                 return ContentState.DOWNLOAD_FAILED;
             default:
-                throw new RuntimeException("Unknown download state");
+                throw new RuntimeException("Unknown download state " + state);
         }
     }
     @Override
