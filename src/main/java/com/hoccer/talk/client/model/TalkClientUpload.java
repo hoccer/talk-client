@@ -4,6 +4,7 @@ import com.google.appengine.api.blobstore.ByteRange;
 import com.hoccer.talk.client.XoClient;
 import com.hoccer.talk.client.XoTransfer;
 import com.hoccer.talk.client.XoTransferAgent;
+import com.hoccer.talk.content.ContentDisposition;
 import com.hoccer.talk.content.ContentState;
 import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.crypto.AESCryptor;
@@ -128,6 +129,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             default:
                 throw new RuntimeException("Unknown upload state");
         }
+    }
+    @Override
+    public ContentDisposition getContentDisposition() {
+        return ContentDisposition.UPLOAD;
     }
     @Override
     public int getTransferLength() {

@@ -4,6 +4,7 @@ import com.google.appengine.api.blobstore.ByteRange;
 import com.hoccer.talk.client.XoClientDatabase;
 import com.hoccer.talk.client.XoTransfer;
 import com.hoccer.talk.client.XoTransferAgent;
+import com.hoccer.talk.content.ContentDisposition;
 import com.hoccer.talk.content.ContentState;
 import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.crypto.AESCryptor;
@@ -139,6 +140,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             default:
                 throw new RuntimeException("Unknown download state");
         }
+    }
+    @Override
+    public ContentDisposition getContentDisposition() {
+        return ContentDisposition.DOWNLOAD;
     }
     @Override
     public int getTransferLength() {
