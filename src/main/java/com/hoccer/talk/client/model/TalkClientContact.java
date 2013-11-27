@@ -1,5 +1,6 @@
 package com.hoccer.talk.client.model;
 
+import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.model.TalkGroup;
 import com.hoccer.talk.model.TalkGroupMember;
 import com.hoccer.talk.model.TalkKey;
@@ -123,6 +124,23 @@ public class TalkClientContact {
 
     public int getClientContactId() {
         return clientContactId;
+    }
+
+    public IContentObject getAvatar() {
+        if(avatarDownload != null && avatarDownload.isContentAvailable()) {
+            return avatarDownload;
+        } else if(avatarUpload != null && avatarUpload.isContentAvailable()) {
+            return avatarUpload;
+        }
+        return null;
+    }
+
+    public String getAvatarContentUrl() {
+        IContentObject avatar = getAvatar();
+        if(avatar != null) {
+            return avatar.getContentUrl();
+        }
+        return null;
     }
 
     public boolean isSelf() {
