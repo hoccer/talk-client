@@ -5,6 +5,7 @@ import com.hoccer.talk.client.model.TalkClientUpload;
 
 public interface IXoTransferListener {
 
+    public void onDownloadRegistered(TalkClientDownload download);
     public void onDownloadStarted(TalkClientDownload download);
     public void onDownloadProgress(TalkClientDownload download);
     public void onDownloadFinished(TalkClientDownload download);

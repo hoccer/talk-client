@@ -49,7 +49,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                             MimeTypes.getDefaultMimeTypes());
 
     public enum State {
-        NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED
+        INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED
     }
 
     @DatabaseField(generatedId = true)
@@ -106,7 +106,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
-        this.state = State.NEW;
+        this.state = State.INITIALIZING;
         this.aspectRatio = 1.0;
         this.downloadProgress = 0;
         this.contentLength = -1;
@@ -126,6 +126,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @Override
     public ContentState getContentState() {
         switch(state) {
+            case INITIALIZING:
             case NEW:
                 return ContentState.DOWNLOAD_NEW;
             case PAUSED:
@@ -666,7 +667,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         switchState(agent, State.FAILED);
     }
 
-    private void switchState(XoTransferAgent agent, State newState) {
+    public void switchState(XoTransferAgent agent, State newState) {
         LOG.debug("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
         try {

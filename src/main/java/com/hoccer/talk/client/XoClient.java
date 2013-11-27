@@ -1597,7 +1597,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         if(attachmentDownload != null) {
-            mTransferAgent.requestDownload(attachmentDownload);
+            mTransferAgent.registerDownload(attachmentDownload);
         }
 
         for(IXoMessageListener listener: mMessageListeners) {

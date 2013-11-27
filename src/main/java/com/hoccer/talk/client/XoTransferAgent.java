@@ -63,14 +63,23 @@ public class XoTransferAgent implements IXoTransferListener {
         mListeners.remove(listener);
     }
 
-    public void requestDownload(final TalkClientDownload download) {
-        LOG.info("requestDownload()");
-
+    public void registerDownload(final TalkClientDownload download) {
         try {
             mDatabase.saveClientDownload(download);
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
+        if(download.getState() == TalkClientDownload.State.INITIALIZING) {
+            LOG.info("registerDownload(" + download.getClientDownloadId() + ")");
+            download.switchState(this, TalkClientDownload.State.NEW);
+            onDownloadRegistered(download);
+        }
+    }
+
+    public void requestDownload(final TalkClientDownload download) {
+        LOG.info("requestDownload()");
+
+        registerDownload(download);
 
         synchronized (mDownloadsById) {
             final int downloadId = download.getClientDownloadId();
@@ -147,6 +156,14 @@ public class XoTransferAgent implements IXoTransferListener {
             } else {
                 LOG.info("upload " + upload.getClientUploadId() + " already active");
             }
+        }
+    }
+
+    @Override
+    public void onDownloadRegistered(TalkClientDownload download) {
+        LOG.info("onDownloadRegistered(" + download.getClientDownloadId() + ")");
+        for(IXoTransferListener listener: mListeners) {
+            listener.onDownloadRegistered(download);
         }
     }
 
