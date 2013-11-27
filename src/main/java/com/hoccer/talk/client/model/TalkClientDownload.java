@@ -165,11 +165,14 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @Override
     public String getContentUrl() {
         // TODO fix up this field on db upgrade
-        if(dataFile.startsWith("file://")) {
-            return dataFile;
-        } else {
-            return "file://" + dataFile;
+        if(dataFile != null) {
+            if(dataFile.startsWith("file://")) {
+                return dataFile;
+            } else {
+                return "file://" + dataFile;
+            }
         }
+        return null;
     }
 
     /**
@@ -253,11 +256,14 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public String getDataFile() {
         // TODO fix up this field on db upgrade
-        if(dataFile.startsWith("file://")) {
-            return dataFile.substring(7);
-        } else {
-            return dataFile;
+        if(dataFile != null) {
+            if(dataFile.startsWith("file://")) {
+                return dataFile.substring(7);
+            } else {
+                return dataFile;
+            }
         }
+        return null;
     }
 
     public boolean isAvatar() {
