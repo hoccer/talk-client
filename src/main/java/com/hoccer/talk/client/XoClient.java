@@ -811,7 +811,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         });
     }
 
-    public void requestDelivery() {
+    public void requestDelivery(TalkClientMessage message) {
+        for(IXoMessageListener listener: mMessageListeners) {
+            listener.onMessageAdded(message);
+        }
+        requestDelivery();
+    }
+
+    private void requestDelivery() {
         resetIdle();
         mExecutor.execute(new Runnable() {
             @Override
