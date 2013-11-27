@@ -116,16 +116,16 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         switch(state) {
             case NEW:
                 return ContentState.UPLOAD_NEW;
+            case COMPLETE:
+                return ContentState.UPLOAD_COMPLETE;
+            case FAILED:
+                return ContentState.UPLOAD_FAILED;
             case ENCRYPTING:
                 return ContentState.UPLOAD_ENCRYPTING;
             case REGISTERING:
                 return ContentState.UPLOAD_REGISTERING;
             case UPLOADING:
                 return ContentState.UPLOAD_UPLOADING;
-            case COMPLETE:
-                return ContentState.UPLOAD_COMPLETE;
-            case FAILED:
-                return ContentState.UPLOAD_FAILED;
             default:
                 throw new RuntimeException("Unknown upload state " + state);
         }

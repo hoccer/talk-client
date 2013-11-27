@@ -63,6 +63,12 @@ public class XoTransferAgent implements IXoTransferListener {
         mListeners.remove(listener);
     }
 
+    public boolean isDownloadActive(TalkClientDownload download) {
+        synchronized (mDownloadsById) {
+            return mDownloadsById.containsKey(download.getClientDownloadId());
+        }
+    }
+
     public void registerDownload(final TalkClientDownload download) {
         try {
             mDatabase.saveClientDownload(download);
@@ -101,11 +107,11 @@ public class XoTransferAgent implements IXoTransferListener {
                         onDownloadStarted(download);
                         try {
                             download.performDownloadAttempt(XoTransferAgent.this);
-                            synchronized (mDownloadsById) {
-                                mDownloadsById.remove(downloadId);
-                            }
                         } catch (Exception e) {
                             LOG.error("error performing download", e);
+                        }
+                        synchronized (mDownloadsById) {
+                            mDownloadsById.remove(downloadId);
                         }
                         onDownloadFinished(download);
                     }
@@ -113,6 +119,19 @@ public class XoTransferAgent implements IXoTransferListener {
             } else {
                 LOG.info("download " + download.getClientDownloadId() + " already active");
             }
+        }
+    }
+
+    public void cancelDownload(TalkClientDownload download) {
+        LOG.info("cancelDownload(" + download.getClientDownloadId() + ")");
+        synchronized (mDownloadsById) {
+            mDownloadsById.remove(download.getClientDownloadId());
+        }
+    }
+
+    public boolean isUploadActive(TalkClientUpload upload) {
+        synchronized (mUploadsById) {
+            return mUploadsById.containsKey(upload.getClientUploadId());
         }
     }
 
@@ -144,11 +163,11 @@ public class XoTransferAgent implements IXoTransferListener {
                         onUploadStarted(upload);
                         try {
                             upload.performUploadAttempt(XoTransferAgent.this);
-                            synchronized (mUploadsById) {
-                                mUploadsById.remove(uploadId);
-                            }
                         } catch (Exception e) {
                             LOG.error("error performing upload", e);
+                        }
+                        synchronized (mUploadsById) {
+                            mUploadsById.remove(uploadId);
                         }
                         onUploadFinished(upload);
                     }
@@ -156,6 +175,13 @@ public class XoTransferAgent implements IXoTransferListener {
             } else {
                 LOG.info("upload " + upload.getClientUploadId() + " already active");
             }
+        }
+    }
+
+    public void cancelUpload(TalkClientUpload upload) {
+        LOG.info("cancelUpload(" + upload.getClientUploadId() + ")");
+        synchronized (mUploadsById) {
+            mUploadsById.remove(upload.getClientUploadId());
         }
     }
 

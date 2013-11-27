@@ -129,16 +129,16 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             case INITIALIZING:
             case NEW:
                 return ContentState.DOWNLOAD_NEW;
+            case COMPLETE:
+                return ContentState.DOWNLOAD_COMPLETE;
+            case FAILED:
+                return ContentState.DOWNLOAD_FAILED;
             case DOWNLOADING:
                 return ContentState.DOWNLOAD_DOWNLOADING;
             case DECRYPTING:
                 return ContentState.DOWNLOAD_DECRYPTING;
             case DETECTING:
                 return ContentState.DOWNLOAD_DETECTING;
-            case COMPLETE:
-                return ContentState.DOWNLOAD_COMPLETE;
-            case FAILED:
-                return ContentState.DOWNLOAD_FAILED;
             default:
                 throw new RuntimeException("Unknown download state " + state);
         }
@@ -468,7 +468,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 }
             }
             // get ourselves a buffer
-            byte[] buffer = new byte[1<<16];
+            byte[] buffer = new byte[1<<12];
             // determine what to copy
             int bytesStart = downloadProgress;
             int bytesToGo = contentLengthValue;
@@ -538,6 +538,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 database.saveClientDownload(this);
                 // call listeners
                 notifyProgress(agent);
+                if(!agent.isDownloadActive(this)) {
+                    return true;
+                }
             }
             // update state
             if(downloadProgress == contentLength) {
@@ -599,6 +602,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 int bytesRead = is.read(buffer, 0, bytesToCopy);
                 dos.write(buffer, 0, bytesRead);
                 bytesToGo -= bytesRead;
+                if(!agent.isDownloadActive(this)) {
+                    return true;
+                }
             }
 
             dos.flush();

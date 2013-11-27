@@ -2321,6 +2321,10 @@ public class XoClient implements JsonRpcConnection.Listener {
         mTransferAgent.requestDownload(download);
     }
 
+    public void cancelDownload(TalkClientDownload download) {
+        mTransferAgent.cancelDownload(download);
+    }
+
     public void handleSmsUrl(final String sender, final String body, final String urlString) {
         LOG.info("handleSmsUrl(" + sender + "," + urlString + ")");
         mExecutor.execute(new Runnable() {
