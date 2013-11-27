@@ -219,7 +219,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     @Override
     public void onDownloadStateChanged(TalkClientDownload download) {
-        LOG.trace("onDownloadStateChanged(" + download.getClientDownloadId() + ")");
+        LOG.info("onDownloadStateChanged(" + download.getClientDownloadId() + ")");
         for(IXoTransferListener listener: mListeners) {
             listener.onDownloadStateChanged(download);
         }
@@ -251,7 +251,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     @Override
     public void onUploadStateChanged(TalkClientUpload upload) {
-        LOG.trace("onUploadStateChanged(" + upload.getClientUploadId() + ")");
+        LOG.info("onUploadStateChanged(" + upload.getClientUploadId() + ")");
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStateChanged(upload);
         }
