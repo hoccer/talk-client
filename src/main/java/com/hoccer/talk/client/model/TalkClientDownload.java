@@ -163,7 +163,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
     @Override
     public String getContentUrl() {
-        return getDataFile();
+        // TODO fix up this field on db upgrade
+        if(dataFile.startsWith("file://")) {
+            return dataFile;
+        } else {
+            return "file://" + dataFile;
+        }
     }
 
     /**
@@ -246,7 +251,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     public String getDataFile() {
-        return dataFile;
+        // TODO fix up this field on db upgrade
+        if(dataFile.startsWith("file://")) {
+            return dataFile.substring(7);
+        } else {
+            return dataFile;
+        }
     }
 
     public boolean isAvatar() {
@@ -526,7 +536,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 if(decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {
-                    dataFile = "file://" + filename;
+                    dataFile = filename;
                     switchState(agent, State.DETECTING);
                 }
             }
@@ -589,7 +599,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             os.close();
             is.close();
 
-            dataFile = "file://" + destinationFile;
+            dataFile = destinationFile;
             switchState(agent, State.DETECTING);
         } catch (Exception e) {
             LOG.error("decryption error", e);
@@ -632,10 +642,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                         if(destination.renameTo(newName)) {
                             if(decryptedFile != null) {
                                 this.decryptedFile = this.decryptedFile + extension;
-                                this.dataFile = "file://" + computeDecryptionFile(agent);
+                                this.dataFile = computeDecryptionFile(agent);
                             } else {
                                 this.downloadFile = this.downloadFile + extension;
-                                this.dataFile = "file://" + computeDownloadFile(agent);
+                                this.dataFile = computeDownloadFile(agent);
                             }
                         } else {
                             LOG.warn("could not rename file");
