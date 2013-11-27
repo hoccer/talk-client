@@ -77,10 +77,10 @@ public class TalkClientContact {
     private ForeignCollection<TalkClientMembership> groupMemberships;
 
 
-    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientDownload avatarDownload;
 
-    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientUpload avatarUpload;
     
 
