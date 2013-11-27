@@ -692,12 +692,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     private void notifyProgress(XoTransferAgent agent) {
-        long now = System.currentTimeMillis();
-        long delta = now - progressRateLimit;
-        if(delta > 250) {
-            agent.onDownloadProgress(this);
-        }
-        progressRateLimit = now;
+        agent.onDownloadProgress(this);
     }
 
 }
