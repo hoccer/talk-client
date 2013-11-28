@@ -43,6 +43,14 @@ import java.util.UUID;
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends XoTransfer implements IContentObject {
 
+    /**
+     * Minimum amount of progress to justify a db update
+     *
+     * This amount of data can be lost in case of crashes.
+     * In all other cases progress will be saved.
+     */
+    private final static int PROGRESS_SAVE_MINIMUM = 1 << 16;
+
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
     private static final Detector MIME_DETECTOR = new DefaultDetector(
@@ -534,6 +542,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             // seek to start of region
             raf.seek(bytesStart);
             // copy data
+            int savedProgress = downloadProgress;
             while(bytesToGo > 0) {
                 logGetTrace("bytesToGo: " + bytesToGo);
                 logGetTrace("downloadProgress: " + downloadProgress);
@@ -554,13 +563,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 downloadProgress += bytesRead;
                 bytesToGo -= bytesRead;
                 // update db
-                database.saveClientDownload(this);
+                savedProgress = maybeSaveProgress(agent, savedProgress);
                 // call listeners
                 notifyProgress(agent);
                 if(!agent.isDownloadActive(this)) {
                     return true;
                 }
             }
+            // update db
+            saveProgress(agent);
             // update state
             if(downloadProgress == contentLength) {
                 if(decryptionKey != null) {
@@ -570,8 +581,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                     switchState(agent, State.DETECTING);
                 }
             }
-            // update db
-            database.saveClientDownload(this);
             // close streams
             fd = null;
             raf.close();
@@ -718,6 +727,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
+    }
+
+    private int maybeSaveProgress(XoTransferAgent agent, int previousProgress) {
+        int delta = downloadProgress - previousProgress;
+        if(delta > PROGRESS_SAVE_MINIMUM) {
+            saveProgress(agent);
+            return downloadProgress;
+        }
+        return previousProgress;
     }
 
 }

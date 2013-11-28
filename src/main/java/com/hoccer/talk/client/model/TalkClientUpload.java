@@ -35,6 +35,14 @@ import java.util.UUID;
 @DatabaseTable(tableName = "clientUpload")
 public class TalkClientUpload extends XoTransfer implements IContentObject {
 
+    /**
+     * Minimum amount of progress to justify a db update
+     *
+     * Can be large since this only concerns display.
+     * For real uploads the check request will fix the progress.
+     */
+    private final static int PROGRESS_SAVE_MINIMUM = 1 << 16;
+
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
     public enum State {
@@ -309,8 +317,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             } catch (IOException e) {
                 LOG.error("problem during upload", e);
             }
-            saveProgress(agent);
         }
+
+        saveProgress(agent);
 
         LOG.info("upload attempt finished in state " + this.state);
     }
@@ -450,11 +459,12 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         is.skip(this.progress);
         final int startProgress = this.progress;
         IProgressListener progressListener = new IProgressListener() {
+            int savedProgress = startProgress;
             @Override
             public void onProgress(int progress) {
                 TalkClientUpload.this.progress = startProgress + progress;
+                savedProgress = maybeSaveProgress(agent, savedProgress);
                 agent.onUploadProgress(TalkClientUpload.this);
-                saveProgress(agent);
             }
         };
         HttpEntity entity = new ProgressOutputHttpEntity(is, bytesToGo, progressListener);
@@ -464,6 +474,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         LOG.trace("PUT-upload " + uploadUrl + " commencing");
         HttpResponse uploadResponse = client.execute(uploadRequest);
         this.progress = uploadLength;
+        saveProgress(agent);
         StatusLine uploadStatus = uploadResponse.getStatusLine();
         int uploadSc = uploadStatus.getStatusCode();
         LOG.trace("PUT-upload " + uploadUrl + " status " + uploadSc + ": " + uploadStatus.getReasonPhrase());
@@ -481,6 +492,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             Header h = uploadHdrs[i];
             LOG.trace("PUT-upload " + uploadUrl + " header " + h.getName() + ": " + h.getValue());
         }
+
         // process range header from upload request
         Header checkRangeHeader = uploadResponse.getFirstHeader("Range");
         if(checkRangeHeader != null) {
@@ -564,6 +576,15 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         } catch (SQLException e) {
             LOG.error("sql error", e);
         }
+    }
+
+    private int maybeSaveProgress(XoTransferAgent agent, int previousProgress) {
+        int delta = progress - previousProgress;
+        if(delta > PROGRESS_SAVE_MINIMUM) {
+            saveProgress(agent);
+            return progress;
+        }
+        return previousProgress;
     }
 
 }
