@@ -321,26 +321,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         return stateToString(mState);
     }
 
-    /**
-     * Add a listener
-     * @param listener
-     */
-    public void registerListener(IXoClientListener listener) {
-        mContactListeners.add(listener);
-        mMessageListeners.add(listener);
-        mStateListeners.add(listener);
-    }
-
-    /**
-     * Remove a listener
-     * @param listener
-     */
-    public void unregisterListener(IXoClientListener listener) {
-        mContactListeners.remove(listener);
-        mMessageListeners.remove(listener);
-        mStateListeners.remove(listener);
-    }
-
     public void registerStateListener(IXoStateListener listener) {
         mStateListeners.add(listener);
     }
