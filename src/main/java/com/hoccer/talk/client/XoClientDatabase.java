@@ -16,11 +16,14 @@ import com.hoccer.talk.model.TalkPresence;
 import com.hoccer.talk.model.TalkPrivateKey;
 import com.hoccer.talk.model.TalkRelationship;
 import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.dao.GenericRawResults;
+import com.j256.ormlite.field.DataType;
 import org.apache.log4j.Logger;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 public class XoClientDatabase {
 
@@ -282,6 +285,19 @@ public class XoClientDatabase {
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId) throws SQLException {
         return mClientMessages.queryForEq("conversationContact_id", contactId);
+    }
+
+    public Vector<Integer> findMessageIdsByContactId(int contactId) throws SQLException {
+        GenericRawResults<Object[]> results = mClientMessages.queryRaw(
+                "select clientMessageId from clientMessage where conversationContact_id = ?",
+                new DataType[]{DataType.INTEGER}, Integer.toString(contactId));
+        List<Object[]> rows = results.getResults();
+        Vector<Integer> ret = new Vector<Integer>(rows.size());
+        for(Object[] row: rows) {
+            Integer r = (Integer)row[0];
+            ret.add(r);
+        }
+        return ret;
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
