@@ -220,6 +220,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     public void provideContentUrl(XoTransferAgent agent, String url) {
+        if(url.startsWith("file://")) {
+            return;
+        }
+        if(url.startsWith("content://media/external/file")) {
+            return;
+        }
         this.contentUrl = url;
         saveProgress(agent);
         agent.onDownloadStateChanged(this);
