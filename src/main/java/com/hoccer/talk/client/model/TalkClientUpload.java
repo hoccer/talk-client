@@ -151,6 +151,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return aspectRatio;
     }
     @Override
+    public String getContentUrl() {
+        return null;
+    }
+    @Override
     public String getContentDataUrl() {
         return dataFile;
     }
