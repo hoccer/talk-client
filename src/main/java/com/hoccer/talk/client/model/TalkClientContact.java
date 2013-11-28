@@ -138,7 +138,7 @@ public class TalkClientContact {
     public String getAvatarContentUrl() {
         IContentObject avatar = getAvatar();
         if(avatar != null) {
-            return avatar.getContentUrl();
+            return avatar.getContentDataUrl();
         }
         return null;
     }

@@ -164,7 +164,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return aspectRatio;
     }
     @Override
-    public String getContentUrl() {
+    public String getContentDataUrl() {
         // TODO fix up this field on db upgrade
         if(dataFile != null) {
             if(dataFile.startsWith("file://")) {
