@@ -46,7 +46,7 @@ public class ProgressOutputStream extends OutputStream {
     }
 
     private void callListener() {
-        LOG.debug("progress " + mProgress);
+        LOG.trace("progress " + mProgress);
         if(mListener != null) {
             mListener.onProgress(mProgress);
         }
