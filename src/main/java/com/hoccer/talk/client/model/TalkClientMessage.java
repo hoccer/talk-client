@@ -47,6 +47,9 @@ public class TalkClientMessage {
     private String text;
 
     @DatabaseField
+    private boolean deleted;
+
+    @DatabaseField
     private boolean seen;
 
     @DatabaseField
@@ -152,8 +155,16 @@ public class TalkClientMessage {
         return seen;
     }
 
-    public void setSeen(boolean seen) {
-        this.seen = seen;
+    public void markAsSeen() {
+        this.seen = true;
+    }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
+
+    public void markAsDeleted() {
+        this.deleted = true;
     }
 
     public Date getTimestamp() {

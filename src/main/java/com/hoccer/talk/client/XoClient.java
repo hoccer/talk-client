@@ -2390,7 +2390,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                message.setSeen(true);
+                message.markAsSeen();
                 try {
                     mDatabase.saveClientMessage(message);
                 } catch (SQLException e) {
