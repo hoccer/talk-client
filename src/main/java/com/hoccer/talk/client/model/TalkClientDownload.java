@@ -617,6 +617,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             switchState(agent, State.DETECTING);
         } catch (Exception e) {
             LOG.error("decryption error", e);
+            markFailed(agent);
             return false;
         }
 
@@ -670,6 +671,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             switchState(agent, State.COMPLETE);
         } catch (Exception e) {
             LOG.error("detection error", e);
+            markFailed(agent);
             return false;
         }
         return true;
