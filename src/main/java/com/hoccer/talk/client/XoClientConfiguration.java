@@ -9,6 +9,9 @@ public class XoClientConfiguration {
 
     public static final String SERVER_URI = "wss://server.talk.hoccer.de/";
 
+    /** Transfer executor thread count */
+    public static final int TRANSFER_THREADS = 2;
+
     /** Connection timeout (seconds) */
     public static final int CONNECT_TIMEOUT = 15;
 

@@ -32,7 +32,7 @@ public class XoTransferAgent implements IXoTransferListener {
     public XoTransferAgent(XoClient client) {
         mClient = client;
         mDatabase = mClient.getDatabase();
-        mExecutor = Executors.newScheduledThreadPool(8);
+        mExecutor = Executors.newScheduledThreadPool(XoClientConfiguration.TRANSFER_THREADS);
         mListeners = new ArrayList<IXoTransferListener>();
         mDownloadsById = new HashMap<Integer, TalkClientDownload>();
         mUploadsById = new HashMap<Integer, TalkClientUpload>();
