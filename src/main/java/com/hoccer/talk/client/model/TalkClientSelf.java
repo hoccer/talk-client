@@ -9,6 +9,9 @@ public class TalkClientSelf {
     @DatabaseField(generatedId = true)
     private int selfId;
 
+    @DatabaseField
+    private boolean registrationConfirmed;
+
     @DatabaseField(width = 1024)
     private String srpSalt;
 
@@ -23,6 +26,10 @@ public class TalkClientSelf {
         this.srpSecret = srpSecret;
     }
 
+    public boolean isRegistrationConfirmed() {
+        return registrationConfirmed;
+    }
+
     public String getSrpSalt() {
         return srpSalt;
     }
@@ -31,9 +38,13 @@ public class TalkClientSelf {
         return srpSecret;
     }
 
-    public void update(TalkClientSelf credentials) {
-        this.srpSalt = credentials.srpSalt;
-        this.srpSecret = credentials.srpSecret;
+    public void confirmRegistration() {
+        registrationConfirmed = true;
+    }
+
+    public void provideCredentials(String salt, String secret) {
+        this.srpSalt = salt;
+        this.srpSecret = secret;
     }
 
 }

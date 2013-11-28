@@ -115,6 +115,9 @@ public class XoClient implements JsonRpcConnection.Listener {
     /* The database instance we use */
     XoClientDatabase mDatabase;
 
+    /* Our own contact */
+    TalkClientContact mSelfContact;
+
     /** Directory for avatar images */
     String mAvatarDirectory;
     /** Directory for received attachments */
@@ -236,7 +239,30 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // create transfer agent
         mTransferAgent = new XoTransferAgent(this);
-	}
+
+        // ensure we have a self contact
+        ensureSelfContact();
+    }
+
+    private void ensureSelfContact() {
+        try {
+            mSelfContact = mDatabase.findSelfContact(true);
+            if(mSelfContact.initializeSelf()) {
+                mDatabase.saveCredentials(mSelfContact.getSelf());
+                mDatabase.saveContact(mSelfContact);
+            }
+        } catch (SQLException e) {
+            LOG.error("SQL error", e);
+        }
+    }
+
+    public boolean isRegistered() {
+        return mSelfContact.isSelfRegistered();
+    }
+    
+    public TalkClientContact getSelfContact() {
+        return mSelfContact;
+    }
 
     public String getAvatarDirectory() {
         return mAvatarDirectory;
@@ -500,19 +526,19 @@ public class XoClient implements JsonRpcConnection.Listener {
     public void setClientString(String newName, String newStatus) {
         resetIdle();
         try {
-            TalkClientContact contact = mDatabase.findSelfContact(false);
-            if(contact != null) {
-                TalkPresence presence = contact.getClientPresence();
-                if(presence != null) {
-                    if(newName != null) {
-                        presence.setClientName(newName);
-                    }
-                    if(newStatus != null) {
-                        presence.setClientStatus(newStatus);
-                    }
-                    mDatabase.savePresence(presence);
-                    sendPresence();
+            TalkPresence presence = mSelfContact.getClientPresence();
+            if(presence != null) {
+                if(newName != null) {
+                    presence.setClientName(newName);
                 }
+                if(newStatus != null) {
+                    presence.setClientStatus(newStatus);
+                }
+                mDatabase.savePresence(presence);
+                for(IXoContactListener listener: mContactListeners) {
+                    listener.onClientPresenceChanged(mSelfContact);
+                }
+                sendPresence();
             }
         } catch (SQLException e) {
             LOG.error("sql error", e);
@@ -537,21 +563,18 @@ public class XoClient implements JsonRpcConnection.Listener {
                 }
                 mTransferAgent.requestUpload(upload);
                 try {
-                    TalkClientContact contact = mDatabase.findSelfContact(false);
-                    if(contact != null) {
-                        TalkPresence presence = contact.getClientPresence();
-                        if(presence != null) {
-                            presence.setAvatarUrl(downloadUrl);
-                        }
-                        contact.setAvatarUpload(upload);
-                        mDatabase.savePresence(presence);
-                        mDatabase.saveContact(contact);
-                        for(IXoContactListener listener: mContactListeners) {
-                            listener.onClientPresenceChanged(contact);
-                        }
-                        LOG.debug("sending new presence");
-                        sendPresence();
+                    TalkPresence presence = mSelfContact.getClientPresence();
+                    if(presence != null) {
+                        presence.setAvatarUrl(downloadUrl);
                     }
+                    mSelfContact.setAvatarUpload(upload);
+                    mDatabase.savePresence(presence);
+                    mDatabase.saveContact(mSelfContact);
+                    for(IXoContactListener listener: mContactListeners) {
+                        listener.onClientPresenceChanged(mSelfContact);
+                    }
+                    LOG.debug("sending new presence");
+                    sendPresence();
                 } catch (SQLException e) {
                     LOG.error("sql error", e);
                 }
@@ -926,17 +949,11 @@ public class XoClient implements JsonRpcConnection.Listener {
 	public void onOpen(JsonRpcConnection connection) {
         LOG.debug("onOpen()");
         scheduleIdle();
-        try {
-            TalkClientContact selfContact = mDatabase.findSelfContact(true);
-            if(selfContact.isSelfRegistered()) {
-                switchState(STATE_LOGIN, "connected");
-            } else {
-                switchState(STATE_REGISTERING, "connected and unregistered");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        if(isRegistered()) {
+            switchState(STATE_LOGIN, "connected");
+        } else {
+            switchState(STATE_REGISTERING, "connected and unregistered");
         }
-
 	}
 
     /**
@@ -1072,12 +1089,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mLoginFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
-                try {
-                    TalkClientContact selfContact = mDatabase.findSelfContact(true);
-                    performLogin(selfContact);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
+                performLogin(mSelfContact);
                 mLoginFuture = null;
                 switchState(STATE_SYNCING, "login successful");
             }
@@ -1094,16 +1106,19 @@ public class XoClient implements JsonRpcConnection.Listener {
     private void scheduleRegistration() {
         LOG.debug("scheduleRegistration()");
         shutdownRegistration();
+        if(!mSelfContact.getSelf().isRegistrationConfirmed()) {
+            LOG.debug("registration not confirmed");
+            return;
+        }
         mRegistrationFuture = mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
                 try {
-                    TalkClientContact selfContact = mDatabase.findSelfContact(true);
-                    performRegistration(selfContact);
+                    performRegistration(mSelfContact);
                     mRegistrationFuture = null;
                     switchState(STATE_LOGIN, "registered");
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+                } catch (Exception e) {
+                    LOG.error("registration error", e);
                 }
             }
         }, 0, TimeUnit.SECONDS);
@@ -1266,9 +1281,10 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         LOG.debug("registration: finished");
 
-        TalkClientSelf self = new TalkClientSelf(saltString, secretString);
+        TalkClientSelf self = mSelfContact.getSelf();
+        self.provideCredentials(saltString, secretString);
 
-        selfContact.updateSelfRegistered(clientId, self);
+        selfContact.updateSelfRegistered(clientId);
 
         try {
             mDatabase.saveCredentials(self);
@@ -1349,14 +1365,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         } catch (SQLException e) {
             LOG.error("SQL error", e);
         }
-    }
-
-    private TalkClientContact ensureSelfContact() throws SQLException {
-        TalkClientContact contact = mDatabase.findSelfContact(false);
-        if(contact == null) {
-            throw new RuntimeException("We should have a self contact!?");
-        }
-        return contact;
     }
 
     private TalkPresence ensureSelfPresence(TalkClientContact contact) throws SQLException {
@@ -1440,7 +1448,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 Date now = new Date();
                 try {
-                    TalkClientContact contact = ensureSelfContact();
+                    TalkClientContact contact = mSelfContact;
                     ensureSelfPresence(contact);
                     ensureSelfKey(contact);
                     TalkPresence presence = contact.getClientPresence();
@@ -2391,6 +2399,16 @@ public class XoClient implements JsonRpcConnection.Listener {
                 notifyUnseenMessages(false);
             }
         });
+    }
+
+    public void register() {
+        if(!isRegistered()) {
+            if(mState == STATE_REGISTERING) {
+                scheduleRegistration();
+            } else {
+                wake();
+            }
+        }
     }
 	
 }

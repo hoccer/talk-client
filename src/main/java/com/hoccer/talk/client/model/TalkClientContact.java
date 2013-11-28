@@ -148,7 +148,7 @@ public class TalkClientContact {
     }
 
     public boolean isSelfRegistered() {
-        return isSelf() && this.clientId != null && this.self != null;
+        return isSelf() && this.clientId != null;
     }
 
     public boolean isClient() {
@@ -396,14 +396,24 @@ public class TalkClientContact {
         return groupMemberships;
     }
 
-    public void updateSelfRegistered(String clientId, TalkClientSelf self) {
+    public boolean initializeSelf() {
+        boolean changed = false;
+        ensureSelf();
+        if(this.self == null) {
+            this.self = new TalkClientSelf();
+            changed = true;
+        }
+        return changed;
+    }
+
+    public void updateSelfConfirmed() {
+        ensureSelf();
+        this.self.confirmRegistration();
+    }
+
+    public void updateSelfRegistered(String clientId) {
         ensureSelf();
         this.clientId = clientId;
-        if(this.self == null) {
-            this.self = self;
-        } else {
-            this.self.update(self);
-        }
     }
 
     public void updateGroupId(String groupId) {
