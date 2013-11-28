@@ -61,6 +61,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField
     private State state;
 
+    @DatabaseField
+    private String contentUrl;
+
 
     @DatabaseField
     private int contentLength;
@@ -165,7 +168,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
     @Override
     public String getContentUrl() {
-        return null;
+        return contentUrl;
     }
     @Override
     public String getContentDataUrl() {
@@ -214,6 +217,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             // XXX should avoid collisions here
             this.decryptedFile = filename;
         }
+    }
+
+    public void provideContentUrl(XoTransferAgent agent, String url) {
+        this.contentUrl = url;
+        saveProgress(agent);
+        agent.onDownloadStateChanged(this);
     }
 
 
@@ -689,16 +698,20 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     public void switchState(XoTransferAgent agent, State newState) {
         LOG.debug("[" + clientDownloadId + "] switching to state " + newState);
         state = newState;
-        try {
-            agent.getDatabase().saveClientDownload(this);
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
-        }
+        saveProgress(agent);
         agent.onDownloadStateChanged(this);
     }
 
     private void notifyProgress(XoTransferAgent agent) {
         agent.onDownloadProgress(this);
+    }
+
+    private void saveProgress(XoTransferAgent agent) {
+        try {
+            agent.getDatabase().saveClientDownload(this);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
     }
 
 }

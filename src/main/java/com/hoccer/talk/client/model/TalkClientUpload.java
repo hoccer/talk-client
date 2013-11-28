@@ -50,6 +50,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     @DatabaseField
     private State state;
 
+    @DatabaseField
+    private String contentUrl;
+
 
     /** Plain data file */
     @DatabaseField(width = 2000)
@@ -152,7 +155,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
     @Override
     public String getContentUrl() {
-        return null;
+        return contentUrl;
     }
     @Override
     public String getContentDataUrl() {
@@ -220,9 +223,12 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.encryptionKey = key;
     }
 
-    public void initializeAsAvatar(String url, String contentType, int contentLength) {
+    public void initializeAsAvatar(String contentUrl, String url, String contentType, int contentLength) {
         LOG.info("[new] initializing as avatar: " + url + " length " + contentLength);
+
         this.type = Type.AVATAR;
+
+        this.contentUrl = contentUrl;
 
         this.dataFile = url;
         this.dataLength = contentLength;
@@ -231,10 +237,12 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.mediaType = "image";
     }
 
-    public void initializeAsAttachment(String url, String contentType, String mediaType, double aspectRatio, int contentLength) {
+    public void initializeAsAttachment(String contentUrl, String url, String contentType, String mediaType, double aspectRatio, int contentLength) {
         LOG.info("[new] initializing as attachment: " + url + " length " + contentLength);
 
         this.type = Type.ATTACHMENT;
+
+        this.contentUrl = contentUrl;
 
         this.dataFile = url;
         this.dataLength = contentLength;
