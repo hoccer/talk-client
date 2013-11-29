@@ -754,43 +754,48 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                LOG.info("creating group");
-                TalkGroup groupPresence = contact.getGroupPresence();
-                TalkClientUpload avatarUpload = contact.getAvatarUpload();
-
                 try {
-                    mDatabase.saveContact(contact);
-                } catch (SQLException e) {
-                    LOG.error("SQL error", e);
-                }
+                    LOG.info("creating group");
+                    TalkGroup groupPresence = contact.getGroupPresence();
+                    TalkClientUpload avatarUpload = contact.getAvatarUpload();
 
-                LOG.info("creating group on server");
-                String groupId = mServerRpc.createGroup(groupPresence);
+                    contact.hackSetGroupPresence(null);
+                    contact.setAvatarUpload(null);
 
-                if(groupId == null) {
-                    return;
-                }
-
-                contact.updateGroupId(groupId);
-                groupPresence.setGroupId(groupId);
-
-                LOG.info("saving in db");
-                try {
-                    if(avatarUpload != null) {
-                        mDatabase.saveClientUpload(avatarUpload);
+                    try {
+                        mDatabase.saveContact(contact);
+                    } catch (SQLException e) {
+                        LOG.error("SQL error", e);
                     }
-                    mDatabase.saveGroup(groupPresence);
-                    mDatabase.saveContact(contact);
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+
+                    LOG.info("creating group on server");
+                    String groupId = mServerRpc.createGroup(groupPresence);
+
+                    if(groupId == null) {
+                        return;
+                    }
+
+                    contact.updateGroupId(groupId);
+
+                    try {
+                        mDatabase.saveGroup(groupPresence);
+                        mDatabase.saveContact(contact);
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    }
+
+                    LOG.info("new group contact " + contact.getClientContactId());
+
+                    for(IXoContactListener listener: mContactListeners) {
+                        listener.onContactAdded(contact);
+                    }
+
+                    if(avatarUpload != null) {
+                        setGroupAvatar(contact, avatarUpload);
+                    }
+
                 } catch (Throwable t) {
                     LOG.error("group creation error", t);
-                }
-
-                LOG.info("new group contact " + contact.getClientContactId());
-
-                if(avatarUpload != null) {
-                    mTransferAgent.requestUpload(avatarUpload);
                 }
             }
         });
@@ -1175,15 +1180,19 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
                     for(TalkClientContact group: contacts) {
-                        if(group.isGroup() && group.isGroupJoined()) {
-                            TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
-                            for(TalkGroupMember member: members) {
-                                updateGroupMember(member);
+                        if(group.isGroup()) {
+                            try {
+                                TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
+                                for(TalkGroupMember member: members) {
+                                    updateGroupMember(member);
+                                }
+                            } catch (Throwable t) {
+                                LOG.error("error updating group member", t);
                             }
                         }
                     }
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    LOG.error("error during sync", t);
                 }
                 switchState(STATE_ACTIVE, "sync successful");
             }
@@ -2077,7 +2086,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             contact = mDatabase.findContactByGroupTag(group.getGroupTag());
             if(contact == null) {
-                contact = mDatabase.findContactByGroupId(group.getGroupId(), false);
+                contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
             }
         } catch (SQLException e) {
             e.printStackTrace();

@@ -283,6 +283,10 @@ public class TalkClientContact {
         this.avatarUpload = avatarUpload;
     }
 
+    public void hackSetGroupPresence(TalkGroup group) {
+        this.groupPresence = group;
+    }
+
     private void ensureSelf() {
         if(!isSelf()) {
             throw new RuntimeException("Client is not of type self");
