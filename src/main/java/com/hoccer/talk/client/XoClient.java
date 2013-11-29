@@ -248,6 +248,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             mSelfContact = mDatabase.findSelfContact(true);
             if(mSelfContact.initializeSelf()) {
+                mSelfContact.updateSelfConfirmed();
                 mDatabase.saveCredentials(mSelfContact.getSelf());
                 mDatabase.saveContact(mSelfContact);
             }
