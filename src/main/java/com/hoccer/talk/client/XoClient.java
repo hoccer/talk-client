@@ -1042,7 +1042,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
                     @Override
                     public void run() {
-                        LOG.info("performing keep-alive");
+                        LOG.debug("performing keep-alive");
                         try {
                             mConnection.sendKeepAlive();
                         } catch (IOException e) {
@@ -1221,18 +1221,18 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         @Override
         public void ping() {
-            LOG.info("server: ping()");
+            LOG.debug("server: ping()");
         }
 
         @Override
         public void alertUser(String message) {
-            LOG.info("server: alertUser()");
+            LOG.debug("server: alertUser()");
             LOG.info("ALERTING USER: \"" + message + "\"");
         }
 
         @Override
         public void pushNotRegistered() {
-            LOG.info("server: pushNotRegistered()");
+            LOG.debug("server: pushNotRegistered()");
             // XXX
             //for(ITalkClientListener listener: mListeners) {
             //    listener.onPushRegistrationRequested();
@@ -1241,37 +1241,37 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         @Override
 		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-			LOG.info("server: incomingDelivery()");
+			LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
 		}
 
 		@Override
 		public void outgoingDelivery(TalkDelivery d) {
-			LOG.info("server: outgoingDelivery()");
+			LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(d);
 		}
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
-            LOG.info("server: presenceUpdated(" + presence.getClientId() + ")");
+            LOG.debug("server: presenceUpdated(" + presence.getClientId() + ")");
             updateClientPresence(presence);
         }
 
         @Override
         public void relationshipUpdated(TalkRelationship relationship) {
-            LOG.info("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
+            LOG.debug("server: relationshipUpdated(" + relationship.getOtherClientId() + ")");
             updateClientRelationship(relationship);
         }
 
         @Override
         public void groupUpdated(TalkGroup group) {
-            LOG.info("server: groupUpdated(" + group.getGroupId() + ")");
+            LOG.debug("server: groupUpdated(" + group.getGroupId() + ")");
             updateGroupPresence(group);
         }
 
         @Override
         public void groupMemberUpdated(TalkGroupMember member) {
-            LOG.info("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
+            LOG.debug("server: groupMemberUpdated(" + member.getGroupId() + "/" + member.getClientId() + ")");
             updateGroupMember(member);
         }
 
@@ -1351,7 +1351,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void performDeliveries() {
-        LOG.info("performing deliveries");
+        LOG.debug("performing deliveries");
         try {
             List<TalkClientMessage> clientMessages = mDatabase.findMessagesForDelivery();
             LOG.info(clientMessages.size() + " to deliver");
@@ -1976,7 +1976,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         TalkClientDownload avatarDownload = contact.getAvatarDownload();
         if(avatarDownload == null) {
             if(haveUrl) {
-                LOG.info("new avatar for contact " + contact.getClientContactId());
+                LOG.debug("new avatar for contact " + contact.getClientContactId());
                 avatarDownload = new TalkClientDownload();
                 avatarDownload.initializeAsAvatar(avatarUrl, avatarId, avatarTimestamp);
                 wantDownload = true;
@@ -2276,7 +2276,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void renewGroupKey(TalkClientContact group) {
-        LOG.info("renewing group key for group contact " + group.getClientContactId());
+        LOG.debug("renewing group key for group contact " + group.getClientContactId());
 
         if(!group.isGroupAdmin()) {
             LOG.warn("we are not admin, should not and can't renew group key");
@@ -2343,7 +2343,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public void handleSmsUrl(final String sender, final String body, final String urlString) {
-        LOG.info("handleSmsUrl(" + sender + "," + urlString + ")");
+        LOG.debug("handleSmsUrl(" + sender + "," + urlString + ")");
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
