@@ -72,6 +72,12 @@
       <artifactId>commons-codec</artifactId>
       <version>${commons-codec.version}</version>
     </dependency>
+    <!-- Findbugs annotations (for Guava excerpts in com.google.common) -->
+    <dependency>
+      <groupId>com.google.code.findbugs</groupId>
+      <artifactId>jsr305</artifactId>
+      <version>${findbugs.version}</version>
+    </dependency>
   </dependencies>
   
   <build>
