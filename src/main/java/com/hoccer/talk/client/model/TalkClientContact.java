@@ -204,11 +204,13 @@ public class TalkClientContact {
         }
         int myId = getClientContactId();
         ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
-        for(TalkClientMembership membership: memberships) {
-            TalkGroupMember member = membership.getMember();
-            if(member != null && member.isJoined()) {
-                if(membership.getClientContact().getClientContactId() == myId) {
-                    return true;
+        if(memberships != null) {
+            for(TalkClientMembership membership: memberships) {
+                TalkGroupMember member = membership.getMember();
+                if(member != null && member.isJoined()) {
+                    if(membership.getClientContact().getClientContactId() == myId) {
+                        return true;
+                    }
                 }
             }
         }

@@ -754,8 +754,26 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                LOG.info("creating group");
                 TalkGroup groupPresence = contact.getGroupPresence();
                 TalkClientUpload avatarUpload = contact.getAvatarUpload();
+
+                try {
+                    mDatabase.saveContact(contact);
+                } catch (SQLException e) {
+                    LOG.error("SQL error", e);
+                }
+
+                LOG.info("creating group on server");
+                String groupId = mServerRpc.createGroup(groupPresence);
+
+                if(groupId == null) {
+                    return;
+                }
+
+                contact.updateGroupId(groupId);
+                groupPresence.setGroupId(groupId);
+
                 LOG.info("saving in db");
                 try {
                     if(avatarUpload != null) {
@@ -765,12 +783,15 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mDatabase.saveContact(contact);
                 } catch (SQLException e) {
                     LOG.error("sql error", e);
+                } catch (Throwable t) {
+                    LOG.error("group creation error", t);
                 }
 
                 LOG.info("new group contact " + contact.getClientContactId());
 
-                LOG.info("creating group on server");
-                mServerRpc.createGroup(groupPresence);
+                if(avatarUpload != null) {
+                    mTransferAgent.requestUpload(avatarUpload);
+                }
             }
         });
     }
