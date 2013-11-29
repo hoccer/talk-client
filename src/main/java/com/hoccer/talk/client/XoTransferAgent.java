@@ -1,5 +1,6 @@
 package com.hoccer.talk.client;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import org.apache.http.client.HttpClient;
@@ -32,7 +33,10 @@ public class XoTransferAgent implements IXoTransferListener {
     public XoTransferAgent(XoClient client) {
         mClient = client;
         mDatabase = mClient.getDatabase();
-        mExecutor = Executors.newScheduledThreadPool(XoClientConfiguration.TRANSFER_THREADS);
+        ThreadFactoryBuilder tfb = new ThreadFactoryBuilder();
+        tfb.setNameFormat("transfer-%d");
+        tfb.setUncaughtExceptionHandler(client.getHost().getUncaughtExceptionHandler());
+        mExecutor = Executors.newScheduledThreadPool(XoClientConfiguration.TRANSFER_THREADS, tfb.build());
         mListeners = new ArrayList<IXoTransferListener>();
         mDownloadsById = new HashMap<Integer, TalkClientDownload>();
         mUploadsById = new HashMap<Integer, TalkClientUpload>();

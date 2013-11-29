@@ -14,6 +14,7 @@ public interface IXoClientHost {
     public ScheduledExecutorService getBackgroundExecutor();
     public IXoClientDatabaseBackend getDatabaseBackend();
     public WebSocketClientFactory   getWebSocketFactory();
+    public Thread.UncaughtExceptionHandler getUncaughtExceptionHandler();
 
     public InputStream openInputStreamForUrl(String url) throws IOException;
 
