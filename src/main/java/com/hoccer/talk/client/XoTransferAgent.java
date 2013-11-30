@@ -3,6 +3,7 @@ package com.hoccer.talk.client;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientUpload;
+import com.j256.ormlite.dao.Dao;
 import org.apache.http.client.HttpClient;
 import org.apache.log4j.Logger;
 
@@ -20,6 +21,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     XoClient mClient;
     XoClientDatabase mDatabase;
+    IXoClientDatabaseBackend mDatabaseBackend; // for fixups
 
     ScheduledExecutorService mExecutor;
 
@@ -33,6 +35,7 @@ public class XoTransferAgent implements IXoTransferListener {
     public XoTransferAgent(XoClient client) {
         mClient = client;
         mDatabase = mClient.getDatabase();
+        mDatabaseBackend = mClient.getHost().getDatabaseBackend();
         ThreadFactoryBuilder tfb = new ThreadFactoryBuilder();
         tfb.setNameFormat("transfer-%d");
         tfb.setUncaughtExceptionHandler(client.getHost().getUncaughtExceptionHandler());
@@ -65,6 +68,22 @@ public class XoTransferAgent implements IXoTransferListener {
 
     public void unregisterListener(IXoTransferListener listener) {
         mListeners.remove(listener);
+    }
+
+    public void runFixups() {
+        LOG.info("performing transfer database fixups");
+        try {
+            Dao<TalkClientDownload, Integer> downloadDao = mDatabaseBackend.getDao(TalkClientDownload.class);
+            List<TalkClientDownload> downloads = downloadDao.queryForEq("dataFile", null);
+            LOG.info(downloads.size() + " downloads need fixing");
+            for(TalkClientDownload download: downloads) {
+                LOG.info("fixing download " + download.getClientDownloadId());
+                download.fixupVersion7(this);
+            }
+            LOG.info("done fixing transfer database");
+        } catch (SQLException e) {
+            LOG.error("SQL error in db fixup", e);
+        }
     }
 
     public boolean isDownloadActive(TalkClientDownload download) {

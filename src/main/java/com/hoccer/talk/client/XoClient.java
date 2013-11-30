@@ -240,6 +240,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         // create transfer agent
         mTransferAgent = new XoTransferAgent(this);
 
+        // run transfer fixups on database in background
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                mTransferAgent.runFixups();
+            }
+        });
+
         // ensure we have a self contact
         ensureSelfContact();
     }

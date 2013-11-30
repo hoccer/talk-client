@@ -57,7 +57,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                             MimeTypes.getDefaultMimeTypes());
 
     public enum State {
-        INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED
+        INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED,
+        /* old states from before db version 7 */
+        REQUESTED, STARTED
     }
 
     @DatabaseField(generatedId = true)
@@ -150,6 +152,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 return ContentState.DOWNLOAD_DECRYPTING;
             case DETECTING:
                 return ContentState.DOWNLOAD_DETECTING;
+            /* old states */
+            case REQUESTED:
+            case STARTED:
+                return ContentState.DOWNLOAD_DOWNLOADING;
             default:
                 throw new RuntimeException("Unknown download state " + state);
         }
@@ -239,6 +245,36 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         agent.onDownloadStateChanged(this);
     }
 
+    public void fixupVersion7(XoTransferAgent agent) {
+        boolean changed = false;
+        if(state == State.REQUESTED) {
+            changed = true;
+            state = State.DOWNLOADING;
+        } else if(state == State.STARTED) {
+            changed = true;
+            state = State.DOWNLOADING;
+        }
+        if(state == State.DETECTING || state == State.COMPLETE) {
+            if(dataFile == null) {
+                if(decryptedFile != null) {
+                    changed = true;
+                    dataFile = computeDecryptionFile(agent);
+                } else if(downloadFile != null) {
+                    changed = true;
+                    dataFile = computeDownloadFile(agent);
+                }
+            }
+        }
+        if(dataFile != null && !dataFile.startsWith("file://")) {
+            changed = true;
+            dataFile = "file://" + dataFile;
+        }
+        if(changed) {
+            LOG.info("download " + clientDownloadId + " fixed");
+            saveProgress(agent);
+            agent.onDownloadStateChanged(this);
+        }
+    }
 
     public int getClientDownloadId() {
         return clientDownloadId;
@@ -351,7 +387,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             return;
         }
 
+        fixupVersion7(agent);
+
         LOG.info("[" + clientDownloadId + "] download attempt starts in state " + state);
+
 
         boolean changed = false;
         if(state == State.COMPLETE) {
