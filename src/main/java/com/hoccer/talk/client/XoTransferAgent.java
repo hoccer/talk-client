@@ -71,16 +71,48 @@ public class XoTransferAgent implements IXoTransferListener {
     }
 
     public void runFixups() {
-        LOG.info("performing transfer database fixups");
+        LOG.debug("checking for transfers that need db fixups");
         try {
             Dao<TalkClientDownload, Integer> downloadDao = mDatabaseBackend.getDao(TalkClientDownload.class);
-            List<TalkClientDownload> downloads = downloadDao.queryForEq("dataFile", null);
-            LOG.info(downloads.size() + " downloads need fixing");
-            for(TalkClientDownload download: downloads) {
-                LOG.info("fixing download " + download.getClientDownloadId());
-                download.fixupVersion7(this);
+            Dao<TalkClientUpload, Integer> uploadDao = mDatabaseBackend.getDao(TalkClientUpload.class);
+
+            List<TalkClientDownload> fixupDownloads = downloadDao.queryBuilder()
+                .where()
+                        .eq("state", TalkClientDownload.State.REQUESTED)
+                        .eq("state", TalkClientDownload.State.STARTED)
+                        .isNull("dataFile")
+                        .isNull("contentUrl")
+                            .isNull("mediaType")
+                            .eq("type", TalkClientDownload.Type.AVATAR)
+                        .and(2)
+                    .or(5)
+                .query();
+            if(!fixupDownloads.isEmpty()) {
+                LOG.info(fixupDownloads.size() + " downloads need fixing");
+                for(TalkClientDownload download: fixupDownloads) {
+                    LOG.info("fixing download " + download.getClientDownloadId());
+                    download.fixupVersion7(this);
+                }
             }
-            LOG.info("done fixing transfer database");
+
+            List<TalkClientUpload> fixupUploads = uploadDao.queryBuilder()
+                .where()
+                        .eq("state", TalkClientUpload.State.ENCRYPTED)
+                        .eq("state", TalkClientUpload.State.REGISTERED)
+                        .eq("state", TalkClientUpload.State.STARTED)
+                        .isNull("dataFile")
+                            .isNull("mediaType")
+                            .eq("type", TalkClientDownload.Type.AVATAR)
+                        .and(2)
+                    .or(5)
+                .query();
+            if(!fixupUploads.isEmpty()) {
+                LOG.info(fixupUploads.size() + " uploads need fixing");
+                for(TalkClientUpload upload: fixupUploads) {
+                    LOG.info("fixing upload " + upload.getClientUploadId());
+                    upload.fixupVersion7(this);
+                }
+            }
         } catch (SQLException e) {
             LOG.error("SQL error in db fixup", e);
         }

@@ -45,7 +45,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
     public enum State {
-        NEW, REGISTERING, ENCRYPTING, UPLOADING, PAUSED, COMPLETE, FAILED
+        NEW, REGISTERING, ENCRYPTING, UPLOADING, PAUSED, COMPLETE, FAILED,
+        /* old states */
+        ENCRYPTED, REGISTERED, STARTED
     }
 
     @DatabaseField(generatedId = true)
@@ -109,6 +111,40 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.encryptedLength = -1;
     }
 
+    public void fixupVersion7(XoTransferAgent agent) {
+        LOG.info("fixup upload " + clientUploadId);
+        boolean changed = false;
+        if(state == State.REGISTERED || state == State.STARTED) {
+            LOG.info("state " + state + " fixed");
+            changed = true;
+            state = State.UPLOADING;
+        } else if(state == State.ENCRYPTED) {
+            LOG.info("state " + state + " fixed");
+            changed = true;
+            state = State.ENCRYPTING;
+        }
+        if(type == Type.AVATAR && mediaType == null) {
+            LOG.info("fixing avatar media type");
+            changed = true;
+            mediaType = "image";
+        }
+        if(dataFile != null & !dataFile.startsWith("file://")) {
+            LOG.info("fixing data file");
+            changed = true;
+            dataFile = "file://" + dataFile;
+        }
+        if(dataFile != null) {
+            LOG.info("data file is " + dataFile);
+        } else {
+            LOG.info("still no data file");
+        }
+        if(changed) {
+            LOG.info("upload " + clientUploadId + " fixed");
+            saveProgress(agent);
+            agent.onUploadStateChanged(this);
+        }
+    }
+
     /* XoTransfer implementation */
     @Override
     public Type getTransferType() {
@@ -135,6 +171,13 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             case REGISTERING:
                 return ContentState.UPLOAD_REGISTERING;
             case UPLOADING:
+                return ContentState.UPLOAD_UPLOADING;
+
+            /* old states */
+            case ENCRYPTED:
+                return ContentState.UPLOAD_ENCRYPTING;
+            case REGISTERED:
+            case STARTED:
                 return ContentState.UPLOAD_UPLOADING;
             default:
                 throw new RuntimeException("Unknown upload state " + state);
@@ -166,7 +209,14 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
     @Override
     public String getContentDataUrl() {
-        return dataFile;
+        if(dataFile != null) {
+            if(dataFile.startsWith("file://")) {
+                return dataFile;
+            } else {
+                return "file://" + dataFile;
+            }
+        }
+        return null;
     }
     @Override
     public int getContentLength() {
@@ -275,6 +325,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     public void performUploadAttempt(XoTransferAgent agent) {
+
+        fixupVersion7(agent);
+
         LOG.info("performing upload attempt in state " + this.state);
 
         String uploadFile = computeUploadFile(agent);
