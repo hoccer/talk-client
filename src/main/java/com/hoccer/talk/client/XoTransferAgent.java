@@ -80,12 +80,17 @@ public class XoTransferAgent implements IXoTransferListener {
                 .where()
                         .eq("state", TalkClientDownload.State.REQUESTED)
                         .eq("state", TalkClientDownload.State.STARTED)
-                        .isNull("dataFile")
-                        .isNull("contentUrl")
+                                .eq("state", TalkClientDownload.State.DETECTING)
+                                .eq("state", TalkClientDownload.State.COMPLETE)
+                            .or(2)
+                                .isNull("dataFile")
+                                .isNull("contentUrl")
+                            .or(2)
+                        .and(2)
                             .isNull("mediaType")
                             .eq("type", TalkClientDownload.Type.AVATAR)
                         .and(2)
-                    .or(5)
+                    .or(4)
                 .query();
             if(!fixupDownloads.isEmpty()) {
                 LOG.info(fixupDownloads.size() + " downloads need fixing");

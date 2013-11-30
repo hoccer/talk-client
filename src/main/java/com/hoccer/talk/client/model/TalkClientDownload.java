@@ -246,59 +246,53 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     public void fixupVersion7(XoTransferAgent agent) {
-        LOG.info("fixup download " + clientDownloadId);
+        LOG.debug("fixup download " + clientDownloadId + " in state " + state);
         boolean changed = false;
         if(state == State.REQUESTED) {
-            LOG.info("state " + state + " fixed");
+            LOG.debug("state fixed to " + State.DOWNLOADING);
             changed = true;
             state = State.DOWNLOADING;
         } else if(state == State.STARTED) {
-            LOG.info("state " + state + " fixed");
+            LOG.debug("state fixed to " + State.DOWNLOADING);
             changed = true;
             state = State.DOWNLOADING;
         }
         if(state == State.DETECTING || state == State.COMPLETE) {
             if(dataFile == null) {
-                LOG.info("attempting to determine dataFile");
+                LOG.debug("attempting to determine dataFile");
                 if(decryptedFile != null) {
-                    LOG.info("using decrypted file");
+                    LOG.debug("using decrypted file");
                     changed = true;
                     dataFile = computeDecryptionFile(agent);
                 } else if(downloadFile != null) {
-                    LOG.info("using download file");
+                    LOG.debug("using download file");
                     changed = true;
                     dataFile = computeDownloadFile(agent);
                 }
             }
         }
         if(dataFile != null && dataFile.startsWith("file://")) {
-            LOG.info("fixing data file");
+            LOG.debug("fixing data file");
             changed = true;
             dataFile = dataFile.substring(7);
         }
-        if(dataFile != null) {
-            LOG.info("data file is " + dataFile);
-        } else {
-            LOG.info("still no data file");
-        }
         if(type == Type.AVATAR && mediaType == null) {
-            LOG.info("fixing avatar media type");
+            LOG.debug("fixing avatar media type");
             changed = true;
             mediaType = "image";
         }
         if(changed) {
-            LOG.info("download " + clientDownloadId + " fixed");
+            LOG.debug("download " + clientDownloadId + " fixed");
             saveProgress(agent);
             agent.onDownloadStateChanged(this);
         }
         if(state == State.COMPLETE) {
             // retrigger android media scanner
             if(type == Type.ATTACHMENT && contentUrl == null) {
-                LOG.info("triggering media scanner");
+                LOG.debug("triggering media scanner");
                 agent.onDownloadFinished(this);
             }
         }
-        LOG.info("fixup finished");
     }
 
     public int getClientDownloadId() {
