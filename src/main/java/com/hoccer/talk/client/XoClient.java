@@ -1617,6 +1617,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
+                    LOG.debug("confirming " + delivery.getMessageId());
                     mServerRpc.deliveryConfirm(delivery.getMessageId());
                 }
             });
