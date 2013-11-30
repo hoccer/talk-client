@@ -128,15 +128,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             changed = true;
             mediaType = "image";
         }
-        if(dataFile != null & !dataFile.startsWith("file://")) {
+        if(dataFile != null && dataFile.startsWith("/")) {
             LOG.info("fixing data file");
             changed = true;
             dataFile = "file://" + dataFile;
-        }
-        if(dataFile != null) {
-            LOG.info("data file is " + dataFile);
-        } else {
-            LOG.info("still no data file");
         }
         if(changed) {
             LOG.info("upload " + clientUploadId + " fixed");
@@ -210,10 +205,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     @Override
     public String getContentDataUrl() {
         if(dataFile != null) {
-            if(dataFile.startsWith("file://")) {
-                return dataFile;
-            } else {
+            if(dataFile.startsWith("/")) {
                 return "file://" + dataFile;
+            } else {
+                return dataFile;
             }
         }
         return null;
