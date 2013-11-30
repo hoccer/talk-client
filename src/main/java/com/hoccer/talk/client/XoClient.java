@@ -397,7 +397,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void notifyUnseenMessages(boolean notify) {
-        LOG.info("notifyUnseenMessages()");
+        LOG.debug("notifyUnseenMessages()");
         List<TalkClientMessage> unseenMessages = null;
         try {
             unseenMessages = mDatabase.findUnseenMessages();
@@ -638,7 +638,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.error("group has no presence");
                     return;
                 }
-                LOG.info("setting and requesting upload");
+                LOG.debug("setting and requesting upload");
                 try {
                     presence.setGroupAvatarUrl(downloadUrl);
                     group.setAvatarUpload(upload);
@@ -654,7 +654,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                         }
                     }
                     mTransferAgent.requestUpload(upload);
-                    LOG.info("group presence update");
+                    LOG.debug("group presence update");
                     for(IXoContactListener listener: mContactListeners) {
                         listener.onGroupPresenceChanged(group);
                     }
@@ -756,13 +756,13 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public void createGroup(final TalkClientContact contact) {
-        LOG.info("createGroup()");
+        LOG.debug("createGroup()");
         resetIdle();
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    LOG.info("creating group");
+                    LOG.debug("creating group");
                     TalkGroup groupPresence = contact.getGroupPresence();
                     TalkClientUpload avatarUpload = contact.getAvatarUpload();
 
@@ -775,7 +775,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("SQL error", e);
                     }
 
-                    LOG.info("creating group on server");
+                    LOG.debug("creating group on server");
                     String groupId = mServerRpc.createGroup(groupPresence);
 
                     if(groupId == null) {
@@ -791,7 +791,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("sql error", e);
                     }
 
-                    LOG.info("new group contact " + contact.getClientContactId());
+                    LOG.debug("new group contact " + contact.getClientContactId());
 
                     for(IXoContactListener listener: mContactListeners) {
                         listener.onContactAdded(contact);
@@ -1370,7 +1370,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         LOG.debug("performing deliveries");
         try {
             List<TalkClientMessage> clientMessages = mDatabase.findMessagesForDelivery();
-            LOG.info(clientMessages.size() + " to deliver");
+            LOG.debug(clientMessages.size() + " to deliver");
             TalkDelivery[] deliveries = new TalkDelivery[clientMessages.size()];
             TalkMessage[] messages = new TalkMessage[clientMessages.size()];
             int i = 0;
