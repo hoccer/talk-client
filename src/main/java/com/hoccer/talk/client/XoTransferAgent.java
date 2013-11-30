@@ -95,7 +95,7 @@ public class XoTransferAgent implements IXoTransferListener {
             if(!fixupDownloads.isEmpty()) {
                 LOG.info(fixupDownloads.size() + " downloads need fixing");
                 for(TalkClientDownload download: fixupDownloads) {
-                    LOG.info("fixing download " + download.getClientDownloadId());
+                    LOG.debug("fixing download " + download.getClientDownloadId());
                     download.fixupVersion7(this);
                 }
             }
@@ -114,7 +114,7 @@ public class XoTransferAgent implements IXoTransferListener {
             if(!fixupUploads.isEmpty()) {
                 LOG.info(fixupUploads.size() + " uploads need fixing");
                 for(TalkClientUpload upload: fixupUploads) {
-                    LOG.info("fixing upload " + upload.getClientUploadId());
+                    LOG.debug("fixing upload " + upload.getClientUploadId());
                     upload.fixupVersion7(this);
                 }
             }

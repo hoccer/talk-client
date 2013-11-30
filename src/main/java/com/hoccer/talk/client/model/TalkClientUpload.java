@@ -112,29 +112,29 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     public void fixupVersion7(XoTransferAgent agent) {
-        LOG.info("fixup upload " + clientUploadId);
+        LOG.debug("fixup upload " + clientUploadId);
         boolean changed = false;
         if(state == State.REGISTERED || state == State.STARTED) {
-            LOG.info("state " + state + " fixed");
+            LOG.debug("state " + state + " fixed");
             changed = true;
             state = State.UPLOADING;
         } else if(state == State.ENCRYPTED) {
-            LOG.info("state " + state + " fixed");
+            LOG.debug("state " + state + " fixed");
             changed = true;
             state = State.ENCRYPTING;
         }
         if(type == Type.AVATAR && mediaType == null) {
-            LOG.info("fixing avatar media type");
+            LOG.debug("fixing avatar media type");
             changed = true;
             mediaType = "image";
         }
         if(dataFile != null && dataFile.startsWith("/")) {
-            LOG.info("fixing data file");
+            LOG.debug("fixing data file");
             changed = true;
             dataFile = "file://" + dataFile;
         }
         if(changed) {
-            LOG.info("upload " + clientUploadId + " fixed");
+            LOG.debug("upload " + clientUploadId + " fixed");
             saveProgress(agent);
             agent.onUploadStateChanged(this);
         }
