@@ -411,6 +411,10 @@ public class TalkClientContact {
             this.self = new TalkClientSelf();
             changed = true;
         }
+        if(this.clientPresence == null) {
+            this.clientPresence = new TalkPresence();
+            changed = true;
+        }
         return changed;
     }
 

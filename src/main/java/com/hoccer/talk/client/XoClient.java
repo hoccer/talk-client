@@ -248,7 +248,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             mSelfContact = mDatabase.findSelfContact(true);
             if(mSelfContact.initializeSelf()) {
-                mSelfContact.updateSelfConfirmed();
                 mDatabase.saveCredentials(mSelfContact.getSelf());
                 mDatabase.saveContact(mSelfContact);
             }
@@ -1321,14 +1320,17 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         TalkClientSelf self = mSelfContact.getSelf();
         self.provideCredentials(saltString, secretString);
-
         selfContact.updateSelfRegistered(clientId);
 
         try {
+            TalkPresence presence = ensureSelfPresence(mSelfContact);
+            presence.setClientId(clientId);
+            presence.setClientName(self.getRegistrationName());
             mDatabase.saveCredentials(self);
+            mDatabase.savePresence(presence);
             mDatabase.saveContact(selfContact);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
     }
 
@@ -1426,6 +1428,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void ensureSelfKey(TalkClientContact contact) throws SQLException {
+        LOG.debug("ensureSelfKey()");
         TalkKey publicKey = contact.getPublicKey();
         TalkPrivateKey privateKey = contact.getPrivateKey();
         if(publicKey == null || privateKey == null) {
@@ -1496,7 +1499,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mServerRpc.updateKey(contact.getPublicKey());
                     mServerRpc.updatePresence(presence);
                 } catch (SQLException e) {
-                    e.printStackTrace();
+                    LOG.error("SQL error", e);
+                } catch (Throwable t) {
+                    LOG.error("other error", t);
                 }
             }
         });

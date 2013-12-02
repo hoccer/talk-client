@@ -9,6 +9,9 @@ public class TalkClientSelf {
     @DatabaseField(generatedId = true)
     private int selfId;
 
+    @DatabaseField(canBeNull = true)
+    private String registrationName;
+
     @DatabaseField
     private boolean registrationConfirmed;
 
@@ -36,6 +39,14 @@ public class TalkClientSelf {
 
     public String getSrpSecret() {
         return srpSecret;
+    }
+
+    public String getRegistrationName() {
+        return registrationName;
+    }
+
+    public void setRegistrationName(String registrationName) {
+        this.registrationName = registrationName;
     }
 
     public void confirmRegistration() {
