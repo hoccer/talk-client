@@ -2393,7 +2393,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             List<TalkClientSmsToken> tokens = mDatabase.findAllSmsTokens();
             for(IXoTokenListener listener: mTokenListeners) {
-                listener.onTokensChanged(tokens, true);
+                listener.onTokensChanged(tokens, notifyUser);
             }
         } catch (SQLException e) {
             LOG.error("sql error", e);
