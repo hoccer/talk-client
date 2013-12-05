@@ -1057,7 +1057,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                         try {
                             mConnection.sendKeepAlive();
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            LOG.error("error sending keepalive", e);
                         }
                     }
                 },
@@ -1221,7 +1221,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 try {
                     doDisconnect();
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    LOG.error("error disconnecting", t);
                 }
                 mDisconnectFuture = null;
             }
@@ -1422,7 +1422,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
             return presence;
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return null;
         }
     }
@@ -1544,7 +1544,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 return;
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return;
         }
 
@@ -1554,7 +1554,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.saveDelivery(clientMessage.getOutgoingDelivery());
             mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
 
         if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED)) {
@@ -1622,7 +1622,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
             mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
 
         if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
@@ -1937,7 +1937,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             clientContact = mDatabase.findContactByClientId(presence.getClientId(), true);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return;
         }
 
@@ -1968,7 +1968,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.savePresence(clientContact.getClientPresence());
             mDatabase.saveContact(clientContact);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
         if(avatarDownload != null && wantDownload) {
             mTransferAgent.requestDownload(avatarDownload);
@@ -2059,7 +2059,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.savePublicKey(key);
                 mDatabase.saveContact(client);
             } catch (SQLException e) {
-                e.printStackTrace();
+                LOG.error("SQL error", e);
             }
         }
     }
@@ -2070,7 +2070,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             clientContact = mDatabase.findContactByClientId(relationship.getOtherClientId(), relationship.isRelated());
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return;
         }
 
@@ -2084,7 +2084,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.saveRelationship(clientContact.getClientRelationship());
             mDatabase.saveContact(clientContact);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
 
         for(IXoContactListener listener: mContactListeners) {
@@ -2102,7 +2102,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return;
         }
 
@@ -2127,7 +2127,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.saveGroup(contact.getGroupPresence());
             mDatabase.saveContact(contact);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         }
         if(avatarDownload != null) {
             mTransferAgent.requestDownload(avatarDownload);
@@ -2164,7 +2164,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
             return;
         }
         if(clientContact == null) {
@@ -2191,7 +2191,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.saveGroupMember(groupContact.getGroupMember());
                 mDatabase.saveContact(groupContact);
             } catch (SQLException e) {
-                e.printStackTrace();
+                LOG.error("SQL error", e);
             }
         }
         // if this concerns the membership of someone else
@@ -2283,17 +2283,17 @@ public class XoClient implements JsonRpcConnection.Listener {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("SQL error", e);
         } catch (IllegalBlockSizeException e) {
-            e.printStackTrace();
+            LOG.error("error decrypting group key", e);
         } catch (InvalidKeyException e) {
-            e.printStackTrace();
+            LOG.error("error decrypting group key", e);
         } catch (BadPaddingException e) {
-            e.printStackTrace();
+            LOG.error("error decrypting group key", e);
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            LOG.error("error decrypting group key", e);
         } catch (NoSuchPaddingException e) {
-            e.printStackTrace();
+            LOG.error("error decrypting group key", e);
         }
     }
 
