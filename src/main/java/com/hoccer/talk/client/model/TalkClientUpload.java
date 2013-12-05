@@ -444,6 +444,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 if(bytesRead > 0) {
                     os.write(buffer, 0, bytesRead);
                 }
+                if(!agent.isUploadActive(this)) {
+                    return true;
+                }
             } while (bytesRead != -1);
 
             eis.close();
