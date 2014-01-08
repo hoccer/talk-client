@@ -33,12 +33,12 @@
     </dependency>
     <!-- JSON-RPC stack -->
     <dependency>
-      <groupId>better</groupId>
+      <groupId>hoccer</groupId>
       <artifactId>better-jsonrpc-common</artifactId>
       <version>${better-jsonrpc.version}</version>
     </dependency>
     <dependency>
-      <groupId>better</groupId>
+      <groupId>hoccer</groupId>
       <artifactId>better-jsonrpc-websocket</artifactId>
       <version>${better-jsonrpc.version}</version>
     </dependency>
