@@ -1441,7 +1441,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                 LOG.trace("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
-                byte[] pubEnc = RSACryptor.unwrapRSA1024_X509(pubKey.getEncoded());
+                byte[] pubEnc = RSACryptor.unwrapRSA_X509(pubKey.getEncoded());
                 String pubStr = Base64.encodeBase64String(pubEnc);
 
                 LOG.trace("unwrapping private key");
