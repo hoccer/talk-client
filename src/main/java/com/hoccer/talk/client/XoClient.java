@@ -1305,8 +1305,10 @@ public class XoClient implements JsonRpcConnection.Listener {
         SRP_RANDOM.nextBytes(salt);
         SRP_RANDOM.nextBytes(secret);
 
-        String saltString = Hex.encodeHexString(salt);
-        String secretString = Hex.encodeHexString(secret);
+//        String saltString = Hex.encodeHexString(salt);
+//        String secretString = Hex.encodeHexString(secret);
+        String saltString = new String(Hex.encodeHex(salt));
+        String secretString = new String(Hex.encodeHex(secret));
 
         String clientId = mServerRpc.generateId();
 
@@ -1314,7 +1316,8 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         BigInteger verifier = vg.generateVerifier(salt, clientId.getBytes(), secret);
 
-        mServerRpc.srpRegister(verifier.toString(16), Hex.encodeHexString(salt));
+//        mServerRpc.srpRegister(verifier.toString(16), Hex.encodeHexString(salt));
+        mServerRpc.srpRegister(verifier.toString(16), new String(Hex.encodeHex(salt)));
 
         LOG.debug("registration: finished");
 
@@ -1357,7 +1360,8 @@ public class XoClient implements JsonRpcConnection.Listener {
 
             LOG.debug("login: performing phase 2");
 
-            String Vc = Hex.encodeHexString(vc.calculateVerifier());
+//            String Vc = Hex.encodeHexString(vc.calculateVerifier());
+            String Vc = new String(Hex.encodeHex(vc.calculateVerifier()));
             String Vs = mServerRpc.srpPhase2(Vc);
             vc.verifyServer(Hex.decodeHex(Vs.toCharArray()));
         } catch (Exception e) {
@@ -1876,7 +1880,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(upload != null) {
             LOG.debug("generating attachment");
 
-            upload.provideEncryptionKey(Hex.encodeHexString(plainKey));
+//            upload.provideEncryptionKey(Hex.encodeHexString(plainKey));
+            upload.provideEncryptionKey(new String(Hex.encodeHex(plainKey)));
 
             try {
                 mDatabase.saveClientUpload(upload);
