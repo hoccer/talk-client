@@ -52,6 +52,7 @@ import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.Charset;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -1446,12 +1447,14 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.trace("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
                 byte[] pubEnc = RSACryptor.unwrapRSA_X509(pubKey.getEncoded());
-                String pubStr = Base64.encodeBase64String(pubEnc);
+//                String pubStr = Base64.encodeBase64String(pubEnc);
+                String pubStr = new String(Base64.encodeBase64(pubEnc));
 
                 LOG.trace("unwrapping private key");
                 PrivateKey privKey = keyPair.getPrivate();
                 byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
-                String privStr = Base64.encodeBase64String(privEnc);
+//                String privStr = Base64.encodeBase64String(privEnc);
+                String privStr = new String(Base64.encodeBase64(privEnc));
 
                 LOG.debug("calculating key id");
                 String kid = RSACryptor.calcKeyId(pubEnc);
@@ -1687,7 +1690,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("could not decode private key");
                         return;
                     } else {
-                        decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
+//                        decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
+                        decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext.getBytes(Charset.forName("UTF-8"))));
                     }
                 }
             } catch (SQLException e) {
@@ -1717,7 +1721,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.warn("no group key");
                 return;
             }
-            decryptedKey = Base64.decodeBase64(contact.getGroupKey());
+//            decryptedKey = Base64.decodeBase64(contact.getGroupKey());
+            decryptedKey = Base64.decodeBase64(contact.getGroupKey().getBytes(Charset.forName("UTF-8")));
         } else {
             LOG.error("don't know how to decrypt messages from contact of type " + contact.getContactType());
             return;
@@ -1731,7 +1736,8 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // apply salt if present
         if(keySalt != null) {
-            byte[] decodedSalt = Base64.decodeBase64(keySalt);
+//            byte[] decodedSalt = Base64.decodeBase64(keySalt);
+            byte[] decodedSalt = Base64.decodeBase64(keySalt.getBytes(Charset.forName("UTF-8")));
             if(decodedSalt.length != decryptedKey.length) {
                 LOG.error("message salt has wrong size");
                 return;
@@ -1749,12 +1755,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             // decrypt body
             if(rawBody != null) {
-                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
+//                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
+                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody.getBytes(Charset.forName("UTF-8"))));
                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
             }
             // decrypt attachment
             if(rawAttachment != null) {
-                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
+//                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
+                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment.getBytes(Charset.forName("UTF-8"))));
                 decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
             }
         } catch (NoSuchPaddingException e) {
@@ -1830,7 +1838,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             try {
                 byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
                 delivery.setKeyId(talkPublicKey.getKeyId());
-                delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
+//                delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
+                delivery.setKeyCiphertext(new String(Base64.encodeBase64(encryptedKey)));
             } catch (NoSuchPaddingException e) {
                 LOG.error("error encrypting", e);
                 return;
@@ -1855,11 +1864,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.warn("no group key");
                 return;
             }
-            plainKey = Base64.decodeBase64(groupKey);
+//            plainKey = Base64.decodeBase64(groupKey);
+            plainKey = Base64.decodeBase64(groupKey.getBytes(Charset.forName("UTF-8")));
             // generate message-specific salt
             keySalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
             // encode the salt for transmission
-            String encodedSalt = Base64.encodeBase64String(keySalt);
+//            String encodedSalt = Base64.encodeBase64String(keySalt);
+            String encodedSalt = new String(Base64.encodeBase64(keySalt));
             message.setSalt(encodedSalt);
         }
 
@@ -1904,13 +1915,15 @@ public class XoClient implements JsonRpcConnection.Listener {
             // encrypt body
             LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
-            message.setBody(Base64.encodeBase64String(encryptedBody));
+//            message.setBody(Base64.encodeBase64String(encryptedBody));
+            message.setBody(new String(Base64.encodeBase64(encryptedBody)));
             // encrypt attachment dtor
             if(attachment != null) {
                 LOG.trace("encrypting attachment");
                 byte[] encodedAttachment = mJsonMapper.writeValueAsBytes(attachment);
                 byte[] encryptedAttachment = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, encodedAttachment);
-                message.setAttachment(Base64.encodeBase64String(encryptedAttachment));
+//                message.setAttachment(Base64.encodeBase64String(encryptedAttachment));
+                message.setAttachment(new String(Base64.encodeBase64(encryptedAttachment)));
             }
         } catch (NoSuchPaddingException e) {
             LOG.error("error encrypting", e);
@@ -2280,10 +2293,12 @@ public class XoClient implements JsonRpcConnection.Listener {
                 if(privateKey == null) {
                     LOG.error("could not decode private key");
                 } else {
-                    byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey);
+//                    byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey);
+                    byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey.getBytes(Charset.forName("UTF-8")));
                     byte[] rawGroupKey = RSACryptor.decryptRSA(privateKey, rawEncryptedGroupKey);
                     LOG.debug("successfully decrypted group key");
-                    String groupKey = Base64.encodeBase64String(rawGroupKey);
+//                    String groupKey = Base64.encodeBase64String(rawGroupKey);
+                    String groupKey = new String(Base64.encodeBase64(rawGroupKey));
                     group.setGroupKey(groupKey);
                 }
             }
@@ -2313,7 +2328,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         // generate the new key
         byte[] newGroupKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
         // remember the group key for ourselves
-        group.setGroupKey(Base64.encodeBase64String(newGroupKey));
+//        group.setGroupKey(Base64.encodeBase64String(newGroupKey));
+        group.setGroupKey(new String(Base64.encodeBase64(newGroupKey)));
         // distribute the group key
         ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
         if(memberships != null) {
@@ -2332,7 +2348,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                             // encrypt and encode key for client
                             PublicKey clientKey = clientPubKey.getAsNative();
                             byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, newGroupKey);
-                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
+//                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
+                            String encodedGroupKey = new String(Base64.encodeBase64(encryptedGroupKey));
                             // send the key to the server for distribution
                             mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
                         }
