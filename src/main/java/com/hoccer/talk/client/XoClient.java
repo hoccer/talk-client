@@ -1141,8 +1141,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         LOG.debug("scheduleRegistration()");
         shutdownRegistration();
         if(!mSelfContact.getSelf().isRegistrationConfirmed()) {
-            LOG.debug("registration not confirmed");
-            return;
+            LOG.debug("registration not confirmed. Auto-registering.");
+            //return;
+            mSelfContact.updateSelfConfirmed();
         }
         mRegistrationFuture = mExecutor.schedule(new Runnable() {
             @Override
