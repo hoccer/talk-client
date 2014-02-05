@@ -105,6 +105,7 @@ public class XoClientDatabase {
     }
 
     public void saveClientMessage(TalkClientMessage message) throws SQLException {
+        message.setProgressState(false);
         mClientMessages.createOrUpdate(message);
     }
 
@@ -241,7 +242,11 @@ public class XoClientDatabase {
                                     .where().eq("outgoingDelivery" + "_id", d)
                                     .queryForFirst();
             if(m != null) {
-                messages.add(m);
+                if (!m.isInProgress()) {
+                    m.setProgressState(true);
+                    mClientMessages.createOrUpdate(m);
+                    messages.add(m);
+                }
             } else {
                 LOG.error("no message for delivery for tag " + d.getMessageTag());
             }

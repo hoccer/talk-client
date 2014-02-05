@@ -55,6 +55,9 @@ public class TalkClientMessage {
     @DatabaseField
     private Date timestamp;
 
+    @DatabaseField
+    private boolean inProgress;
+
     public TalkClientMessage() {
         this.timestamp = new Date();
     }
@@ -157,6 +160,14 @@ public class TalkClientMessage {
 
     public void markAsSeen() {
         this.seen = true;
+    }
+
+    public void setProgressState(boolean state) {
+        this.inProgress = state;
+    }
+
+    public boolean isInProgress() {
+        return inProgress;
     }
 
     public boolean isDeleted() {

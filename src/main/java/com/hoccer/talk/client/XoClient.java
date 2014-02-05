@@ -1384,6 +1384,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             int i = 0;
             for(TalkClientMessage clientMessage: clientMessages) {
                 LOG.debug("preparing " + clientMessage.getClientMessageId());
+                LOG.debug("WHANT TO SEND: " + clientMessage.getMessage().getBody());
                 deliveries[i] = clientMessage.getOutgoingDelivery();
                 messages[i] = clientMessage.getMessage();
                 TalkClientUpload attachmentUpload = clientMessage.getAttachmentUpload();
@@ -1393,24 +1394,29 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
                 }
                 try {
-                    encryptMessage(clientMessage, deliveries[i], messages[i]);
+                    encryptMessage(clientMessage, deliveries[i], messages[i]); //Encrypting here
                 } catch (Throwable t) {
                     LOG.error("error encrypting", t);
                 }
                 i++;
             }
             for(i = 0; i < messages.length; i++) {
+                LOG.debug("TEXTMESSAGE TO SEND: try to send " + (i+1) + " from " + messages.length);
                 LOG.debug("delivering " + i);
                 TalkDelivery[] delivery = new TalkDelivery[1];
                 delivery[0] = deliveries[i];
+                LOG.debug("TEXTMESSAGE TO SEND: " + messages[i].getBody());
                 TalkDelivery[] resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
+                LOG.debug("TEXTMESSAGE IS SENT!");
                 for(int j = 0; j < resultingDeliveries.length; j++) {
                     updateOutgoingDelivery(resultingDeliveries[j]);
                 }
+                LOG.debug("TEXTMESSAGE DB UPDATED!");
             }
         } catch (SQLException e) {
             LOG.error("SQL error", e);
         }
+        LOG.debug("ALL TEXTMESSAGE ARE SENT!");
     }
 
     private TalkPresence ensureSelfPresence(TalkClientContact contact) throws SQLException {
@@ -1823,6 +1829,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.trace("using client key for encryption");
             // generate message key
             plainKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            LOG.debug("ENCRYPTING: plain key size: " + plainKey.length);
             // get public key for encrypting the key
             TalkKey talkPublicKey = receiver.getPublicKey();
             if(talkPublicKey == null) {
@@ -1836,8 +1843,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                 return;
             }
             // encrypt the message key
+            LOG.debug("ENCRYPTING: public key size: " + publicKey.getEncoded().length);
             try {
                 byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
+                LOG.debug("ENCRYPTING: encrypted key size: " + encryptedKey.length);
                 delivery.setKeyId(talkPublicKey.getKeyId());
 //                delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
                 delivery.setKeyCiphertext(new String(Base64.encodeBase64(encryptedKey)));
@@ -1857,7 +1866,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.error("error encrypting", e);
                 return;
             }
-        } else {
+        } else { // ?????????????????????????????????????????????????????????
+            LOG.debug("ENCRYPTING: in else case");
             LOG.trace("using group key for encryption");
             // get and decode the group key
             String groupKey = receiver.getGroupKey();
@@ -1915,9 +1925,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             // encrypt body
             LOG.trace("encrypting body");
+            LOG.debug("ENCRYPTING: message: " + message.getBody());
+            LOG.debug("ENCRYPTING: body size: " + message.getBody().getBytes().length);
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
+            LOG.debug("ENCRYPTING: encrypted body size: " + encryptedBody.length);
 //            message.setBody(Base64.encodeBase64String(encryptedBody));
-            message.setBody(new String(Base64.encodeBase64(encryptedBody)));
+            String base64string = new String(Base64.encodeBase64(encryptedBody));
+            LOG.debug("ENCRYPTING: encrypted body base64 size: " + base64string.length());
+            message.setBody(base64string);
             // encrypt attachment dtor
             if(attachment != null) {
                 LOG.trace("encrypting attachment");
