@@ -233,24 +233,29 @@ public class XoClientDatabase {
     }
 
     public List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
-        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
+        List<TalkDelivery> newDeliveries = mDeliveries
+                .queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
 
         List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
         try {
-        for(TalkDelivery d: newDeliveries) {
-            TalkClientMessage m = mClientMessages.queryBuilder()
-                                    .where().eq("outgoingDelivery" + "_id", d)
-                                    .queryForFirst();
-            if(m != null) {
-                if (!m.isInProgress()) {
-                    m.setProgressState(true);
-                    mClientMessages.createOrUpdate(m);
-                    messages.add(m);
+            int inProgressCount = 0;
+            for (TalkDelivery d : newDeliveries) {
+                TalkClientMessage m = mClientMessages.queryBuilder()
+                        .where().eq("outgoingDelivery" + "_id", d)
+                        .queryForFirst();
+                if (m != null) {
+                    if (!m.isInProgress()) {
+                        m.setProgressState(true);
+                        mClientMessages.createOrUpdate(m);
+                        messages.add(m);
+                    } else {
+                        inProgressCount++;
+                    }
+                } else {
+                    LOG.error("no message for delivery for tag " + d.getMessageTag());
                 }
-            } else {
-                LOG.error("no message for delivery for tag " + d.getMessageTag());
             }
-        }
+            LOG.debug(Integer.toString(inProgressCount) + " Messages still in Progress");
         } catch (Throwable t) {
             LOG.error("SQL fnord", t);
         }
