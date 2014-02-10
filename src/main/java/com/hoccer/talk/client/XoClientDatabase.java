@@ -271,6 +271,7 @@ public class XoClientDatabase {
 
         if(create && message == null) {
             message = new TalkClientMessage();
+            message.setMessageId(messageId);
             mClientMessages.create(message);
         }
 
