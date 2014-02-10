@@ -111,7 +111,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     /** Host of this client */
-    IXoClientHost mHost;
+    protected IXoClientHost mHost;
 
     /* The database instance we use */
     XoClientDatabase mDatabase;
@@ -133,7 +133,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     /** Factory for underlying websocket connections */
     WebSocketClientFactory mClientFactory;
     /** JSON-RPC client instance */
-	JsonRpcWsClient mConnection;
+    protected JsonRpcWsClient mConnection;
     /* RPC handler for notifications */
 	TalkRpcClientImpl mHandler;
     /* RPC proxy bound to our server */
@@ -210,16 +210,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         // create websocket client
         WebSocketClient wsClient = host.getWebSocketFactory().newWebSocketClient();
 
-        // create json-rpc client
-        String protocol = XoClientConfiguration.USE_BSON_PROTOCOL
-                ? XoClientConfiguration.PROTOCOL_STRING_BSON
-                : XoClientConfiguration.PROTOCOL_STRING_JSON;
-        mConnection = new JsonRpcWsClient(uri, protocol, wsClient, rpcMapper);
-        mConnection.setMaxIdleTime(XoClientConfiguration.CONNECTION_IDLE_TIMEOUT);
-        mConnection.setSendKeepAlives(XoClientConfiguration.KEEPALIVE_ENABLED);
-        if(XoClientConfiguration.USE_BSON_PROTOCOL) {
-            mConnection.setSendBinaryMessages(true);
-        }
+        createJsonRpcClient(uri, wsClient, rpcMapper);
 
         // create client-side RPC handler object
         mHandler = new TalkRpcClientImpl();
@@ -244,6 +235,19 @@ public class XoClient implements JsonRpcConnection.Listener {
         // ensure we have a self contact
         ensureSelfContact();
     }
+
+    protected void createJsonRpcClient(URI uri, WebSocketClient wsClient, ObjectMapper rpcMapper) {
+        String protocol = XoClientConfiguration.USE_BSON_PROTOCOL
+                ? XoClientConfiguration.PROTOCOL_STRING_BSON
+                : XoClientConfiguration.PROTOCOL_STRING_JSON;
+        mConnection = new JsonRpcWsClient(uri, protocol, wsClient, rpcMapper);
+        mConnection.setMaxIdleTime(XoClientConfiguration.CONNECTION_IDLE_TIMEOUT);
+        mConnection.setSendKeepAlives(XoClientConfiguration.KEEPALIVE_ENABLED);
+        if(XoClientConfiguration.USE_BSON_PROTOCOL) {
+            mConnection.setSendBinaryMessages(true);
+        }
+    }
+
 
     private void ensureSelfContact() {
         try {
