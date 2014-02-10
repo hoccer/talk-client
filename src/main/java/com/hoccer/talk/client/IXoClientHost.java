@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public interface IXoClientHost {
 
     public ScheduledExecutorService getBackgroundExecutor();
+    public ScheduledExecutorService getIncomingBackgroundExecutor();
     public IXoClientDatabaseBackend getDatabaseBackend();
     public WebSocketClientFactory   getWebSocketFactory();
     public Thread.UncaughtExceptionHandler getUncaughtExceptionHandler();
