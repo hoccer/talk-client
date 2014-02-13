@@ -1674,7 +1674,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         TalkClientContact contact = clientMessage.getConversationContact();
 
         // default message text
-        clientMessage.setText("<Unreadable>");
+        clientMessage.setText("");
 
         // get various fields
         String keyId = delivery.getKeyId();
