@@ -1234,6 +1234,58 @@ public class XoClient implements JsonRpcConnection.Listener {
         }, 0, TimeUnit.SECONDS);
     }
 
+    public TalkClientMessage composeClientMessage(TalkClientContact contact, String messageText) {
+        return composeClientMessage(contact, messageText, null);
+    }
+
+    public TalkClientMessage composeClientMessage(TalkClientContact contact, String messageText, TalkClientUpload upload) {
+        XoClientDatabase db = getDatabase();
+        // construct message and delivery objects
+        final TalkClientMessage clientMessage = new TalkClientMessage();
+        final TalkMessage message = new TalkMessage();
+        final TalkDelivery delivery = new TalkDelivery();
+
+        final String messageTag = message.generateMessageTag();
+        message.setBody(messageText);
+
+        delivery.setMessageTag(messageTag);
+
+        if (contact.isGroup()) {
+            delivery.setGroupId(contact.getGroupId());
+        }
+        if (contact.isClient()) {
+            delivery.setReceiverId(contact.getClientId());
+        }
+
+        clientMessage.markAsSeen();
+        clientMessage.setText(messageText);
+        clientMessage.setMessageTag(messageTag);
+        clientMessage.setConversationContact(contact);
+        clientMessage.setSenderContact(getSelfContact());
+        clientMessage.setMessage(message);
+        clientMessage.setOutgoingDelivery(delivery);
+
+        if (upload != null) {
+            clientMessage.setAttachmentUpload(upload);
+        }
+
+        try {
+            if (upload != null) {
+                db.saveClientUpload(upload);
+            }
+            db.saveMessage(message);
+            db.saveDelivery(delivery);
+            db.saveClientMessage(clientMessage);
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
+
+        // log to help debugging
+        LOG.debug("created message with id " + clientMessage.getClientMessageId() + " and tag " + message.getMessageTag());
+
+        return clientMessage;
+    }
+
 
     /**
      * Client-side RPC implementation
