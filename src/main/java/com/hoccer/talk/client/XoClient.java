@@ -498,7 +498,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mState = STATE_INACTIVE;
     }
 
-    public void sendHello() {
+    public void hello() {
 
         final TalkClientInfo clientInfo = new TalkClientInfo();
 
