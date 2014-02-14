@@ -111,7 +111,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     /** Host of this client */
-    protected IXoClientHost mHost;
+    protected IXoClientHost mClientHost;
 
     /* The database instance we use */
     XoClientDatabase mDatabase;
@@ -173,13 +173,13 @@ public class XoClient implements JsonRpcConnection.Listener {
      */
 	public XoClient(IXoClientHost host) {
         // remember the host
-        mHost = host;
+        mClientHost = host;
 
         // fetch executor and db immediately
         mExecutor = host.getBackgroundExecutor();
 
         // create and initialize the database
-        mDatabase = new XoClientDatabase(mHost.getDatabaseBackend());
+        mDatabase = new XoClientDatabase(mClientHost.getDatabaseBackend());
         try {
             mDatabase.initialize();
         } catch (SQLException e) {
@@ -313,7 +313,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public IXoClientHost getHost() {
-        return mHost;
+        return mClientHost;
     }
 
     public XoClientDatabase getDatabase() {
