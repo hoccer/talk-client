@@ -18,16 +18,7 @@ import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.RSACryptor;
-import com.hoccer.talk.model.TalkAttachment;
-import com.hoccer.talk.model.TalkDelivery;
-import com.hoccer.talk.model.TalkGroup;
-import com.hoccer.talk.model.TalkGroupMember;
-import com.hoccer.talk.model.TalkKey;
-import com.hoccer.talk.model.TalkMessage;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkPrivateKey;
-import com.hoccer.talk.model.TalkRelationship;
-import com.hoccer.talk.model.TalkToken;
+import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
 import com.hoccer.talk.rpc.ITalkRpcServer;
 import com.hoccer.talk.srp.SRP6Parameters;
@@ -111,7 +102,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     /** Host of this client */
-    protected IXoClientHost mHost;
+    protected IXoClientHost mClientHost;
 
     /* The database instance we use */
     XoClientDatabase mDatabase;
@@ -173,13 +164,13 @@ public class XoClient implements JsonRpcConnection.Listener {
      */
 	public XoClient(IXoClientHost host) {
         // remember the host
-        mHost = host;
+        mClientHost = host;
 
         // fetch executor and db immediately
         mExecutor = host.getBackgroundExecutor();
 
         // create and initialize the database
-        mDatabase = new XoClientDatabase(mHost.getDatabaseBackend());
+        mDatabase = new XoClientDatabase(mClientHost.getDatabaseBackend());
         try {
             mDatabase.initialize();
         } catch (SQLException e) {
@@ -313,7 +304,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public IXoClientHost getHost() {
-        return mHost;
+        return mClientHost;
     }
 
     public XoClientDatabase getDatabase() {
@@ -505,6 +496,43 @@ public class XoClient implements JsonRpcConnection.Listener {
         mConnectFuture.cancel(true);
         mDisconnectFuture.cancel(true);
         mState = STATE_INACTIVE;
+    }
+
+    public void sendHello() {
+
+        final TalkClientInfo clientInfo = new TalkClientInfo();
+
+        clientInfo.setClientName("");
+        clientInfo.setClientTime(null);
+        clientInfo.setClientLanguage("");
+        clientInfo.setClientVersion("");
+        clientInfo.setDeviceModel("");
+
+        String supportTag = "";
+        if (mClientHost.isSupportModeEnabled()) {
+            if (mClientHost.getSupportTag() != null) {
+                supportTag = mClientHost.getSupportTag();
+            }
+        }
+        clientInfo.setSupportTag(supportTag);
+
+        clientInfo.setSystemName("");
+        clientInfo.setSystemLanguage("");
+        clientInfo.setSystemVersion("");
+
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
+                if (talkServerInfo != null) {
+
+                    // check result and trigger further server interaction.
+                    // what iOS does:
+                    //     - stores response["serverTime"]
+
+                }
+            }
+        });
     }
 
     /**
