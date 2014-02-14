@@ -502,34 +502,26 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         final TalkClientInfo clientInfo = new TalkClientInfo();
 
-        clientInfo.setClientName("");
-        clientInfo.setClientTime(null);
-        clientInfo.setClientLanguage("");
-        clientInfo.setClientVersion("");
-        clientInfo.setDeviceModel("");
-
-        String supportTag = "";
         if (mClientHost.isSupportModeEnabled()) {
-            if (mClientHost.getSupportTag() != null) {
-                supportTag = mClientHost.getSupportTag();
-            }
+            clientInfo.setSupportTag(mClientHost.getSupportTag());
         }
-        clientInfo.setSupportTag(supportTag);
 
-        clientInfo.setSystemName("");
-        clientInfo.setSystemLanguage("");
-        clientInfo.setSystemVersion("");
+        clientInfo.setClientName(mClientHost.getClientName());
+        clientInfo.setClientTime(mClientHost.getClientTime());
+        clientInfo.setClientLanguage(mClientHost.getClientLanguage());
+        clientInfo.setClientVersion(mClientHost.getClientVersion());
+        clientInfo.setDeviceModel(mClientHost.getDeviceModel());
+        clientInfo.setSystemName(mClientHost.getSystemName());
+        clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
+        clientInfo.setSystemVersion(mClientHost.getSystemVersion());
 
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
                 if (talkServerInfo != null) {
-
-                    // check result and trigger further server interaction.
-                    // what iOS does:
-                    //     - stores response["serverTime"]
-
+                    LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
+                    LOG.debug("Hello: Server switched to supportMode + " + talkServerInfo.isSupportMode());
                 }
             }
         });
@@ -1198,6 +1190,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 Date never = new Date(0);
                 try {
+                    LOG.debug("sync: HELLO");
+                    hello();
                     LOG.debug("sync: updating presence");
                     sendPresence();
                     LOG.debug("sync: syncing presences");
