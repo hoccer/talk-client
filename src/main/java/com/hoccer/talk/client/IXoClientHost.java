@@ -19,7 +19,4 @@ public interface IXoClientHost {
 
     public InputStream openInputStreamForUrl(String url) throws IOException;
 
-    public boolean isSupportModeEnabled();
-    public String getSupportTag();
-
 }

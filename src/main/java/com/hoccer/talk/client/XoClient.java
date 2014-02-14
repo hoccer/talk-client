@@ -498,43 +498,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         mState = STATE_INACTIVE;
     }
 
-    public void sendHello() {
-
-        final TalkClientInfo clientInfo = new TalkClientInfo();
-
-        clientInfo.setClientName("");
-        clientInfo.setClientTime(null);
-        clientInfo.setClientLanguage("");
-        clientInfo.setClientVersion("");
-        clientInfo.setDeviceModel("");
-
-        String supportTag = "";
-        if (mClientHost.isSupportModeEnabled()) {
-            if (mClientHost.getSupportTag() != null) {
-                supportTag = mClientHost.getSupportTag();
-            }
-        }
-        clientInfo.setSupportTag(supportTag);
-
-        clientInfo.setSystemName("");
-        clientInfo.setSystemLanguage("");
-        clientInfo.setSystemVersion("");
-
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
-                if (talkServerInfo != null) {
-
-                    // check result and trigger further server interaction.
-                    // what iOS does:
-                    //     - stores response["serverTime"]
-
-                }
-            }
-        });
-    }
-
     /**
      * Register the given GCM push information with the server
      * @param packageName
