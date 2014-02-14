@@ -500,31 +500,33 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void hello() {
 
-        final TalkClientInfo clientInfo = new TalkClientInfo();
-
-        if (mClientHost.isSupportModeEnabled()) {
-            clientInfo.setSupportTag(mClientHost.getSupportTag());
-        }
-
-        clientInfo.setClientName(mClientHost.getClientName());
-        clientInfo.setClientTime(mClientHost.getClientTime());
-        clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-        clientInfo.setClientVersion(mClientHost.getClientVersion());
-        clientInfo.setDeviceModel(mClientHost.getDeviceModel());
-        clientInfo.setSystemName(mClientHost.getSystemName());
-        clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
-        clientInfo.setSystemVersion(mClientHost.getSystemVersion());
-
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+
+                TalkClientInfo clientInfo = new TalkClientInfo();
+                clientInfo.setClientName(mClientHost.getClientName());
+                clientInfo.setClientTime(mClientHost.getClientTime());
+                clientInfo.setClientLanguage(mClientHost.getClientLanguage());
+                clientInfo.setClientVersion(mClientHost.getClientVersion());
+                clientInfo.setDeviceModel(mClientHost.getDeviceModel());
+                clientInfo.setSystemName(mClientHost.getSystemName());
+                clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
+                clientInfo.setSystemVersion(mClientHost.getSystemVersion());
+                if (mClientHost.isSupportModeEnabled()) {
+                    clientInfo.setSupportTag(mClientHost.getSupportTag());
+                }
+
+                LOG.debug("Hello: Saying hello to the server.");
                 TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
                 if (talkServerInfo != null) {
                     LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
-                    LOG.debug("Hello: Server switched to supportMode + " + talkServerInfo.isSupportMode());
+                    LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
                 }
+
             }
         });
+
     }
 
     /**
