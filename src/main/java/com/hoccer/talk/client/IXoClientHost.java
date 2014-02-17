@@ -16,7 +16,6 @@ public interface IXoClientHost {
     public IXoClientDatabaseBackend getDatabaseBackend();
     public WebSocketClientFactory   getWebSocketFactory();
     public Thread.UncaughtExceptionHandler getUncaughtExceptionHandler();
-
+    public String getServerUri();
     public InputStream openInputStreamForUrl(String url) throws IOException;
-
 }

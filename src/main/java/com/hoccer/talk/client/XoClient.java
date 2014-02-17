@@ -162,7 +162,11 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * Create a Hoccer Talk client using the given client database
      */
-	public XoClient(IXoClientHost host) {
+    public XoClient(IXoClientHost host) {
+        initialize(host);
+    }
+
+    public void initialize(IXoClientHost host) {
         // remember the host
         mClientHost = host;
 
@@ -180,9 +184,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         // create URI object referencing the server
         URI uri = null;
         try {
-            uri = new URI(XoClientConfiguration.SERVER_URI);
+            uri = new URI(mClientHost.getServerUri());
         } catch (URISyntaxException e) {
-            // won't happen
+            LOG.error("uri is wrong", e);
         }
 
         // create JSON object mapper
@@ -218,7 +222,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mConnection.addListener(this);
 
         // create RPC proxy
-		mServerRpc = mConnection.makeProxy(ITalkRpcServer.class);
+        mServerRpc = mConnection.makeProxy(ITalkRpcServer.class);
 
         // create transfer agent
         mTransferAgent = new XoTransferAgent(this);
@@ -588,29 +592,29 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void setGroupName(final TalkClientContact group, final String groupName) {
        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                LOG.debug("changing group name");
-                TalkGroup presence = group.getGroupPresence();
-                if(presence == null) {
-                    LOG.error("group has no presence");
-                    return;
-                }
-                presence.setGroupName(groupName);
-                if(group.isGroupRegistered()) {
-                    try {
-                        mDatabase.saveGroup(presence);
-                        mDatabase.saveContact(group);
-                        LOG.debug("sending new group presence");
-                        mServerRpc.updateGroup(presence);
-                    } catch (SQLException e) {
-                        LOG.error("sql error", e);
-                    }
-                }
-                for(IXoContactListener listener: mContactListeners) {
-                    listener.onGroupPresenceChanged(group);
-                }
-            }
+           @Override
+           public void run() {
+               LOG.debug("changing group name");
+               TalkGroup presence = group.getGroupPresence();
+               if (presence == null) {
+                   LOG.error("group has no presence");
+                   return;
+               }
+               presence.setGroupName(groupName);
+               if (group.isGroupRegistered()) {
+                   try {
+                       mDatabase.saveGroup(presence);
+                       mDatabase.saveContact(group);
+                       LOG.debug("sending new group presence");
+                       mServerRpc.updateGroup(presence);
+                   } catch (SQLException e) {
+                       LOG.error("sql error", e);
+                   }
+               }
+               for (IXoContactListener listener : mContactListeners) {
+                   listener.onGroupPresenceChanged(group);
+               }
+           }
        });
     }
 
