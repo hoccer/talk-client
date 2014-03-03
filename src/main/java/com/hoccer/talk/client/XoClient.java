@@ -909,7 +909,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // log about it
-        LOG.info("state " + STATE_NAMES[mState] + " -> " + STATE_NAMES[newState] + " (" + message + ")");
+        LOG.info("[connection #" + mConnection.getConnectionId() + "] state " + STATE_NAMES[mState] + " -> " + STATE_NAMES[newState] + " (" + message + ")");
 
         // perform transition
         int previousState = mState;
@@ -931,18 +931,18 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // make connects happen
         if(mState == STATE_RECONNECTING) {
-            LOG.info("scheduling requested reconnect");
+            LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling requested reconnect");
             mConnectionFailures = 0;
             scheduleConnect(true);
             resetIdle();
         } else if(mState == STATE_CONNECTING) {
             if(previousState <= STATE_IDLE) {
-                LOG.info("scheduling connect");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling connect");
                 // initial connect
                 mConnectionFailures = 0;
                 scheduleConnect(false);
             } else {
-                LOG.info("scheduling reconnect");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling reconnect");
                 // reconnect
                 mConnectionFailures++;
                 scheduleConnect(true);
@@ -973,7 +973,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.info("connected and ready");
+                    LOG.info("[connection #" + mConnection.getConnectionId() + "] connected and ready");
                 }
             });
         }
@@ -1032,11 +1032,11 @@ public class XoClient implements JsonRpcConnection.Listener {
 	}
 
     private void doConnect() {
-        LOG.debug("performing connect");
+        LOG.debug("performing connect on connection #" + mConnection.getConnectionId());
         try {
             mConnection.connect(XoClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            LOG.warn("exception while connecting: " + e.toString());
+            LOG.warn("[connection #" + mConnection.getConnectionId() + "] exception while connecting: " + e.toString());
         }
     }
 
@@ -1529,7 +1529,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(publicKey == null || privateKey == null) {
             Date now = new Date();
             try {
-                LOG.info("generating new RSA keypair");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair");
 
                 LOG.debug("generating keypair");
                 KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
@@ -1566,7 +1566,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 contact.setPublicKey(publicKey);
                 contact.setPrivateKey(privateKey);
 
-                LOG.info("generated new key with key id " + kid);
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] generated new key with key id " + kid);
 
                 mDatabase.savePublicKey(publicKey);
                 mDatabase.savePrivateKey(privateKey);
