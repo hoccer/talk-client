@@ -162,7 +162,11 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * Create a Hoccer Talk client using the given client database
      */
-	public XoClient(IXoClientHost host) {
+    public XoClient(IXoClientHost host) {
+        initialize(host);
+    }
+
+    public void initialize(IXoClientHost host) {
         // remember the host
         mClientHost = host;
 
@@ -180,9 +184,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         // create URI object referencing the server
         URI uri = null;
         try {
-            uri = new URI(XoClientConfiguration.SERVER_URI);
+            uri = new URI(mClientHost.getServerUri());
         } catch (URISyntaxException e) {
-            // won't happen
+            LOG.error("uri is wrong", e);
         }
 
         // create JSON object mapper
@@ -218,7 +222,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mConnection.addListener(this);
 
         // create RPC proxy
-		mServerRpc = mConnection.makeProxy(ITalkRpcServer.class);
+        mServerRpc = mConnection.makeProxy(ITalkRpcServer.class);
 
         // create transfer agent
         mTransferAgent = new XoTransferAgent(this);
@@ -498,41 +502,35 @@ public class XoClient implements JsonRpcConnection.Listener {
         mState = STATE_INACTIVE;
     }
 
-    public void sendHello() {
-
-        final TalkClientInfo clientInfo = new TalkClientInfo();
-
-        clientInfo.setClientName("");
-        clientInfo.setClientTime(null);
-        clientInfo.setClientLanguage("");
-        clientInfo.setClientVersion("");
-        clientInfo.setDeviceModel("");
-
-        String supportTag = "";
-        if (mClientHost.isSupportModeEnabled()) {
-            if (mClientHost.getSupportTag() != null) {
-                supportTag = mClientHost.getSupportTag();
-            }
-        }
-        clientInfo.setSupportTag(supportTag);
-
-        clientInfo.setSystemName("");
-        clientInfo.setSystemLanguage("");
-        clientInfo.setSystemVersion("");
+    public void hello() {
 
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+
+                TalkClientInfo clientInfo = new TalkClientInfo();
+                clientInfo.setClientName(mClientHost.getClientName());
+                clientInfo.setClientTime(mClientHost.getClientTime());
+                clientInfo.setClientLanguage(mClientHost.getClientLanguage());
+                clientInfo.setClientVersion(mClientHost.getClientVersion());
+                clientInfo.setDeviceModel(mClientHost.getDeviceModel());
+                clientInfo.setSystemName(mClientHost.getSystemName());
+                clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
+                clientInfo.setSystemVersion(mClientHost.getSystemVersion());
+                if (mClientHost.isSupportModeEnabled()) {
+                    clientInfo.setSupportTag(mClientHost.getSupportTag());
+                }
+
+                LOG.debug("Hello: Saying hello to the server.");
                 TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
                 if (talkServerInfo != null) {
-
-                    // check result and trigger further server interaction.
-                    // what iOS does:
-                    //     - stores response["serverTime"]
-
+                    LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
+                    LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
                 }
+
             }
         });
+
     }
 
     /**
@@ -625,29 +623,29 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void setGroupName(final TalkClientContact group, final String groupName) {
        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                LOG.debug("changing group name");
-                TalkGroup presence = group.getGroupPresence();
-                if(presence == null) {
-                    LOG.error("group has no presence");
-                    return;
-                }
-                presence.setGroupName(groupName);
-                if(group.isGroupRegistered()) {
-                    try {
-                        mDatabase.saveGroup(presence);
-                        mDatabase.saveContact(group);
-                        LOG.debug("sending new group presence");
-                        mServerRpc.updateGroup(presence);
-                    } catch (SQLException e) {
-                        LOG.error("sql error", e);
-                    }
-                }
-                for(IXoContactListener listener: mContactListeners) {
-                    listener.onGroupPresenceChanged(group);
-                }
-            }
+           @Override
+           public void run() {
+               LOG.debug("changing group name");
+               TalkGroup presence = group.getGroupPresence();
+               if (presence == null) {
+                   LOG.error("group has no presence");
+                   return;
+               }
+               presence.setGroupName(groupName);
+               if (group.isGroupRegistered()) {
+                   try {
+                       mDatabase.saveGroup(presence);
+                       mDatabase.saveContact(group);
+                       LOG.debug("sending new group presence");
+                       mServerRpc.updateGroup(presence);
+                   } catch (SQLException e) {
+                       LOG.error("sql error", e);
+                   }
+               }
+               for (IXoContactListener listener : mContactListeners) {
+                   listener.onGroupPresenceChanged(group);
+               }
+           }
        });
     }
 
@@ -911,7 +909,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // log about it
-        LOG.info("state " + STATE_NAMES[mState] + " -> " + STATE_NAMES[newState] + " (" + message + ")");
+        LOG.info("[connection #" + mConnection.getConnectionId() + "] state " + STATE_NAMES[mState] + " -> " + STATE_NAMES[newState] + " (" + message + ")");
 
         // perform transition
         int previousState = mState;
@@ -933,18 +931,18 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // make connects happen
         if(mState == STATE_RECONNECTING) {
-            LOG.info("scheduling requested reconnect");
+            LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling requested reconnect");
             mConnectionFailures = 0;
             scheduleConnect(true);
             resetIdle();
         } else if(mState == STATE_CONNECTING) {
             if(previousState <= STATE_IDLE) {
-                LOG.info("scheduling connect");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling connect");
                 // initial connect
                 mConnectionFailures = 0;
                 scheduleConnect(false);
             } else {
-                LOG.info("scheduling reconnect");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] scheduling reconnect");
                 // reconnect
                 mConnectionFailures++;
                 scheduleConnect(true);
@@ -975,7 +973,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.info("connected and ready");
+                    LOG.info("[connection #" + mConnection.getConnectionId() + "] connected and ready");
                 }
             });
         }
@@ -1034,11 +1032,11 @@ public class XoClient implements JsonRpcConnection.Listener {
 	}
 
     private void doConnect() {
-        LOG.debug("performing connect");
+        LOG.debug("performing connect on connection #" + mConnection.getConnectionId());
         try {
             mConnection.connect(XoClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            LOG.warn("exception while connecting: " + e.toString());
+            LOG.warn("[connection #" + mConnection.getConnectionId() + "] exception while connecting: " + e.toString());
         }
     }
 
@@ -1198,6 +1196,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 Date never = new Date(0);
                 try {
+                    LOG.debug("sync: HELLO");
+                    hello();
                     LOG.debug("sync: updating presence");
                     sendPresence();
                     LOG.debug("sync: syncing presences");
@@ -1529,7 +1529,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(publicKey == null || privateKey == null) {
             Date now = new Date();
             try {
-                LOG.info("generating new RSA keypair");
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair");
 
                 LOG.debug("generating keypair");
                 KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
@@ -1566,7 +1566,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 contact.setPublicKey(publicKey);
                 contact.setPrivateKey(privateKey);
 
-                LOG.info("generated new key with key id " + kid);
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] generated new key with key id " + kid);
 
                 mDatabase.savePublicKey(publicKey);
                 mDatabase.savePrivateKey(privateKey);
