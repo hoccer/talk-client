@@ -12,13 +12,15 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import java.io.Serializable;
+
 /**
  * These represent a target of communication
  *
  * This may currently be either a groupPresence or another user.
  */
 @DatabaseTable(tableName = "clientContact")
-public class TalkClientContact {
+public class TalkClientContact implements Serializable {
 
     public static final String TYPE_SELF   = "self";
     public static final String TYPE_CLIENT = "client";
