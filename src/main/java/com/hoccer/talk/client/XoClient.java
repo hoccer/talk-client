@@ -141,6 +141,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     ScheduledFuture<?> mAutoDisconnectFuture;
     ScheduledFuture<?> mKeepAliveFuture;
 
+    Vector<IXoPairingListener> mPairingListeners = new Vector<IXoPairingListener>();
     Vector<IXoContactListener> mContactListeners = new Vector<IXoContactListener>();
     Vector<IXoMessageListener> mMessageListeners = new Vector<IXoMessageListener>();
     Vector<IXoStateListener> mStateListeners = new Vector<IXoStateListener>();
@@ -393,6 +394,14 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void unregisterTokenListener(IXoTokenListener listener) {
         mTokenListeners.remove(listener);
+    }
+
+    public void registerPairingListener(IXoPairingListener listener) {
+        mPairingListeners.add(listener);
+    }
+
+    public void unregisterPairingListener(IXoPairingListener listener) {
+        mPairingListeners.remove(listener);
     }
 
     private void notifyUnseenMessages(boolean notify) {
@@ -709,7 +718,15 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                mServerRpc.pairByToken(token);
+                if (mServerRpc.pairByToken(token)) {
+                    for (IXoPairingListener listener : mPairingListeners) {
+                        listener.onTokenPairingSucceeded(token);
+                    }
+                } else {
+                    for (IXoPairingListener listener : mPairingListeners) {
+                        listener.onTokenPairingFailed(token);
+                    }
+                }
             }
         });
     }
