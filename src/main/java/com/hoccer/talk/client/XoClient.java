@@ -260,7 +260,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     public boolean isRegistered() {
         return mSelfContact.isSelfRegistered();
     }
-    
+
     public TalkClientContact getSelfContact() {
         return mSelfContact;
     }
@@ -2585,5 +2585,5 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
         }
     }
-	
+
 }
