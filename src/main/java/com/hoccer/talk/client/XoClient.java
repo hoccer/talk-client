@@ -337,70 +337,70 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * @return the current state of this client (numerical)
      */
-    public int getState() {
+    public synchronized int getState() {
         return mState;
     }
 
     /**
      * @return the current state of this client (textual)
      */
-    public String getStateString() {
+    public synchronized String getStateString() {
         return stateToString(mState);
     }
 
-    public void registerStateListener(IXoStateListener listener) {
+    public synchronized void registerStateListener(IXoStateListener listener) {
         mStateListeners.add(listener);
     }
 
-    public void unregisterStateListener(IXoStateListener listener) {
+    public synchronized void unregisterStateListener(IXoStateListener listener) {
         mStateListeners.remove(listener);
     }
 
-    public void registerContactListener(IXoContactListener listener) {
+    public synchronized void registerContactListener(IXoContactListener listener) {
         mContactListeners.add(listener);
     }
 
-    public void unregisterContactListener(IXoContactListener listener) {
+    public synchronized void unregisterContactListener(IXoContactListener listener) {
         mContactListeners.remove(listener);
     }
 
-    public void registerMessageListener(IXoMessageListener listener) {
+    public synchronized void registerMessageListener(IXoMessageListener listener) {
         mMessageListeners.add(listener);
     }
 
-    public void unregisterMessageListener(IXoMessageListener listener) {
+    public synchronized void unregisterMessageListener(IXoMessageListener listener) {
         mMessageListeners.remove(listener);
     }
 
-    public void registerUnseenListener(IXoUnseenListener listener) {
+    public synchronized void registerUnseenListener(IXoUnseenListener listener) {
         mUnseenListeners.add(listener);
     }
 
-    public void unregisterUnseenListener(IXoUnseenListener listener) {
+    public synchronized void unregisterUnseenListener(IXoUnseenListener listener) {
         mUnseenListeners.remove(listener);
     }
 
-    public void registerTransferListener(IXoTransferListener listener) {
+    public synchronized void registerTransferListener(IXoTransferListener listener) {
         mTransferAgent.registerListener(listener);
     }
 
-    public void unregisterTransferListener(IXoTransferListener listener) {
+    public synchronized void unregisterTransferListener(IXoTransferListener listener) {
         mTransferAgent.unregisterListener(listener);
     }
 
-    public void registerTokenListener(IXoTokenListener listener) {
+    public synchronized void registerTokenListener(IXoTokenListener listener) {
         mTokenListeners.add(listener);
     }
 
-    public void unregisterTokenListener(IXoTokenListener listener) {
+    public synchronized void unregisterTokenListener(IXoTokenListener listener) {
         mTokenListeners.remove(listener);
     }
 
-    public void registerPairingListener(IXoPairingListener listener) {
+    public synchronized void registerPairingListener(IXoPairingListener listener) {
         mPairingListeners.add(listener);
     }
 
-    public void unregisterPairingListener(IXoPairingListener listener) {
+    public synchronized void unregisterPairingListener(IXoPairingListener listener) {
         mPairingListeners.remove(listener);
     }
 
@@ -832,6 +832,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     groupPresence.setGroupId(groupId);            // was null
                     groupPresence.setState(TalkGroup.STATE_NONE); // was null
                     contact.updateGroupId(groupId);
+                    contact.updateGroupPresence(groupPresence);   // was missing
 
                     try {
                         mDatabase.saveGroup(groupPresence);
