@@ -829,6 +829,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                         return;
                     }
 
+                    groupPresence.setGroupId(groupId);            // was null
+                    groupPresence.setState(TalkGroup.STATE_NONE); // was null
                     contact.updateGroupId(groupId);
 
                     try {
