@@ -417,13 +417,14 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     public boolean performEncryption(XoTransferAgent agent) {
-        LOG.info("[" + clientUploadId + "] performing encryption");
+        LOG.info("[upload " + clientUploadId + "] performing encryption");
 
         String destinationFile = computeUploadFile(agent);
         if(destinationFile == null) {
             LOG.error("could not determine encryption destination");
             return false;
         }
+        LOG.debug("performEncryption... destinationFile: " + destinationFile);
 
         File destination = new File(destinationFile);
         if(destination.exists()) {
@@ -469,7 +470,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     private boolean performCheckRequest(XoTransferAgent agent) throws IOException {
         HttpClient client = agent.getHttpClient();
 
-        LOG.info("[" + clientUploadId + "] performing check request");
+        LOG.info("[upload " + clientUploadId + "] performing check request");
 
         int last = uploadLength - 1;
         int confirmedProgress = 0;
@@ -510,7 +511,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     private boolean performUploadRequest(final XoTransferAgent agent, String filename) throws IOException {
         HttpClient client = agent.getHttpClient();
 
-        LOG.info("[" + clientUploadId + "] performing upload request");
+        LOG.info("[upload " + clientUploadId + "] performing upload request");
 
         int last = uploadLength - 1;
 
@@ -623,7 +624,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     private void switchState(XoTransferAgent agent, State newState) {
-        LOG.info("[" + clientUploadId + "] switching to state " + newState);
+        LOG.info("[upload " + clientUploadId + "] switching to state " + newState);
 
         state = newState;
 

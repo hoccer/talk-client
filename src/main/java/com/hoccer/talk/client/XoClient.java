@@ -1891,7 +1891,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     private void encryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
 
-        LOG.debug("encrypting message " + clientMessage.getClientMessageId());
+        LOG.debug("encrypting message with id '" + clientMessage.getClientMessageId() + "'");
 
         TalkClientContact receiver = clientMessage.getConversationContact();
         if(receiver == null) {
@@ -1990,8 +1990,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.error("sql error", e);
             }
 
-            LOG.debug("attachment download url is " + upload.getDownloadUrl());
-
+            LOG.debug("attachment download url is '" + upload.getDownloadUrl() + "'");
             attachment = new TalkAttachment();
             attachment.setUrl(upload.getDownloadUrl());
             attachment.setContentSize(Integer.toString(upload.getDataLength()));

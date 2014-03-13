@@ -196,7 +196,11 @@ public class XoTransferAgent implements IXoTransferListener {
     }
 
     public void requestUpload(final TalkClientUpload upload) {
-        LOG.info("requestUpload()");
+        LOG.info("requestUpload(), dataurl: " + upload.getContentDataUrl() +
+                                "| contenturl: " + upload.getContentUrl() +
+                                "| datafile: " + upload.getDataFile() +
+                                "| contenttype: " + upload.getContentType() +
+                                "| clientUploadId: " + upload.getClientUploadId());
 
         try {
             mDatabase.saveClientUpload(upload);
@@ -209,17 +213,17 @@ public class XoTransferAgent implements IXoTransferListener {
             if(!mUploadsById.containsKey(uploadId)) {
                 TalkClientUpload.State state = upload.getState();
                 if(state == TalkClientUpload.State.COMPLETE) {
-                    LOG.debug("no need to upload " + uploadId);
+                    LOG.debug("no need to upload with id: '" + uploadId + "'");
                 }
 
-                LOG.info("requesting upload " + uploadId);
+                LOG.info("requesting upload with id '" + uploadId + "'");
 
                 mUploadsById.put(uploadId, upload);
 
                 mExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
-                        LOG.info("performing upload " + uploadId + " in state " + upload.getState());
+                        LOG.info("performing upload with id '" + uploadId + "' in state '" + upload.getState() + "'");
                         onUploadStarted(upload);
                         try {
                             upload.performUploadAttempt(XoTransferAgent.this);
@@ -287,7 +291,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     @Override
     public void onUploadStarted(TalkClientUpload upload) {
-        LOG.info("onUploadStarted(" + upload.getClientUploadId() + ")");
+        LOG.info("onUploadStarted(id: " + upload.getClientUploadId() + ")");
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStarted(upload);
         }
@@ -311,7 +315,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     @Override
     public void onUploadStateChanged(TalkClientUpload upload) {
-        LOG.info("onUploadStateChanged(" + upload.getClientUploadId() + ")");
+        LOG.info("onUploadStateChanged(id: " + upload.getClientUploadId() + ")");
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStateChanged(upload);
         }
