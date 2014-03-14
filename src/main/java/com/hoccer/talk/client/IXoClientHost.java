@@ -34,4 +34,6 @@ public interface IXoClientHost {
     public String getSystemLanguage();
     public String getSystemVersion();
 
+    public int getRSAKeysize();
+
 }

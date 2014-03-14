@@ -160,6 +160,8 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     ObjectMapper mJsonMapper;
 
+    int mRSAKeysize = 1024;
+
     /**
      * Create a Hoccer Talk client using the given client database
      */
@@ -509,6 +511,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         mConnectFuture.cancel(true);
         mDisconnectFuture.cancel(true);
         mState = STATE_INACTIVE;
+    }
+
+    /**
+     * delete old key pair and create a new one
+     */
+    public void regenerateKeyPair() throws SQLException {
+        LOG.debug("regenerateKeyPair()");
+        mSelfContact.setPublicKey(null);
+        mSelfContact.setPrivateKey(null);
+        ensureSelfKey(mSelfContact);
     }
 
     public void hello() {
@@ -1551,8 +1563,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             try {
                 LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair");
 
-                LOG.debug("generating keypair");
-                KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
+                mRSAKeysize = mClientHost.getRSAKeysize();
+                LOG.debug("generating RSA keypair with size "+mRSAKeysize);
+                KeyPair keyPair = RSACryptor.generateRSAKeyPair(mRSAKeysize);
 
                 LOG.trace("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
@@ -1562,7 +1575,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                 LOG.trace("unwrapping private key");
                 PrivateKey privKey = keyPair.getPrivate();
-                byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
+                byte[] privEnc = RSACryptor.unwrapRSA_PKCS8(privKey.getEncoded());
 //                String privStr = Base64.encodeBase64String(privEnc);
                 String privStr = new String(Base64.encodeBase64(privEnc));
 
