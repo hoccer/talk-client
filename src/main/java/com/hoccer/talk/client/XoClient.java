@@ -141,6 +141,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     ScheduledFuture<?> mAutoDisconnectFuture;
     ScheduledFuture<?> mKeepAliveFuture;
 
+    Vector<IXoPairingListener> mPairingListeners = new Vector<IXoPairingListener>();
     Vector<IXoContactListener> mContactListeners = new Vector<IXoContactListener>();
     Vector<IXoMessageListener> mMessageListeners = new Vector<IXoMessageListener>();
     Vector<IXoStateListener> mStateListeners = new Vector<IXoStateListener>();
@@ -259,7 +260,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     public boolean isRegistered() {
         return mSelfContact.isSelfRegistered();
     }
-    
+
     public TalkClientContact getSelfContact() {
         return mSelfContact;
     }
@@ -336,63 +337,71 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * @return the current state of this client (numerical)
      */
-    public int getState() {
+    public synchronized int getState() {
         return mState;
     }
 
     /**
      * @return the current state of this client (textual)
      */
-    public String getStateString() {
+    public synchronized String getStateString() {
         return stateToString(mState);
     }
 
-    public void registerStateListener(IXoStateListener listener) {
+    public synchronized void registerStateListener(IXoStateListener listener) {
         mStateListeners.add(listener);
     }
 
-    public void unregisterStateListener(IXoStateListener listener) {
+    public synchronized void unregisterStateListener(IXoStateListener listener) {
         mStateListeners.remove(listener);
     }
 
-    public void registerContactListener(IXoContactListener listener) {
+    public synchronized void registerContactListener(IXoContactListener listener) {
         mContactListeners.add(listener);
     }
 
-    public void unregisterContactListener(IXoContactListener listener) {
+    public synchronized void unregisterContactListener(IXoContactListener listener) {
         mContactListeners.remove(listener);
     }
 
-    public void registerMessageListener(IXoMessageListener listener) {
+    public synchronized void registerMessageListener(IXoMessageListener listener) {
         mMessageListeners.add(listener);
     }
 
-    public void unregisterMessageListener(IXoMessageListener listener) {
+    public synchronized void unregisterMessageListener(IXoMessageListener listener) {
         mMessageListeners.remove(listener);
     }
 
-    public void registerUnseenListener(IXoUnseenListener listener) {
+    public synchronized void registerUnseenListener(IXoUnseenListener listener) {
         mUnseenListeners.add(listener);
     }
 
-    public void unregisterUnseenListener(IXoUnseenListener listener) {
+    public synchronized void unregisterUnseenListener(IXoUnseenListener listener) {
         mUnseenListeners.remove(listener);
     }
 
-    public void registerTransferListener(IXoTransferListener listener) {
+    public synchronized void registerTransferListener(IXoTransferListener listener) {
         mTransferAgent.registerListener(listener);
     }
 
-    public void unregisterTransferListener(IXoTransferListener listener) {
+    public synchronized void unregisterTransferListener(IXoTransferListener listener) {
         mTransferAgent.unregisterListener(listener);
     }
 
-    public void registerTokenListener(IXoTokenListener listener) {
+    public synchronized void registerTokenListener(IXoTokenListener listener) {
         mTokenListeners.add(listener);
     }
 
-    public void unregisterTokenListener(IXoTokenListener listener) {
+    public synchronized void unregisterTokenListener(IXoTokenListener listener) {
         mTokenListeners.remove(listener);
+    }
+
+    public synchronized void registerPairingListener(IXoPairingListener listener) {
+        mPairingListeners.add(listener);
+    }
+
+    public synchronized void unregisterPairingListener(IXoPairingListener listener) {
+        mPairingListeners.remove(listener);
     }
 
     private void notifyUnseenMessages(boolean notify) {
@@ -709,7 +718,15 @@ public class XoClient implements JsonRpcConnection.Listener {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                mServerRpc.pairByToken(token);
+                if (mServerRpc.pairByToken(token)) {
+                    for (IXoPairingListener listener : mPairingListeners) {
+                        listener.onTokenPairingSucceeded(token);
+                    }
+                } else {
+                    for (IXoPairingListener listener : mPairingListeners) {
+                        listener.onTokenPairingFailed(token);
+                    }
+                }
             }
         });
     }
@@ -812,7 +829,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                         return;
                     }
 
+                    groupPresence.setGroupId(groupId);            // was null
+                    groupPresence.setState(TalkGroup.STATE_NONE); // was null
                     contact.updateGroupId(groupId);
+                    contact.updateGroupPresence(groupPresence);   // was missing
 
                     try {
                         mDatabase.saveGroup(groupPresence);
@@ -2565,5 +2585,5 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
         }
     }
-	
+
 }
