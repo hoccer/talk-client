@@ -1866,16 +1866,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         // contact (provides decryption context)
         TalkClientContact contact = clientMessage.getConversationContact();
 
-        byte[] hmac = message.computeHMAC();
-        try {
-            String hmacString = new String(hmac,"UTF-8");
+        if (!message.getMessageTag().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            byte[] hmac = message.computeHMAC();
+            String hmacString = new String(Base64.encodeBase64(hmac));
             if (hmacString.equals(message.getMessageTag())) {
                 LOG.info("HMAC ok");
             }  else {
                 LOG.error("HMAC mismatch");
             }
-        } catch (UnsupportedEncodingException e) {
-            LOG.error("decryption error", e);
         }
 
         // default message text
