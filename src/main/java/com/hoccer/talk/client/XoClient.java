@@ -1311,6 +1311,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         final String messageTag = message.generateMessageTag();
         message.setBody(messageText);
+        message.setSenderId(getSelfContact().getClientId());
 
         delivery.setMessageTag(messageTag);
 
@@ -1865,6 +1866,18 @@ public class XoClient implements JsonRpcConnection.Listener {
         // contact (provides decryption context)
         TalkClientContact contact = clientMessage.getConversationContact();
 
+        byte[] hmac = message.computeHMAC();
+        try {
+            String hmacString = new String(hmac,"UTF-8");
+            if (hmacString.equals(message.getMessageTag())) {
+                LOG.info("HMAC ok");
+            }  else {
+                LOG.error("HMAC mismatch");
+            }
+        } catch (UnsupportedEncodingException e) {
+            LOG.error("decryption error", e);
+        }
+
         // default message text
         clientMessage.setText("");
 
@@ -2115,7 +2128,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             // encrypt body
             LOG.trace("encrypting body");
-            byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
+            byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes("UTF-8"));
 //            message.setBody(Base64.encodeBase64String(encryptedBody));
             message.setBody(new String(Base64.encodeBase64(encryptedBody)));
             // encrypt attachment dtor
@@ -2148,6 +2161,10 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(upload != null) {
             mTransferAgent.requestUpload(upload);
         }
+        message.setTimeSent(new Date());
+        byte[] hmac = message.computeHMAC();
+        message.setMessageTag(new String(Base64.encodeBase64(hmac)));
+
     }
 
     private void updateClientPresence(TalkPresence presence) {
