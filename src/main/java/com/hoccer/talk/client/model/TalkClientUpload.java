@@ -357,6 +357,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             }
         }
 */
+
+//        switchState(agent, State.UPLOADING);
         if(!agent.isUploadActive(this)) {
             return;
         }
@@ -389,23 +391,22 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         XoClient talkClient = agent.getClient();
         if(this.state == State.NEW || state == State.REGISTERING) {
             LOG.info("[" + clientUploadId + "] performing registration");
-
             try {
                 ITalkRpcServer.FileHandles handles;
                 if(type == Type.AVATAR) {
                     handles = talkClient.getServerRpc().createFileForStorage(this.uploadLength);
                 } else {
-                    handles = talkClient.getServerRpc().createFileForTransfer(this.uploadLength);
+                    this.encryptedLength = AESCryptor.calcEncryptedSize(getContentLength(),AESCryptor.NULL_SALT,AESCryptor.NULL_SALT);
+                    this.uploadLength = encryptedLength;
+                    handles = talkClient.getServerRpc().createFileForTransfer(this.encryptedLength);
                 }
                 uploadUrl = handles.uploadUrl;
                 downloadUrl = handles.downloadUrl;
                 LOG.info("[" + clientUploadId + "] registered as " + handles.fileId);
-//                if(needEncryption) {
-//                    switchState(agent, State.ENCRYPTING);
-//                } else {
+                if(!needEncryption) {
                     this.uploadLength = dataLength;
-                    switchState(agent, State.UPLOADING);
-//                }
+                }
+                switchState(agent, State.UPLOADING);
             } catch (Exception e) {
                 LOG.error("error registering", e);
                 return false;
@@ -526,8 +527,6 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             HttpClient client = agent.getHttpClient();
 
             byte[] key = Hex.decode(encryptionKey);
-            this.encryptedLength = AESCryptor.calcEncryptedSize(getContentLength(),key,AESCryptor.NULL_SALT);
-            this.uploadLength = encryptedLength;
             LOG.info("[upload " + clientUploadId + "] performing upload request");
 
             int last = uploadLength - 1;
