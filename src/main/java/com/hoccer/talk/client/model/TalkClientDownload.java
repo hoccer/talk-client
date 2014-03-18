@@ -1,6 +1,7 @@
 package com.hoccer.talk.client.model;
 
 import com.google.appengine.api.blobstore.ByteRange;
+
 import com.hoccer.talk.client.XoClientDatabase;
 import com.hoccer.talk.client.XoTransfer;
 import com.hoccer.talk.client.XoTransferAgent;
@@ -11,6 +12,7 @@ import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
+
 import org.apache.commons.codec.binary.Hex;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -43,6 +45,9 @@ import java.util.UUID;
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends XoTransfer implements IContentObject {
 
+    /** Maximum amount of retry attempts when downloading an attachment */
+    public static final int MAX_DOWNLOAD_RETRY = 16;
+
     /**
      * Minimum amount of progress to justify a db update
      *
@@ -54,13 +59,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     private final static Logger LOG = Logger.getLogger(TalkClientDownload.class);
 
     private static final Detector MIME_DETECTOR = new DefaultDetector(
-                            MimeTypes.getDefaultMimeTypes());
-
-    public enum State {
-        INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED,
-        /* old states from before db version 7 */
-        REQUESTED, STARTED
-    }
+            MimeTypes.getDefaultMimeTypes());
 
     @DatabaseField(generatedId = true)
     private int clientDownloadId;
@@ -74,7 +73,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField
     private String contentUrl;
 
-
     @DatabaseField
     private int contentLength;
 
@@ -84,10 +82,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField(width = 64)
     private String mediaType;
 
-
     @DatabaseField
     private String dataFile;
-
 
     /** URL to download */
     @DatabaseField(width = 2000)
@@ -104,7 +100,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField
     private int downloadProgress;
 
-
     @DatabaseField(width = 128)
     private String decryptionKey;
 
@@ -114,8 +109,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField
     private double aspectRatio;
 
-    private transient long progressRateLimit;
+    @DatabaseField
+    private int transferFailures;
 
+    private transient long progressRateLimit;
 
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
@@ -136,9 +133,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     public boolean isContentAvailable() {
         return state == State.COMPLETE;
     }
+
     @Override
     public ContentState getContentState() {
-        switch(state) {
+        switch (state) {
             case INITIALIZING:
             case NEW:
                 return ContentState.DOWNLOAD_NEW;
@@ -160,35 +158,42 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 throw new RuntimeException("Unknown download state " + state);
         }
     }
+
     @Override
     public ContentDisposition getContentDisposition() {
         return ContentDisposition.DOWNLOAD;
     }
+
     @Override
     public int getTransferLength() {
         return contentLength;
     }
+
     @Override
     public int getTransferProgress() {
         return downloadProgress;
     }
+
     @Override
     public String getContentMediaType() {
         return mediaType;
     }
+
     @Override
     public double getContentAspectRatio() {
         return aspectRatio;
     }
+
     @Override
     public String getContentUrl() {
         return contentUrl;
     }
+
     @Override
     public String getContentDataUrl() {
         // TODO fix up this field on db upgrade
-        if(dataFile != null) {
-            if(dataFile.startsWith("file://")) {
+        if (dataFile != null) {
+            if (dataFile.startsWith("file://")) {
                 return dataFile;
             } else {
                 return "file://" + dataFile;
@@ -200,8 +205,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     /**
      * Initialize this download as an avatar download
      *
-     * @param url to download
-     * @param id for avatar, identifying what the avatar belongs to
+     * @param url       to download
+     * @param id        for avatar, identifying what the avatar belongs to
      * @param timestamp for avatar, takes care of collisions over id
      */
     public void initializeAsAvatar(String url, String id, Date timestamp) {
@@ -228,17 +233,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.decryptedFile = UUID.randomUUID().toString();
         String filename = attachment.getFilename();
-        if(filename != null) {
+        if (filename != null) {
             // XXX should avoid collisions here
             this.decryptedFile = filename;
         }
     }
 
     public void provideContentUrl(XoTransferAgent agent, String url) {
-        if(url.startsWith("file://")) {
+        if (url.startsWith("file://")) {
             return;
         }
-        if(url.startsWith("content://media/external/file")) {
+        if (url.startsWith("content://media/external/file")) {
             return;
         }
         this.contentUrl = url;
@@ -249,47 +254,47 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     public void fixupVersion7(XoTransferAgent agent) {
         LOG.debug("fixup download " + clientDownloadId + " in state " + state);
         boolean changed = false;
-        if(state == State.REQUESTED) {
+        if (state == State.REQUESTED) {
             LOG.debug("state fixed to " + State.DOWNLOADING);
             changed = true;
             state = State.DOWNLOADING;
-        } else if(state == State.STARTED) {
+        } else if (state == State.STARTED) {
             LOG.debug("state fixed to " + State.DOWNLOADING);
             changed = true;
             state = State.DOWNLOADING;
         }
-        if(state == State.DETECTING || state == State.COMPLETE) {
-            if(dataFile == null) {
+        if (state == State.DETECTING || state == State.COMPLETE) {
+            if (dataFile == null) {
                 LOG.debug("attempting to determine dataFile");
-                if(decryptedFile != null) {
+                if (decryptedFile != null) {
                     LOG.debug("using decrypted file");
                     changed = true;
                     dataFile = computeDecryptionFile(agent);
-                } else if(downloadFile != null) {
+                } else if (downloadFile != null) {
                     LOG.debug("using download file");
                     changed = true;
                     dataFile = computeDownloadFile(agent);
                 }
             }
         }
-        if(dataFile != null && dataFile.startsWith("file://")) {
+        if (dataFile != null && dataFile.startsWith("file://")) {
             LOG.debug("fixing data file");
             changed = true;
             dataFile = dataFile.substring(7);
         }
-        if(type == Type.AVATAR && mediaType == null) {
+        if (type == Type.AVATAR && mediaType == null) {
             LOG.debug("fixing avatar media type");
             changed = true;
             mediaType = "image";
         }
-        if(changed) {
+        if (changed) {
             LOG.debug("download " + clientDownloadId + " fixed");
             saveProgress(agent);
             agent.onDownloadStateChanged(this);
         }
-        if(state == State.COMPLETE) {
+        if (state == State.COMPLETE) {
             // retrigger android media scanner
-            if(type == Type.ATTACHMENT && contentUrl == null) {
+            if (type == Type.ATTACHMENT && contentUrl == null) {
                 LOG.debug("triggering media scanner");
                 agent.onDownloadFinished(this);
             }
@@ -308,7 +313,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return state;
     }
 
-
     public String getDownloadUrl() {
         return downloadUrl;
     }
@@ -320,7 +324,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     public long getDownloadProgress() {
         return downloadProgress;
     }
-
 
     public int getContentLength() {
         return contentLength;
@@ -340,14 +343,22 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public String getDataFile() {
         // TODO fix up this field on db upgrade
-        if(dataFile != null) {
-            if(dataFile.startsWith("file://")) {
+        if (dataFile != null) {
+            if (dataFile.startsWith("file://")) {
                 return dataFile.substring(7);
             } else {
                 return dataFile;
             }
         }
         return null;
+    }
+
+    public int getTransferFailures() {
+        return transferFailures;
+    }
+
+    public void setTransferFailures(int transferFailures) {
+        this.transferFailures = transferFailures;
     }
 
     public boolean isAvatar() {
@@ -360,7 +371,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private String computeDecryptionDirectory(XoTransferAgent agent) {
         String directory = null;
-        switch(this.type) {
+        switch (this.type) {
             case ATTACHMENT:
                 directory = agent.getClient().getAttachmentDirectory();
                 break;
@@ -370,7 +381,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private String computeDownloadDirectory(XoTransferAgent agent) {
         String directory = null;
-        switch(this.type) {
+        switch (this.type) {
             case AVATAR:
                 directory = agent.getClient().getAvatarDirectory();
                 break;
@@ -384,7 +395,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     private String computeDecryptionFile(XoTransferAgent agent) {
         String file = null;
         String directory = computeDecryptionDirectory(agent);
-        if(directory != null) {
+        if (directory != null) {
             file = directory + File.separator + this.decryptedFile;
         }
         return file;
@@ -393,7 +404,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     private String computeDownloadFile(XoTransferAgent agent) {
         String file = null;
         String directory = computeDownloadDirectory(agent);
-        if(directory != null) {
+        if (directory != null) {
             file = directory + File.separator + this.downloadFile;
         }
         return file;
@@ -402,7 +413,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     public void performDownloadAttempt(XoTransferAgent agent) {
         XoClientDatabase database = agent.getDatabase();
         String downloadFilename = computeDownloadFile(agent);
-        if(downloadFilename == null) {
+        if (downloadFilename == null) {
             LOG.error("[" + clientDownloadId + "] could not determine download filename");
             return;
         }
@@ -411,19 +422,18 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         LOG.info("[" + clientDownloadId + "] download attempt starts in state " + state);
 
-
         boolean changed = false;
-        if(state == State.COMPLETE) {
+        if (state == State.COMPLETE) {
             LOG.warn("tried to perform completed download");
             return;
         }
 
-        if(state == State.NEW) {
+        if (state == State.NEW) {
             switchState(agent, State.DOWNLOADING);
             changed = true;
         }
 
-        if(changed) {
+        if (changed) {
             try {
                 database.saveClientDownload(this);
             } catch (SQLException e) {
@@ -431,43 +441,49 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             }
         }
 
-        if(state == State.DOWNLOADING) {
-            int maxAttempts = 5;
-            int attempt = 1;
-            while(attempt <= maxAttempts) {
-                LOG.info("[" + clientDownloadId + "] download attempt " + attempt + "/" + maxAttempts);
+        if (state == State.DOWNLOADING) {
+            while (transferFailures <= MAX_DOWNLOAD_RETRY) {
+                LOG.info("[" + clientDownloadId + "] download attempt " + transferFailures + "/"
+                        + MAX_DOWNLOAD_RETRY);
                 boolean success = performOneRequest(agent, downloadFilename);
-                if(success) {
+                if (success) {
                     LOG.info("[" + clientDownloadId + "] download succeeded");
                     break;
                 }
+                try {
+                    // TODO: schedule this
+                    long timeout = 2 * (transferFailures * transferFailures + 1) * 1000;
+                    Thread.sleep(timeout);
+                } catch (InterruptedException e) {
+                    LOG.error(e);
+                }
                 LOG.info("[" + clientDownloadId + "] download failed");
-                attempt++;
+                setTransferFailures(transferFailures + 1);
             }
         }
-        if(state == State.DECRYPTING) {
+        if (state == State.DECRYPTING) {
             String decryptedFilename = computeDecryptionFile(agent);
-            if(decryptedFilename == null) {
+            if (decryptedFilename == null) {
                 LOG.warn("could not determine decrypted filename for " + clientDownloadId);
                 markFailed(agent);
                 return;
             }
             LOG.info("[" + clientDownloadId + "] decrypting to " + decryptedFilename);
-            if(!performDecryption(agent, downloadFilename, decryptedFilename)) {
+            if (!performDecryption(agent, downloadFilename, decryptedFilename)) {
                 LOG.error("decryption failed");
                 markFailed(agent);
                 return;
             }
         }
-        if(state == State.DETECTING) {
+        if (state == State.DETECTING) {
             LOG.info("[" + clientDownloadId + "] detecting media type");
             String detectionFile = null;
-            if(this.decryptedFile != null) {
+            if (this.decryptedFile != null) {
                 detectionFile = computeDecryptionFile(agent);
             } else {
                 detectionFile = computeDownloadFile(agent);
             }
-            if(detectionFile != null) {
+            if (detectionFile != null) {
                 performDetection(agent, detectionFile);
             }
         }
@@ -509,7 +525,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             HttpGet request = new HttpGet(downloadUrl);
             // determine the requested range
             String range = null;
-            if(contentLength != -1) {
+            if (contentLength != -1) {
                 long last = contentLength - 1;
                 range = "bytes=" + downloadProgress + "-" + last;
                 logGetDebug("requesting range " + range);
@@ -521,9 +537,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             StatusLine status = response.getStatusLine();
             int sc = status.getStatusCode();
             logGetDebug("got status " + sc + ": " + status.getReasonPhrase());
-            if(sc != HttpStatus.SC_OK && sc != HttpStatus.SC_PARTIAL_CONTENT) {
+            if (sc != HttpStatus.SC_OK && sc != HttpStatus.SC_PARTIAL_CONTENT) {
                 // client error - mark as failed
-                if(sc >= 400 && sc <= 499) {
+                if (sc >= 400 && sc <= 499) {
                     markFailed(agent);
                 }
                 return false;
@@ -531,7 +547,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             // parse content length from response
             Header contentLengthHeader = response.getFirstHeader("Content-Length");
             int contentLengthValue = this.contentLength;
-            if(contentLengthHeader != null) {
+            if (contentLengthHeader != null) {
                 String contentLengthString = contentLengthHeader.getValue();
                 contentLengthValue = Integer.valueOf(contentLengthString);
                 logGetDebug("got content length " + contentLengthValue);
@@ -539,48 +555,48 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             // parse content range from response
             ByteRange contentRange = null;
             Header contentRangeHeader = response.getFirstHeader("Content-Range");
-            if(contentRangeHeader != null) {
+            if (contentRangeHeader != null) {
                 String contentRangeString = contentRangeHeader.getValue();
                 logGetDebug("got range " + contentRangeString);
                 contentRange = ByteRange.parseContentRange(contentRangeString);
             }
             // remember content type if we don't have one yet
             Header contentTypeHeader = response.getFirstHeader("Content-Type");
-            if(contentTypeHeader != null) {
+            if (contentTypeHeader != null) {
                 String contentTypeValue = contentTypeHeader.getValue();
-                if(contentType == null) {
+                if (contentType == null) {
                     logGetDebug("got content type " + contentTypeValue);
                     contentType = contentTypeValue;
                 }
             }
             // get ourselves a buffer
-            byte[] buffer = new byte[1<<12];
+            byte[] buffer = new byte[1 << 12];
             // determine what to copy
             int bytesStart = downloadProgress;
             int bytesToGo = contentLengthValue;
-            if(contentRange != null) {
-                if(contentRange.getStart() != downloadProgress) {
+            if (contentRange != null) {
+                if (contentRange.getStart() != downloadProgress) {
                     logGetError("server returned wrong offset");
                     markFailed(agent);
                     return false;
                 }
-                if(contentRange.hasEnd()) {
-                    int rangeSize = (int)(contentRange.getEnd() - contentRange.getStart() + 1);
-                    if(rangeSize != bytesToGo) {
+                if (contentRange.hasEnd()) {
+                    int rangeSize = (int) (contentRange.getEnd() - contentRange.getStart() + 1);
+                    if (rangeSize != bytesToGo) {
                         logGetError("server returned range not corresponding to content length");
                         markFailed(agent);
                         return false;
                     }
                 }
-                if(contentRange.hasTotal()) {
-                    if(contentLength == -1) {
+                if (contentRange.hasTotal()) {
+                    if (contentLength == -1) {
                         long total = contentRange.getTotal();
                         logGetDebug("inferred content length " + total + " from range");
-                        contentLength = (int)total;
+                        contentLength = (int) total;
                     }
                 }
             }
-            if(contentLength == -1) {
+            if (contentLength == -1) {
                 logGetError("could not determine content length");
                 markFailed(agent);
                 return false;
@@ -602,7 +618,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             raf.seek(bytesStart);
             // copy data
             int savedProgress = downloadProgress;
-            while(bytesToGo > 0) {
+            while (bytesToGo > 0) {
                 logGetTrace("bytesToGo: " + bytesToGo);
                 logGetTrace("downloadProgress: " + downloadProgress);
                 // determine how much to copy
@@ -610,7 +626,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 // perform the copy
                 int bytesRead = is.read(buffer, 0, bytesToRead);
                 logGetTrace("reading " + bytesToRead + " returned " + bytesRead);
-                if(bytesRead == -1) {
+                if (bytesRead == -1) {
                     logGetWarning("eof with " + bytesToGo + " bytes to go");
                     return false;
                 }
@@ -625,15 +641,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                 savedProgress = maybeSaveProgress(agent, savedProgress);
                 // call listeners
                 notifyProgress(agent);
-                if(!agent.isDownloadActive(this)) {
+                if (!agent.isDownloadActive(this)) {
                     return true;
                 }
             }
             // update db
             saveProgress(agent);
             // update state
-            if(downloadProgress == contentLength) {
-                if(decryptionKey != null) {
+            if (downloadProgress == contentLength) {
+                if (decryptionKey != null) {
                     switchState(agent, State.DECRYPTING);
                 } else {
                     dataFile = filename;
@@ -648,7 +664,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             LOG.error("download exception", e);
             return false;
         } finally {
-            if(fd != null) {
+            if (fd != null) {
                 try {
                     fd.sync();
                 } catch (SyncFailedException sfe) {
@@ -665,31 +681,33 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return true;
     }
 
-    private boolean performDecryption(XoTransferAgent agent, String sourceFile, String destinationFile) {
-        LOG.debug("performDecryption(" + clientDownloadId + "," + sourceFile + "," + destinationFile + ")");
+    private boolean performDecryption(XoTransferAgent agent, String sourceFile,
+            String destinationFile) {
+        LOG.debug("performDecryption(" + clientDownloadId + "," + sourceFile + "," + destinationFile
+                + ")");
 
         File source = new File(sourceFile);
 
         File destination = new File(destinationFile);
-        if(destination.exists()) {
+        if (destination.exists()) {
             destination.delete();
         }
 
         try {
             byte[] key = Hex.decodeHex(decryptionKey.toCharArray());
-            int bytesToDecrypt = (int)source.length();
+            int bytesToDecrypt = (int) source.length();
             byte[] buffer = new byte[1 << 16];
             InputStream is = new FileInputStream(source);
             OutputStream os = new FileOutputStream(destination);
             OutputStream dos = AESCryptor.decryptingOutputStream(os, key, AESCryptor.NULL_SALT);
 
             int bytesToGo = bytesToDecrypt;
-            while(bytesToGo > 0) {
+            while (bytesToGo > 0) {
                 int bytesToCopy = Math.min(buffer.length, bytesToGo);
                 int bytesRead = is.read(buffer, 0, bytesToCopy);
                 dos.write(buffer, 0, bytesRead);
                 bytesToGo -= bytesRead;
-                if(!agent.isDownloadActive(this)) {
+                if (!agent.isDownloadActive(this)) {
                     return true;
                 }
             }
@@ -720,10 +738,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             BufferedInputStream btis = new BufferedInputStream(tis);
 
             Metadata metadata = new Metadata();
-            if(contentType != null && !contentType.equals("application/octet-stream")) {
+            if (contentType != null && !contentType.equals("application/octet-stream")) {
                 metadata.add(Metadata.CONTENT_TYPE, contentType);
             }
-            if(decryptedFile != null) {
+            if (decryptedFile != null) {
                 metadata.add(Metadata.RESOURCE_NAME_KEY, decryptedFile);
             }
 
@@ -731,18 +749,19 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
             tis.close();
 
-            if(mt != null) {
+            if (mt != null) {
                 String mimeType = mt.toString();
                 LOG.info("[" + clientDownloadId + "] detected type " + mimeType);
                 this.contentType = mimeType;
                 MimeType mimet = MimeTypes.getDefaultMimeTypes().getRegisteredMimeType(mimeType);
-                if(mimet != null) {
+                if (mimet != null) {
                     String extension = mimet.getExtension();
-                    if(extension != null) {
-                        LOG.info("[" + clientDownloadId + "] renaming to extension " + mimet.getExtension());
+                    if (extension != null) {
+                        LOG.info("[" + clientDownloadId + "] renaming to extension " + mimet
+                                .getExtension());
                         File newName = new File(destinationFile + extension);
-                        if(destination.renameTo(newName)) {
-                            if(decryptedFile != null) {
+                        if (destination.renameTo(newName)) {
+                            if (decryptedFile != null) {
                                 this.decryptedFile = this.decryptedFile + extension;
                                 this.dataFile = computeDecryptionFile(agent);
                             } else {
@@ -763,7 +782,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
         return true;
     }
-
 
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
@@ -790,11 +808,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private int maybeSaveProgress(XoTransferAgent agent, int previousProgress) {
         int delta = downloadProgress - previousProgress;
-        if(delta > PROGRESS_SAVE_MINIMUM) {
+        if (delta > PROGRESS_SAVE_MINIMUM) {
             saveProgress(agent);
             return downloadProgress;
         }
         return previousProgress;
+    }
+
+    public enum State {
+        INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED,
+        /* old states from before db version 7 */
+        REQUESTED, STARTED
     }
 
 }

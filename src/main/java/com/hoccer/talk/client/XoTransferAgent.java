@@ -102,7 +102,6 @@ public class XoTransferAgent implements IXoTransferListener {
 
             List<TalkClientUpload> fixupUploads = uploadDao.queryBuilder()
                 .where()
-                    /*    .eq("state", TalkClientUpload.State.ENCRYPTED)  */
                         .eq("state", TalkClientUpload.State.REGISTERED)
                         .eq("state", TalkClientUpload.State.STARTED)
                         .isNull("dataFile")
