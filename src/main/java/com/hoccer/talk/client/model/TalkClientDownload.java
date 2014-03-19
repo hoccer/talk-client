@@ -13,6 +13,7 @@ import com.hoccer.talk.model.TalkAttachment;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -38,6 +39,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.SyncFailedException;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.UUID;
@@ -111,6 +114,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     @DatabaseField
     private int transferFailures;
+
+    @DatabaseField(width = 128)
+    private String contentHmac;
 
     private transient long progressRateLimit;
 
@@ -232,6 +238,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 //        this.decryptionKey = Hex.encodeHexString(key);
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.decryptedFile = UUID.randomUUID().toString();
+        this.contentHmac = attachment.getHmac();
+
         String filename = attachment.getFilename();
         if (filename != null) {
             // XXX should avoid collisions here
@@ -339,6 +347,14 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public double getAspectRatio() {
         return aspectRatio;
+    }
+
+    public String getContentHmac() {
+        return contentHmac;
+    }
+
+    public void setContentHmac(String hmac) {
+        this.contentHmac = hmac;
     }
 
     public String getDataFile() {
@@ -694,11 +710,14 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
 
         try {
+
             byte[] key = Hex.decodeHex(decryptionKey.toCharArray());
             int bytesToDecrypt = (int) source.length();
             byte[] buffer = new byte[1 << 16];
             InputStream is = new FileInputStream(source);
-            OutputStream os = new FileOutputStream(destination);
+            OutputStream ofs = new FileOutputStream(destination);
+            MessageDigest digest = MessageDigest.getInstance("SHA256");
+            OutputStream os = new DigestOutputStream(ofs, digest);
             OutputStream dos = AESCryptor.decryptingOutputStream(os, key, AESCryptor.NULL_SALT);
 
             int bytesToGo = bytesToDecrypt;
@@ -717,6 +736,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             os.flush();
             os.close();
             is.close();
+
+            String computedHMac = new String(Base64.encodeBase64(digest.digest()));
+            if (this.contentHmac != null) {
+                if (this.contentHmac.equals(computedHMac)) {
+                    LOG.info("download hmac ok");
+                } else {
+                    LOG.error("download hmac mismatch, computed hmac=" + computedHMac + ", should be " + this.contentHmac);
+                }
+            }
 
             dataFile = destinationFile;
             switchState(agent, State.DETECTING);

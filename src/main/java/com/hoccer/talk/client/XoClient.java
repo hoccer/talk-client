@@ -2120,6 +2120,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             attachment.setMediaType(upload.getMediaType());
             attachment.setMimeType(upload.getContentType());
             attachment.setAspectRatio(upload.getAspectRatio());
+            attachment.setHmac(upload.getContentHmac());
         }
 
         // encrypt body and attachment dtor
