@@ -365,7 +365,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             LOG.info("[" + clientUploadId + "] performing registration");
             try {
                 ITalkRpcServer.FileHandles handles;
-                if(type == Type.AVATAR) {
+                if(!needEncryption) {
+                    this.uploadLength = dataLength;
                     handles = talkClient.getServerRpc().createFileForStorage(this.uploadLength);
                 } else {
                     this.encryptedLength = AESCryptor.calcEncryptedSize(getContentLength(),AESCryptor.NULL_SALT,AESCryptor.NULL_SALT);
@@ -375,9 +376,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 uploadUrl = handles.uploadUrl;
                 downloadUrl = handles.downloadUrl;
                 LOG.info("[" + clientUploadId + "] registered as " + handles.fileId);
-                if(!needEncryption) {
-                    this.uploadLength = dataLength;
-                }
+
                 switchState(agent, State.UPLOADING);
             } catch (Exception e) {
                 LOG.error("error registering", e);
@@ -438,7 +437,6 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         try {
             HttpClient client = agent.getHttpClient();
 
-            byte[] key = Hex.decode(encryptionKey);
             LOG.info("[upload " + clientUploadId + "] performing upload request");
 
             int last = uploadLength - 1;
@@ -452,15 +450,18 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             final HttpPut uploadRequest = new HttpPut(uploadUrl);
             if (this.progress > 0) {
                 uploadRequest.addHeader("Content-Range", uploadRange);
-            } else {
-                //uploadRequest.setHeader("Content-Length",Long.toString(encryptedLength));
             }
 
             InputStream clearIs = agent.getClient().getHost().openInputStreamForUrl("file://" + filename);
 
             InputStream is = null;
 
-            is = AESCryptor.encryptingInputStream(clearIs, key, AESCryptor.NULL_SALT);
+            if (isAttachment()) {
+                byte[] key = Hex.decode(encryptionKey);
+                is = AESCryptor.encryptingInputStream(clearIs, key, AESCryptor.NULL_SALT);
+            } else {
+                is = clearIs;
+            }
 
             is.skip(this.progress);
 
