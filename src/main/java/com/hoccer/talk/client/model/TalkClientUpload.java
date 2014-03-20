@@ -442,12 +442,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 uploadRequest.addHeader("Content-Range", uploadRange);
             }
 
-            InputStream clearIs;
-            if(filename.startsWith("file://")) {
-                clearIs = agent.getClient().getHost().openInputStreamForUrl(filename);
-            } else {
-                clearIs = agent.getClient().getHost().openInputStreamForUrl("file://" + filename);
-            }
+            InputStream clearIs = agent.getClient().getHost().openInputStreamForUrl(filename);
 
             InputStream is = null;
 
