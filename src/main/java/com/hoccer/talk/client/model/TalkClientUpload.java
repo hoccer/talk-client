@@ -387,7 +387,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         LOG.info("[upload " + clientUploadId + "] performing check request");
 
         int last = uploadLength - 1;
-        int confirmedProgress = 0;
+        //int confirmedProgress = 0;
         // perform a check request to ensure correct progress
         HttpPut checkRequest = new HttpPut(uploadUrl);
         String contentRangeValue = "bytes */" + uploadLength;
