@@ -843,7 +843,9 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                     LOG.debug("new group contact " + contact.getClientContactId());
 
-                    for(IXoContactListener listener: mContactListeners) {
+                    //for(IXoContactListener listener: mContactListeners) {
+                    for (int i = 0; i < mContactListeners.size(); i++) {
+                        IXoContactListener listener = mContactListeners.get(i);
                         listener.onContactAdded(contact);
                     }
 
