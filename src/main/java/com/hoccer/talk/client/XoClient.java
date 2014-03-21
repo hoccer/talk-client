@@ -58,6 +58,7 @@ import java.util.Vector;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class XoClient implements JsonRpcConnection.Listener {
 
@@ -126,9 +127,9 @@ public class XoClient implements JsonRpcConnection.Listener {
     /** JSON-RPC client instance */
     protected JsonRpcWsClient mConnection;
     /* RPC handler for notifications */
-	TalkRpcClientImpl mHandler;
+    TalkRpcClientImpl mHandler;
     /* RPC proxy bound to our server */
-	ITalkRpcServer mServerRpc;
+    ITalkRpcServer mServerRpc;
 
     /** Executor doing all the heavy network and database work */
     ScheduledExecutorService mExecutor;
@@ -159,6 +160,11 @@ public class XoClient implements JsonRpcConnection.Listener {
     long mLastActivity = 0;
 
     ObjectMapper mJsonMapper;
+
+    // temporary group for geolocation grouping
+    String mEnvironmentGroupId;
+    TalkEnvironment mEnvironment;
+    AtomicBoolean mEnvironmentUpdateCallPending = new AtomicBoolean(false);
 
     /**
      * Create a Hoccer Talk client using the given client database
@@ -588,8 +594,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 }
                 sendPresence();
             }
-        } catch (SQLException e) {
-            LOG.error("sql error", e);
+        } catch (Exception e) {
+            LOG.error("setClientString", e);
         }
     }
 
@@ -624,8 +630,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
                     LOG.debug("sending new presence");
                     sendPresence();
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+                } catch (Exception e) {
+                    LOG.error("setClientAvatar", e);
                 }
 
             }
@@ -633,32 +639,32 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public void setGroupName(final TalkClientContact group, final String groupName) {
-       mExecutor.execute(new Runnable() {
-           @Override
-           public void run() {
-               LOG.debug("changing group name");
-               TalkGroup presence = group.getGroupPresence();
-               if (presence == null) {
-                   LOG.error("group has no presence");
-                   return;
-               }
-               presence.setGroupName(groupName);
-               if (group.isGroupRegistered()) {
-                   try {
-                       mDatabase.saveGroup(presence);
-                       mDatabase.saveContact(group);
-                       LOG.debug("sending new group presence");
-                       mServerRpc.updateGroup(presence);
-                   } catch (SQLException e) {
-                       LOG.error("sql error", e);
-                   }
-               }
-               for (int i = 0; i < mContactListeners.size(); i++) {
-                   IXoContactListener listener = mContactListeners.get(i);
-                   listener.onGroupPresenceChanged(group);
-               }
-           }
-       });
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                LOG.debug("changing group name");
+                TalkGroup presence = group.getGroupPresence();
+                if (presence == null) {
+                    LOG.error("group has no presence");
+                    return;
+                }
+                presence.setGroupName(groupName);
+                if (group.isGroupRegistered()) {
+                    try {
+                        mDatabase.saveGroup(presence);
+                        mDatabase.saveContact(group);
+                        LOG.debug("sending new group presence");
+                        mServerRpc.updateGroup(presence);
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    }
+                }
+                for (int i = 0; i < mContactListeners.size(); i++) {
+                    IXoContactListener listener = mContactListeners.get(i);
+                    listener.onGroupPresenceChanged(group);
+                }
+            }
+        });
     }
 
     public void setGroupAvatar(final TalkClientContact group, final TalkClientUpload upload) {
@@ -1035,8 +1041,8 @@ public class XoClient implements JsonRpcConnection.Listener {
      * Called when the connection is opened
      * @param connection
      */
-	@Override
-	public void onOpen(JsonRpcConnection connection) {
+    @Override
+    public void onOpen(JsonRpcConnection connection) {
         LOG.debug("onOpen()");
         scheduleIdle();
         if(isRegistered()) {
@@ -1044,18 +1050,18 @@ public class XoClient implements JsonRpcConnection.Listener {
         } else {
             switchState(STATE_REGISTERING, "connected and unregistered");
         }
-	}
+    }
 
     /**
      * Called when the connection is closed
      * @param connection
      */
-	@Override
-	public void onClose(JsonRpcConnection connection) {
+    @Override
+    public void onClose(JsonRpcConnection connection) {
         LOG.debug("onClose()");
         shutdownIdle();
         handleDisconnect();
-	}
+    }
 
     private void doConnect() {
         LOG.debug("performing connect on connection #" + mConnection.getConnectionId());
@@ -1108,19 +1114,19 @@ public class XoClient implements JsonRpcConnection.Listener {
         shutdownKeepAlive();
         if(XoClientConfiguration.KEEPALIVE_ENABLED) {
             mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
-                    @Override
-                    public void run() {
-                        LOG.debug("performing keep-alive");
-                        try {
-                            mConnection.sendKeepAlive();
-                        } catch (IOException e) {
-                            LOG.error("error sending keepalive", e);
-                        }
+                @Override
+                public void run() {
+                    LOG.debug("performing keep-alive");
+                    try {
+                        mConnection.sendKeepAlive();
+                    } catch (IOException e) {
+                        LOG.error("error sending keepalive", e);
                     }
-                },
-                XoClientConfiguration.KEEPALIVE_INTERVAL,
-                XoClientConfiguration.KEEPALIVE_INTERVAL,
-                TimeUnit.SECONDS);
+                }
+            },
+                    XoClientConfiguration.KEEPALIVE_INTERVAL,
+                    XoClientConfiguration.KEEPALIVE_INTERVAL,
+                    TimeUnit.SECONDS);
         }
     }
 
@@ -1143,9 +1149,9 @@ public class XoClient implements JsonRpcConnection.Listener {
 
             // compute variable backoff component
             double variableTime =
-                Math.random() * Math.min(
-                    XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_MAXIMUM,
-                    variableFactor * XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_FACTOR);
+                    Math.random() * Math.min(
+                            XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_MAXIMUM,
+                            variableFactor * XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_FACTOR);
 
             // compute total backoff
             double totalTime = XoClientConfiguration.RECONNECT_BACKOFF_FIXED_DELAY + variableTime;
@@ -1344,7 +1350,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * Client-side RPC implementation
      */
-	public class TalkRpcClientImpl implements ITalkRpcClient {
+    public class TalkRpcClientImpl implements ITalkRpcClient {
 
         @Override
         public void ping() {
@@ -1367,16 +1373,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         @Override
-		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-			LOG.debug("server: incomingDelivery()");
+        public void incomingDelivery(TalkDelivery d, TalkMessage m) {
+            LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
-		}
+        }
 
-		@Override
-		public void outgoingDelivery(TalkDelivery d) {
-			LOG.debug("server: outgoingDelivery()");
+        @Override
+        public void outgoingDelivery(TalkDelivery d) {
+            LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(d);
-		}
+        }
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
@@ -1444,8 +1450,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             mDatabase.saveCredentials(self);
             mDatabase.savePresence(presence);
             mDatabase.saveContact(selfContact);
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } catch (Exception e) {
+            LOG.error("performRegistration", e);
         }
     }
 
@@ -1542,8 +1548,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.saveContact(contact);
             }
             return presence;
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } catch (Exception e) {
+            LOG.error("ensureSelfPresence", e);
             return null;
         }
     }
@@ -1629,6 +1635,43 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
         });
     }
+
+    public void setEnvironment(TalkEnvironment environment) {
+        mEnvironment = environment;
+    }
+
+    public void sendEnvironmentUpdate() {
+        LOG.debug("sendEnvironmentUpdate()");
+        if (this.getState() == STATE_ACTIVE && mEnvironment != null) {
+            if (mEnvironmentUpdateCallPending.compareAndSet(false,true)) {
+                final TalkEnvironment environment = mEnvironment;
+                mEnvironment = null;
+                mExecutor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            environment.setClientId(mSelfContact.getClientId());
+                            environment.setGroupId(mEnvironmentGroupId);
+                            mEnvironmentGroupId = mServerRpc.updateEnvironment(environment);
+                        } catch (Throwable t) {
+                            LOG.error("sendEnvironmentUpdate: other error", t);
+                        }
+                        mEnvironmentUpdateCallPending.set(false);
+                    }
+                });
+            } else {
+                LOG.debug("sendEnvironmentUpdate(): another update is still pending");
+            }
+        } else {
+            LOG.debug("sendEnvironmentUpdate(): client not yet active or no environment");
+        }
+    }
+
+
+    public void sendDestroyEnvironment() {
+
+    }
+
 
     private void updateOutgoingDelivery(final TalkDelivery delivery) {
         LOG.debug("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
@@ -2100,8 +2143,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
             mDatabase.savePresence(clientContact.getClientPresence());
             mDatabase.saveContact(clientContact);
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } catch (Exception e) {
+            LOG.error("updateClientPresence", e);
         }
         if(avatarDownload != null && wantDownload) {
             mTransferAgent.requestDownload(avatarDownload);
@@ -2291,7 +2334,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 if(groupContact == null) {
                     boolean createGroup =
                             clientContact.isSelf()
-                            && member.isInvolved();
+                                    && member.isInvolved();
                     if(createGroup) {
                         LOG.debug("creating group for member in state " + member.getState() + " group " + member.getGroupId());
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);

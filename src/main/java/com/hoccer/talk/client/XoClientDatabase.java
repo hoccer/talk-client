@@ -92,7 +92,10 @@ public class XoClientDatabase {
         mClientSelfs.createOrUpdate(credentials);
     }
 
-    public void savePresence(TalkPresence presence) throws SQLException {
+    public void savePresence(TalkPresence presence) throws Exception {
+        if (presence.getClientId() == null) {
+            throw new Exception("null client id");
+        }
         mPresences.createOrUpdate(presence);
     }
 
