@@ -1669,7 +1669,18 @@ public class XoClient implements JsonRpcConnection.Listener {
 
 
     public void sendDestroyEnvironment() {
-
+        if (this.getState() == STATE_ACTIVE) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        mServerRpc.destroyEnvironment(mSelfContact.getClientId(),mEnvironmentGroupId);
+                    } catch (Throwable t) {
+                        LOG.error("sendDestroyEnvironment: other error", t);
+                    }
+                }
+            });
+        }
     }
 
 
