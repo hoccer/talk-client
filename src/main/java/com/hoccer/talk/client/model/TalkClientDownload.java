@@ -40,7 +40,11 @@ import java.io.RandomAccessFile;
 import java.io.SyncFailedException;
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
+
+import sun.management.resources.agent;
 
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends XoTransfer implements IContentObject {
@@ -442,23 +446,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
 
         if (state == State.DOWNLOADING) {
-            while (transferFailures <= MAX_DOWNLOAD_RETRY) {
-                LOG.info("[" + clientDownloadId + "] download attempt " + transferFailures + "/"
-                        + MAX_DOWNLOAD_RETRY);
-                boolean success = performOneRequest(agent, downloadFilename);
-                if (success) {
-                    LOG.info("[" + clientDownloadId + "] download succeeded");
-                    break;
+            Timer timer = new Timer();
+            TimerTask downloadTask = new DownloadTask(this, agent, downloadFilename);
+            timer.scheduleAtFixedRate(downloadTask, 0, 5 * 1000);
+            try {
+                synchronized (this) {
+                    this.wait();
                 }
-                try {
-                    // TODO: schedule this
-                    long timeout = 2 * (transferFailures * transferFailures + 1) * 1000;
-                    Thread.sleep(timeout);
-                } catch (InterruptedException e) {
-                    LOG.error(e);
-                }
-                LOG.info("[" + clientDownloadId + "] download failed");
-                setTransferFailures(transferFailures + 1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
         if (state == State.DECRYPTING) {
@@ -819,6 +815,37 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         INITIALIZING, NEW, DOWNLOADING, PAUSED, DECRYPTING, DETECTING, COMPLETE, FAILED,
         /* old states from before db version 7 */
         REQUESTED, STARTED
+    }
+
+    private class DownloadTask extends TimerTask {
+
+        private final XoTransferAgent mAgent;
+
+        private final String mFilename;
+
+        private final TalkClientDownload mDownload;
+
+        public DownloadTask(TalkClientDownload download, XoTransferAgent agent, String filename) {
+            mAgent = agent;
+            mFilename = filename;
+            mDownload = download;
+        }
+
+        @Override
+        public void run() {
+            LOG.info("[" + clientDownloadId + "] download attempt " + transferFailures + "/"
+                    + MAX_DOWNLOAD_RETRY);
+            boolean success = performOneRequest(mAgent, mFilename);
+            if (success) {
+                LOG.info("[" + clientDownloadId + "] download succeeded");
+                synchronized (mDownload) {
+                    mDownload.notify();
+                }
+                this.cancel();
+            }
+            LOG.info("[" + clientDownloadId + "] download failed");
+            setTransferFailures(transferFailures + 1);
+        }
     }
 
 }
