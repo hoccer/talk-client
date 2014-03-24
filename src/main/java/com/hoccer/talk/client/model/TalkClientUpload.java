@@ -16,6 +16,7 @@ import com.j256.ormlite.table.DatabaseTable;
 import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
@@ -40,7 +41,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     public enum State {
         NEW, REGISTERING, UPLOADING, PAUSED, COMPLETE, FAILED,
         /* old states */
-         REGISTERED, STARTED
+        REGISTERED, STARTED
     }
 
     @DatabaseField(generatedId = true)
@@ -399,7 +400,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         LOG.info("[upload " + clientUploadId + "] performing check request");
 
         int last = uploadLength - 1;
-        int confirmedProgress = 0;
+        //int confirmedProgress = 0;
         // perform a check request to ensure correct progress
         HttpPut checkRequest = new HttpPut(uploadUrl);
         String contentRangeValue = "bytes */" + uploadLength;
@@ -430,6 +431,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             LOG.warn("[" + clientUploadId + "] no range header in check response");
             this.progress = 0;
         }
+        checkResponse.getEntity().consumeContent();
         return true;
     }
 
@@ -452,7 +454,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 uploadRequest.addHeader("Content-Range", uploadRange);
             }
 
-            InputStream clearIs = agent.getClient().getHost().openInputStreamForUrl("file://" + filename);
+            InputStream clearIs = agent.getClient().getHost().openInputStreamForUrl(filename);
 
             InputStream is = null;
 
@@ -509,6 +511,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             } else {
                 LOG.warn("[" + clientUploadId + "] no range header in upload response");
             }
+            uploadResponse.getEntity().consumeContent();
         } catch (Exception e) {
             e.printStackTrace();
         }

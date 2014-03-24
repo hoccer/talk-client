@@ -196,10 +196,10 @@ public class XoTransferAgent implements IXoTransferListener {
 
     public void requestUpload(final TalkClientUpload upload) {
         LOG.info("requestUpload(), dataurl: " + upload.getContentDataUrl() +
-                                "| contenturl: " + upload.getContentUrl() +
-                                "| datafile: " + upload.getDataFile() +
-                                "| contenttype: " + upload.getContentType() +
-                                "| clientUploadId: " + upload.getClientUploadId());
+                                " | contenturl: " + upload.getContentUrl() +
+                                " | datafile: " + upload.getDataFile() +
+                                " | contenttype: " + upload.getContentType() +
+                                " | clientUploadId: " + upload.getClientUploadId());
 
         try {
             mDatabase.saveClientUpload(upload);

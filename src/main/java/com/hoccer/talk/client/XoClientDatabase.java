@@ -7,20 +7,15 @@ import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
-import com.hoccer.talk.model.TalkDelivery;
-import com.hoccer.talk.model.TalkGroup;
-import com.hoccer.talk.model.TalkGroupMember;
-import com.hoccer.talk.model.TalkKey;
-import com.hoccer.talk.model.TalkMessage;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkPrivateKey;
-import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.Where;
 
+import com.j256.ormlite.support.ConnectionSource;
+import com.j256.ormlite.table.TableUtils;
 import org.apache.log4j.Logger;
 
 import java.sql.SQLException;
@@ -56,6 +51,30 @@ public class XoClientDatabase {
 
     Dao<TalkClientSmsToken, Integer> mSmsTokens;
 
+
+    public static void createTables(ConnectionSource cs) throws SQLException {
+        TableUtils.createTable(cs, TalkClientContact.class);
+        TableUtils.createTable(cs, TalkClientSelf.class);
+        TableUtils.createTable(cs, TalkPresence.class);
+        TableUtils.createTable(cs, TalkRelationship.class);
+        TableUtils.createTable(cs, TalkGroup.class);
+        TableUtils.createTable(cs, TalkGroupMember.class);
+
+        TableUtils.createTable(cs, TalkClientMembership.class);
+
+        TableUtils.createTable(cs, TalkClientMessage.class);
+        TableUtils.createTable(cs, TalkMessage.class);
+        TableUtils.createTable(cs, TalkDelivery.class);
+
+        TableUtils.createTable(cs, TalkKey.class);
+        TableUtils.createTable(cs, TalkPrivateKey.class);
+
+        TableUtils.createTable(cs, TalkAttachment.class);
+        TableUtils.createTable(cs, TalkClientDownload.class);
+        TableUtils.createTable(cs, TalkClientUpload.class);
+
+        TableUtils.createTable(cs, TalkClientSmsToken.class);
+    }
 
     public XoClientDatabase(IXoClientDatabaseBackend backend) {
         mBackend = backend;
