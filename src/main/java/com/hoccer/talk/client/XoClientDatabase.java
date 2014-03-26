@@ -275,7 +275,7 @@ public class XoClientDatabase {
                         inProgressCount++;
                     }
                 } else {
-                    LOG.error("no message for delivery for tag " + d.getMessageTag());
+                    LOG.error("No outgoing delivery for message with tag '" + d.getMessageTag() + "'.");
                 }
             }
             LOG.debug(Integer.toString(inProgressCount) + " Messages still in Progress");
