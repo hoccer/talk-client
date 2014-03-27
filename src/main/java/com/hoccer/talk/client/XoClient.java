@@ -514,36 +514,29 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void hello() {
 
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
+        TalkClientInfo clientInfo = new TalkClientInfo();
+        clientInfo.setClientName(mClientHost.getClientName());
+        clientInfo.setClientTime(mClientHost.getClientTime());
+        clientInfo.setClientLanguage(mClientHost.getClientLanguage());
+        clientInfo.setClientVersion(mClientHost.getClientVersion());
+        clientInfo.setDeviceModel(mClientHost.getDeviceModel());
+        clientInfo.setSystemName(mClientHost.getSystemName());
+        clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
+        clientInfo.setSystemVersion(mClientHost.getSystemVersion());
+        if (mClientHost.isSupportModeEnabled()) {
+            clientInfo.setSupportTag(mClientHost.getSupportTag());
+        }
 
-                TalkClientInfo clientInfo = new TalkClientInfo();
-                clientInfo.setClientName(mClientHost.getClientName());
-                clientInfo.setClientTime(mClientHost.getClientTime());
-                clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-                clientInfo.setClientVersion(mClientHost.getClientVersion());
-                clientInfo.setDeviceModel(mClientHost.getDeviceModel());
-                clientInfo.setSystemName(mClientHost.getSystemName());
-                clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
-                clientInfo.setSystemVersion(mClientHost.getSystemVersion());
-                if (mClientHost.isSupportModeEnabled()) {
-                    clientInfo.setSupportTag(mClientHost.getSupportTag());
-                }
-
-                try {
-                    LOG.debug("Hello: Saying hello to the server.");
-                    TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
-                    if (talkServerInfo != null) {
-                        LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
-                        LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
-                    }
-                } catch (JsonRpcClientTimeout error) {
-                    LOG.error("Error while sending Hello: ", error);
-                }
+        try {
+            LOG.debug("Hello: Saying hello to the server.");
+            TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
+            if (talkServerInfo != null) {
+                LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
+                LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
             }
-        });
-
+        } catch (JsonRpcClientTimeout error) {
+            LOG.error("Error while sending Hello: ", error);
+        }
     }
 
     /**
@@ -1241,7 +1234,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 Date never = new Date(0);
                 try {
                     LOG.debug("sync: HELLO");
-                    //hello();
+                    hello();
                     LOG.debug("sync: updating presence");
                     sendPresence();
                     LOG.debug("sync: syncing presences");
