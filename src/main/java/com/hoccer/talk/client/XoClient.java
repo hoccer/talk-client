@@ -1,6 +1,7 @@
 package com.hoccer.talk.client;
 
 import better.jsonrpc.client.JsonRpcClient;
+import better.jsonrpc.client.JsonRpcClientException;
 import better.jsonrpc.client.JsonRpcClientTimeout;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
@@ -514,28 +515,29 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void hello() {
 
-        TalkClientInfo clientInfo = new TalkClientInfo();
-        clientInfo.setClientName(mClientHost.getClientName());
-        clientInfo.setClientTime(mClientHost.getClientTime());
-        clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-        clientInfo.setClientVersion(mClientHost.getClientVersion());
-        clientInfo.setDeviceModel(mClientHost.getDeviceModel());
-        clientInfo.setSystemName(mClientHost.getSystemName());
-        clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
-        clientInfo.setSystemVersion(mClientHost.getSystemVersion());
-        if (mClientHost.isSupportModeEnabled()) {
-            clientInfo.setSupportTag(mClientHost.getSupportTag());
-        }
-
         try {
+
+            TalkClientInfo clientInfo = new TalkClientInfo();
+            clientInfo.setClientName(mClientHost.getClientName());
+            clientInfo.setClientTime(mClientHost.getClientTime());
+            clientInfo.setClientLanguage(mClientHost.getClientLanguage());
+            clientInfo.setClientVersion(mClientHost.getClientVersion());
+            clientInfo.setDeviceModel(mClientHost.getDeviceModel());
+            clientInfo.setSystemName(mClientHost.getSystemName());
+            clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
+            clientInfo.setSystemVersion(mClientHost.getSystemVersion());
+            if (mClientHost.isSupportModeEnabled()) {
+                clientInfo.setSupportTag(mClientHost.getSupportTag());
+            }
+
             LOG.debug("Hello: Saying hello to the server.");
             TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
             if (talkServerInfo != null) {
                 LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
                 LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
             }
-        } catch (JsonRpcClientTimeout error) {
-            LOG.error("Error while sending Hello: ", error);
+        } catch (JsonRpcClientException e) {
+            LOG.error("Error while sending Hello: ", e);
         }
     }
 
@@ -648,8 +650,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                        mServerRpc.updateGroup(presence);
                    } catch (SQLException e) {
                        LOG.error("sql error", e);
-                   } catch (JsonRpcClientTimeout error) {
-                       LOG.error("Error while sending new group presence: " + error);
+                   } catch (JsonRpcClientException e) {
+                       LOG.error("Error while sending new group presence: " , e);
                    }
                }
                for (int i = 0; i < mContactListeners.size(); i++) {
@@ -692,8 +694,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                             mServerRpc.updateGroup(presence);
                         } catch (SQLException e) {
                             LOG.error("sql error", e);
-                        } catch (JsonRpcClientTimeout error) {
-                            LOG.error("Error while sending new group presence: " + error);
+                        } catch (JsonRpcClientException e) {
+                            LOG.error("Error while sending new group presence: " , e);
                         }
                     }
                     mTransferAgent.requestUpload(upload);
@@ -718,8 +720,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             String token = mServerRpc.generateToken(tokenPurpose, tokenLifetime);
             LOG.debug("got pairing token " + token);
             return token;
-        }  catch (JsonRpcClientTimeout error) {
-            LOG.error("Error while generating pairing token: " + error);
+        }  catch (JsonRpcClientException e) {
+            LOG.error("Error while generating pairing token: ", e);
         }
         return null;
     }
@@ -864,8 +866,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                         setGroupAvatar(contact, avatarUpload);
                     }
 
-                } catch (JsonRpcClientTimeout error) {
-                    LOG.error("Error while creating group: " + error);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while creating group: ", e);
                 }
             }
         });
@@ -878,8 +880,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 try {
                     mServerRpc.inviteGroupMember(groupId, clientId);
-                }  catch (JsonRpcClientTimeout error) {
-                    LOG.error("Error while sending group invitation: " + error);
+                }  catch (JsonRpcClientException e) {
+                    LOG.error("Error while sending group invitation: " , e);
                 }
             }
         });
@@ -1263,15 +1265,15 @@ public class XoClient implements JsonRpcConnection.Listener {
                                 for (TalkGroupMember member : members) {
                                     updateGroupMember(member);
                                 }
-                            } catch (JsonRpcClientTimeout error) {
-                                LOG.error("Error while updating group member: " + error);
+                            } catch (JsonRpcClientException e) {
+                                LOG.error("Error while updating group member: " , e);
                             }
                         }
                     }
                 } catch (SQLException e) {
                     LOG.error("SQL Error while syncing: ", e);
-                } catch (JsonRpcClientTimeout error) {
-                    LOG.error("Error while syncing: ", error);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while syncing: ", e);
                 }
                 switchState(STATE_ACTIVE, "sync successful");
             }
@@ -1463,8 +1465,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
 
-        } catch (JsonRpcClientTimeout error) {
-            LOG.error("Error while performing registration: ", error);
+        } catch (JsonRpcClientException e) {
+            LOG.error("Error while performing registration: ", e);
         }
 
     }
@@ -1496,8 +1498,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             String Vc = new String(Hex.encodeHex(vc.calculateVerifier()));
             String Vs = mServerRpc.srpPhase2(Vc);
             vc.verifyServer(Hex.decodeHex(Vs.toCharArray()));
-        } catch (JsonRpcClientTimeout error) {
-            LOG.error("Error while performing registration: ", error);
+        } catch (JsonRpcClientException e) {
+            LOG.error("Error while performing registration: ", e);
         } catch (Exception e) {
             LOG.error("decoder exception in login", e);
             throw new RuntimeException("exception during login", e);
@@ -1644,8 +1646,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mServerRpc.updatePresence(presence);
                 } catch (SQLException e) {
                     LOG.error("SQL error", e);
-                } catch (JsonRpcClientTimeout error) {
-                    LOG.error("Error while sending presence: ", error);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while sending presence: ", e);
                 }
             }
         });
@@ -2218,8 +2220,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.error("SQL error", e);
                 }
             }
-        } catch (JsonRpcClientTimeout error) {
-            LOG.error("Error while retrieving key: ", error);
+        } catch (JsonRpcClientException e) {
+            LOG.error("Error while retrieving key: ", e);
         }
     }
 
@@ -2405,8 +2407,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                                 updateGroupPresence(group);
                             }
                         }
-                    } catch (JsonRpcClientTimeout error) {
-                        LOG.error("Error while getting groups: ", error);
+                    } catch (JsonRpcClientException e) {
+                        LOG.error("Error while getting groups: ", e);
                     }
                 }
             });
@@ -2513,8 +2515,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("encryption error", e);
                     } catch (NoSuchPaddingException e) {
                         LOG.error("encryption error", e);
-                    }  catch (JsonRpcClientTimeout error) {
-                        LOG.error("Error while updating group key: ", error);
+                    }  catch (JsonRpcClientException e) {
+                        LOG.error("Error while updating group key: ", e);
                     }
                 }
             }
