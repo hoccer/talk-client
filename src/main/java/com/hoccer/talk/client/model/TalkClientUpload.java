@@ -16,14 +16,11 @@ import com.j256.ormlite.table.DatabaseTable;
 import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
-import javax.crypto.CipherInputStream;
 import java.io.*;
 import java.sql.SQLException;
-import java.util.UUID;
 
 @DatabaseTable(tableName = "clientUpload")
 public class TalkClientUpload extends XoTransfer implements IContentObject {
@@ -407,6 +404,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             if(checkSc >= 400 && checkSc <= 499) {
                 markFailed(agent);
             }
+            checkResponse.getEntity().consumeContent();
             return false;
         }
         logRequestHeaders(checkResponse,"PUT-check response header ");
@@ -486,6 +484,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 if(uploadSc >= 400 && uploadSc <= 499) {
                     markFailed(agent);
                 }
+                uploadResponse.getEntity().consumeContent();
                 return false;
             }
 
