@@ -1267,6 +1267,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                                 }
                             } catch (JsonRpcClientException e) {
                                 LOG.error("Error while updating group member: " , e);
+                            } catch (RuntimeException e) {
+                                LOG.error("Error while updating group members: ", e);
                             }
                         }
                     }
