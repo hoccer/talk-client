@@ -10,7 +10,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoccer.talk.client.model.TalkClientContact;
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMembership;
@@ -19,6 +21,7 @@ import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
+import com.hoccer.talk.crypto.CryptoJSON;
 import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
@@ -39,6 +42,7 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -161,6 +165,8 @@ public class XoClient implements JsonRpcConnection.Listener {
     long mLastActivity = 0;
 
     ObjectMapper mJsonMapper;
+
+    int mRSAKeysize = 1024;
 
     /**
      * Create a Hoccer Talk client using the given client database
@@ -511,6 +517,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         mConnectFuture.cancel(true);
         mDisconnectFuture.cancel(true);
         mState = STATE_INACTIVE;
+    }
+
+    /**
+     * delete old key pair and create a new one
+     */
+    public void regenerateKeyPair() throws SQLException {
+        LOG.debug("regenerateKeyPair()");
+        mSelfContact.setPublicKey(null);
+        mSelfContact.setPrivateKey(null);
+        ensureSelfKey(mSelfContact);
     }
 
     public void hello() {
@@ -1316,6 +1332,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         final String messageTag = message.generateMessageTag();
         message.setBody(messageText);
+        message.setSenderId(getSelfContact().getClientId());
 
         delivery.setMessageTag(messageTag);
 
@@ -1471,6 +1488,81 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     }
 
+    private byte[] extractCredentialsAsJson(TalkClientContact selfContact) throws RuntimeException {
+        try {
+            String clientId = selfContact.getClientId();
+            TalkClientSelf self = selfContact.getSelf();
+
+            //String saltString = new String(Base64.encodeBase64(Hex.decodeHex(self.getSrpSalt().toCharArray())));
+            //byte[] secretString = new String(Base64.encodeBase64(Hex.decodeHex(self.getSrpSecret().toCharArray())));
+
+            ObjectMapper jsonMapper = new ObjectMapper();
+            ObjectNode rootNode = jsonMapper.createObjectNode();
+            rootNode.put("password", self.getSrpSecret());
+            rootNode.put("salt", self.getSrpSalt());
+            rootNode.put("clientId", clientId);
+            String jsonString = jsonMapper.writeValueAsString(rootNode);
+            return jsonString.getBytes("UTF-8");
+        } catch (Exception e) {
+            LOG.error("decoder exception in extractCredentials", e);
+            throw new RuntimeException("exception during extractCredentials", e);
+        }
+    }
+
+    private byte[] makeCryptedCredentialsContainer(TalkClientContact selfContact, String containerPassword) throws Exception {
+        byte[] credentials = extractCredentialsAsJson(selfContact);
+        byte[] container = CryptoJSON.encryptedContainer(credentials, containerPassword, "credentials");
+        return container;
+    }
+
+    private boolean setCryptedCredentialsFromContainer(TalkClientContact selfContact, byte[] jsonContainer, String containerPassword) {
+        try {
+            byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer,containerPassword,"credentials");
+            ObjectMapper jsonMapper = new ObjectMapper();
+            JsonNode json = jsonMapper.readTree(credentials);
+            if (json == null ||  !json.isObject()) {
+                throw new Exception("setCryptedCredentialsFromContainer: not a json object");
+            }
+            JsonNode password = json.get("password");
+            if (password == null) {
+                throw new Exception("setCryptedCredentialsFromContainer: missing password");
+            }
+            JsonNode saltNode = json.get("salt");
+            if (saltNode == null ) {
+                throw new Exception("setCryptedCredentialsFromContainer: missing salt");
+            }
+            JsonNode clientIdNode = json.get("clientId");
+            if (clientIdNode == null) {
+                throw new Exception("parseEncryptedContainer: wrong or missing ciphered content");
+            }
+            TalkClientSelf self = selfContact.getSelf();
+            self.provideCredentials(saltNode.asText(), password.asText());
+            selfContact.updateSelfRegistered(clientIdNode.asText());
+            return true;
+        } catch (Exception e) {
+            LOG.error("setCryptedCredentialsFromContainer", e);
+        }
+        return false;
+    }
+
+    public void testCredentialsContainer(TalkClientContact selfContact) {
+        try {
+            byte[] container = makeCryptedCredentialsContainer(selfContact,"12345678");
+            String containerString = new String(container,"UTF-8");
+            LOG.info(containerString);
+            if (setCryptedCredentialsFromContainer(selfContact,container,"12345678")) {
+                LOG.info("reading credentials from container succeeded");
+            } else {
+                LOG.info("reading credentials from container failed");
+
+            }
+        } catch (UnsupportedEncodingException e) {
+            LOG.error("testCredentialsContainer", e);
+        } catch (Exception e) {
+            LOG.error("testCredentialsContainer", e);
+        }
+    }
+
     private void performLogin(TalkClientContact selfContact) {
         String clientId = selfContact.getClientId();
         LOG.debug("login: attempting login as " + clientId);
@@ -1504,7 +1596,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("decoder exception in login", e);
             throw new RuntimeException("exception during login", e);
         }
-
+        // testCredentialsContainer(selfContact);
         LOG.debug("login: successful");
     }
 
@@ -1581,8 +1673,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             try {
                 LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair");
 
-                LOG.debug("generating keypair");
-                KeyPair keyPair = RSACryptor.generateRSAKeyPair(1024);
+                mRSAKeysize = mClientHost.getRSAKeysize();
+                LOG.debug("generating RSA keypair with size "+mRSAKeysize);
+                KeyPair keyPair = RSACryptor.generateRSAKeyPair(mRSAKeysize);
 
                 LOG.trace("unwrapping public key");
                 PublicKey pubKey = keyPair.getPublic();
@@ -1592,7 +1685,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                 LOG.trace("unwrapping private key");
                 PrivateKey privKey = keyPair.getPrivate();
-                byte[] privEnc = RSACryptor.unwrapRSA1024_PKCS8(privKey.getEncoded());
+                byte[] privEnc = RSACryptor.unwrapRSA_PKCS8(privKey.getEncoded());
 //                String privStr = Base64.encodeBase64String(privEnc);
                 String privStr = new String(Base64.encodeBase64(privEnc));
 
@@ -1801,6 +1894,16 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // contact (provides decryption context)
         TalkClientContact contact = clientMessage.getConversationContact();
+
+        if (!message.getMessageTag().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            byte[] hmac = message.computeHMAC();
+            String hmacString = new String(Base64.encodeBase64(hmac));
+            if (hmacString.equals(message.getMessageTag())) {
+                LOG.info("HMAC ok");
+            }  else {
+                LOG.error("HMAC mismatch");
+            }
+        }
 
         // default message text
         clientMessage.setText("");
@@ -2046,13 +2149,14 @@ public class XoClient implements JsonRpcConnection.Listener {
             attachment.setMediaType(upload.getMediaType());
             attachment.setMimeType(upload.getContentType());
             attachment.setAspectRatio(upload.getAspectRatio());
+            attachment.setHmac(upload.getContentHmac());
         }
 
         // encrypt body and attachment dtor
         try {
             // encrypt body
             LOG.trace("encrypting body");
-            byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes());
+            byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes("UTF-8"));
 //            message.setBody(Base64.encodeBase64String(encryptedBody));
             message.setBody(new String(Base64.encodeBase64(encryptedBody)));
             // encrypt attachment dtor
@@ -2085,6 +2189,10 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(upload != null) {
             mTransferAgent.requestUpload(upload);
         }
+        message.setTimeSent(new Date());
+        byte[] hmac = message.computeHMAC();
+        message.setMessageTag(new String(Base64.encodeBase64(hmac)));
+
     }
 
     private void updateClientPresence(TalkPresence presence) {

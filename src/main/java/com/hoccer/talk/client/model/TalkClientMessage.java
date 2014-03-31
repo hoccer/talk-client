@@ -55,6 +55,13 @@ public class TalkClientMessage {
     @DatabaseField
     private Date timestamp;
 
+    @DatabaseField(width = 128)
+    private String hmac;
+
+    @DatabaseField(width = 1024)
+    private String signature;
+
+
     @DatabaseField
     private boolean inProgress;
 
@@ -176,6 +183,22 @@ public class TalkClientMessage {
 
     public void markAsDeleted() {
         this.deleted = true;
+    }
+
+    public String getHmac() {
+        return hmac;
+    }
+
+    public void setHmac(String hmac) {
+        this.hmac = hmac;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    public void setSignature(String signature) {
+        this.signature = signature;
     }
 
     public Date getTimestamp() {
