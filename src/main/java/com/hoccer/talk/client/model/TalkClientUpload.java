@@ -85,6 +85,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     @DatabaseField(width = 128)
     private String mediaType;
 
+    @DatabaseField(width = 128)
+    private String contentHmac;
+
     @DatabaseField
     private double aspectRatio;
 
@@ -245,6 +248,14 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return progress;
     }
 
+    public String getContentHmac() {
+        return contentHmac;
+    }
+
+    public void setcontentHmac(String hmac) {
+        this.contentHmac = hmac;
+    }
+
     public boolean isAvatar() {
         return type == Type.AVATAR;
     }
@@ -271,7 +282,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.mediaType = "image";
     }
 
-    public void initializeAsAttachment(String contentUrl, String url, String contentType, String mediaType, double aspectRatio, int contentLength) {
+    public void initializeAsAttachment(String contentUrl, String url, String contentType, String mediaType, double aspectRatio, int contentLength, String hmac) {
         LOG.info("[new] initializing as attachment: " + url + " length " + contentLength);
 
         this.type = Type.ATTACHMENT;
@@ -280,6 +291,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
         this.dataFile = url;
         this.dataLength = contentLength;
+        this.contentHmac = hmac;
 
         this.contentType = contentType;
         this.mediaType = mediaType;

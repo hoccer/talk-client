@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+//public class ProgressOutputHttpEntity extends InputStreamEntity {
 public class ProgressOutputHttpEntity extends InputStreamEntity {
 
     IProgressListener mProgressListener;
