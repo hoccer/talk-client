@@ -592,6 +592,26 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
+    public void setClientConnectionStatus(String newStatus) {
+        try {
+            TalkPresence presence = mSelfContact.getClientPresence();
+            if(presence != null & presence.getClientId() != null) {
+                if(newStatus != null && newStatus != presence.getClientStatus()) {
+                    presence.setClientStatus(newStatus);
+                    mSelfContact.updatePresence(presence);
+                    mDatabase.savePresence(presence);
+                    for (int i = 0; i < mContactListeners.size(); i++) {
+                        IXoContactListener listener = mContactListeners.get(i);
+                        listener.onClientPresenceChanged(mSelfContact);
+                    }
+                    sendPresence();
+                }
+            }
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+        }
+    }
+
     public void setClientAvatar(final TalkClientUpload upload) {
         LOG.debug("new avatar as upload " + upload);
         resetIdle();
@@ -1559,7 +1579,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 presence = new TalkPresence();
                 presence.setClientId(contact.getClientId());
                 presence.setClientName("Client");
-                presence.setClientStatus("I am.");
+                presence.setClientStatus(TalkPresence.CONN_STATUS_ONLINE);
                 presence.setTimestamp(new Date());
                 contact.updatePresence(presence);
                 mDatabase.savePresence(presence);
