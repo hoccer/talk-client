@@ -179,14 +179,36 @@ public class XoClientDatabase {
     }
 
     public List<TalkClientContact> findAllClientContacts() throws SQLException {
-        return mClientContacts.queryBuilder().where()
-                 .eq("contactType", TalkClientContact.TYPE_CLIENT)
-                 .eq("deleted", false)
+        return findAllClientContactsOrderedByRecentMessage();
+    }
+
+    public List<TalkClientContact> findAllClientContactsOrderedByRecentMessage() throws SQLException {
+        QueryBuilder<TalkClientMessage, Integer> query = mClientMessages.queryBuilder();
+        query.where().eq("seen", false);
+        query.orderBy("timestamp", false);
+        QueryBuilder<TalkClientContact, Integer> query1 = mClientContacts.queryBuilder();
+        List<TalkClientContact> orderedListOfSenders = query1.join(query).query();
+        List<TalkClientContact> allContacts = mClientContacts.queryBuilder().where()
+                .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .eq("deleted", false)
                 .and(2)
-               .query();
+                .query();
+        ArrayList<TalkClientContact> orderedListOfDistinctSenders = new ArrayList<TalkClientContact>();
+        for (int i=0; i<orderedListOfSenders.size(); i++) {
+            if (!orderedListOfDistinctSenders.contains(orderedListOfSenders.get(i))) {
+                orderedListOfDistinctSenders.add(orderedListOfSenders.get(i));
+            }
+        }
+        for (int i=0; i<allContacts.size(); i++) {
+            if (!orderedListOfDistinctSenders.contains(allContacts.get(i))) {
+                orderedListOfDistinctSenders.add(allContacts.get(i));
+            }
+        }
+        return orderedListOfDistinctSenders;
     }
 
     public List<TalkClientContact> findAllGroupContacts() throws SQLException {
+
         return mClientContacts.queryBuilder().where()
                  .eq("contactType", TalkClientContact.TYPE_GROUP)
                  .eq("deleted", false)
