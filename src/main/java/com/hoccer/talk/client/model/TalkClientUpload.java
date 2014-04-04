@@ -105,10 +105,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     public void fixupVersion7(XoTransferAgent agent) {
-        LOG.debug("fixup upload " + clientUploadId);
+        LOG.debug("fixup upload with id: '" + clientUploadId + "'");
         boolean changed = false;
         if(state == State.REGISTERED || state == State.STARTED) {
-            LOG.debug("state " + state + " fixed");
+            LOG.debug("state '" + state + "' fixed");
             changed = true;
             state = State.UPLOADING;
         }
@@ -123,7 +123,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             dataFile = "file://" + dataFile;
         }
         if(changed) {
-            LOG.debug("upload " + clientUploadId + " fixed");
+            LOG.debug("upload with id '" + clientUploadId + "' fixed");
             saveProgress(agent);
             agent.onUploadStateChanged(this);
         }
@@ -160,7 +160,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             case STARTED:
                 return ContentState.UPLOAD_UPLOADING;
             default:
-                throw new RuntimeException("Unknown upload state " + state);
+                throw new RuntimeException("Unknown upload state '" + state + "'");
         }
     }
     @Override
@@ -304,15 +304,15 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
         fixupVersion7(agent);
 
-        LOG.info("performing upload attempt in state " + this.state);
+        LOG.info("performing upload attempt in state '" + this.state + "'");
 
         String uploadFile = this.dataFile;
         if(uploadFile == null) {
-            LOG.error("could not compute upload location for " + clientUploadId);
+            LOG.error("could not compute upload location for clientUploadId '" + clientUploadId + "'");
             return;
         }
 
-        LOG.trace("upload from file " + uploadFile);
+        LOG.trace("upload from file '" + uploadFile + "'");
 
         if(state == State.COMPLETE) {
             LOG.warn("tried to perform completed upload");
@@ -353,14 +353,14 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
         saveProgress(agent);
 
-        LOG.info("upload attempt finished in state " + this.state);
+        LOG.info("upload attempt finished in state '" + this.state + "'");
     }
 
     public boolean performRegistration(XoTransferAgent agent, boolean needEncryption) {
-        LOG.info("performRegistration() state " + state);
+        LOG.info("performRegistration(), state: ‘" + state + "'");
         XoClient talkClient = agent.getClient();
         if(this.state == State.NEW || state == State.REGISTERING) {
-            LOG.info("[" + clientUploadId + "] performing registration");
+            LOG.info("[uploadId: '" + clientUploadId + "'] performing registration");
             try {
                 ITalkRpcServer.FileHandles handles;
                 if(!needEncryption) {
@@ -373,7 +373,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 }
                 uploadUrl = handles.uploadUrl;
                 downloadUrl = handles.downloadUrl;
-                LOG.info("[" + clientUploadId + "] registered as " + handles.fileId);
+                LOG.info("[uploadId: '" + clientUploadId + "'] registered as fileId: '" + handles.fileId + "'");
 
                 switchState(agent, State.UPLOADING);
             } catch (Exception e) {
@@ -394,23 +394,23 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     private boolean performCheckRequest(XoTransferAgent agent) throws IOException {
         HttpClient client = agent.getHttpClient();
 
-        LOG.info("[upload " + clientUploadId + "] performing check request");
+        LOG.info("[uploadId: '" + clientUploadId + "'] performing check request");
 
         int last = uploadLength - 1;
         //int confirmedProgress = 0;
         // perform a check request to ensure correct progress
         HttpPut checkRequest = new HttpPut(uploadUrl);
         String contentRangeValue = "bytes */" + uploadLength;
-        LOG.trace("PUT-check range " + contentRangeValue);
+        LOG.trace("PUT-check range '" + contentRangeValue + "'");
         //checkRequest.addHeader("Content-Range", contentRangeValue);
         //checkRequest.setHeader("Content-Length","0");
-        LOG.trace("PUT-check " + uploadUrl + " commencing");
+        LOG.trace("PUT-check '" + uploadUrl + "' commencing");
         logRequestHeaders(checkRequest,"PUT-check request header ");
 
         HttpResponse checkResponse = client.execute(checkRequest);
         StatusLine checkStatus = checkResponse.getStatusLine();
         int checkSc = checkStatus.getStatusCode();
-        LOG.trace("PUT-check " + uploadUrl + " status " + checkSc + ": " + checkStatus.getReasonPhrase());
+        LOG.trace("PUT-check '" + uploadUrl + "' with status '" + checkSc + "': " + checkStatus.getReasonPhrase());
         if(checkSc != HttpStatus.SC_OK && checkSc != 308 /* resume incomplete */) {
             // client error - mark as failed
             if(checkSc >= 400 && checkSc <= 499) {
@@ -426,7 +426,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         if(checkRangeHeader != null) {
             checkCompletion(agent, checkRangeHeader);
         } else {
-            LOG.warn("[" + clientUploadId + "] no range header in check response");
+            LOG.warn("[uploadId: '" + clientUploadId + "'] no range header in check response");
             this.progress = 0;
         }
         checkResponse.getEntity().consumeContent();
@@ -437,15 +437,15 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         try {
             HttpClient client = agent.getHttpClient();
 
-            LOG.info("[upload " + clientUploadId + "] performing upload request");
+            LOG.info("[uploadId: '" + clientUploadId + "'] performing upload request");
 
             int last = uploadLength - 1;
 
             int bytesToGo = uploadLength - this.progress;
-            LOG.trace("PUT-upload " + uploadUrl + " " + bytesToGo + " bytes to go ");
+            LOG.trace("PUT-upload '" + uploadUrl + "' '" + bytesToGo + "' bytes to go ");
 
             String uploadRange = "bytes " + this.progress + "-" + last + "/" + uploadLength;
-            LOG.trace("PUT-upload " + uploadUrl + " range " + uploadRange);
+            LOG.trace("PUT-upload '" + uploadUrl + "' with range '" + uploadRange + "'");
 
             final HttpPut uploadRequest = new HttpPut(uploadUrl);
             if (this.progress > 0) {
@@ -483,14 +483,14 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 }
             };
             uploadRequest.setEntity(new ProgressOutputHttpEntity(is, bytesToGo, progressListener));
-            LOG.trace("PUT-upload " + uploadUrl + " commencing");
+            LOG.trace("PUT-upload '" + uploadUrl + "' commencing");
             logRequestHeaders(uploadRequest, "PUT-upload response header ");
             HttpResponse uploadResponse = client.execute(uploadRequest);
             this.progress = uploadLength;
             saveProgress(agent);
             StatusLine uploadStatus = uploadResponse.getStatusLine();
             int uploadSc = uploadStatus.getStatusCode();
-            LOG.trace("PUT-upload " + uploadUrl + " status " + uploadSc + ": " + uploadStatus.getReasonPhrase());
+            LOG.trace("PUT-upload '" + uploadUrl + "' with status '" + uploadSc + "': " + uploadStatus.getReasonPhrase());
             if(uploadSc != HttpStatus.SC_OK && uploadSc != 308 /* resume incomplete */) {
                 // client error - mark as failed
                 if(uploadSc >= 400 && uploadSc <= 499) {
@@ -508,7 +508,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             if(checkRangeHeader != null) {
                 checkCompletion(agent, checkRangeHeader);
             } else {
-                LOG.warn("[" + clientUploadId + "] no range header in upload response");
+                LOG.warn("[uploadId: '" + clientUploadId + "'] no range header in upload response");
             }
             uploadResponse.getEntity().consumeContent();
         } catch (Exception e) {
@@ -524,7 +524,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
         ByteRange uploadedRange = ByteRange.parseContentRange(checkRangeHeader.getValue());
 
-        LOG.info("probe returned uploaded range " + uploadedRange.toContentRangeString());
+        LOG.info("probe returned uploaded range '" + uploadedRange.toContentRangeString() + "'");
 
         if(uploadedRange.hasTotal()) {
             if(uploadedRange.getTotal() != uploadLength) {
