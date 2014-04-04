@@ -1308,6 +1308,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                             }
                         }
                     }
+                    LOG.info("SYNC finished. Now enabling notifications...");
+                    mServerRpc.setNotificationAvailability(true);
                 } catch (SQLException e) {
                     LOG.error("SQL Error while syncing: ", e);
                 } catch (JsonRpcClientException e) {
