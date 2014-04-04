@@ -1509,13 +1509,13 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    private byte[] makeCryptedCredentialsContainer(TalkClientContact selfContact, String containerPassword) throws Exception {
+    public byte[] makeCryptedCredentialsContainer(TalkClientContact selfContact, String containerPassword) throws Exception {
         byte[] credentials = extractCredentialsAsJson(selfContact);
         byte[] container = CryptoJSON.encryptedContainer(credentials, containerPassword, "credentials");
         return container;
     }
 
-    private boolean setCryptedCredentialsFromContainer(TalkClientContact selfContact, byte[] jsonContainer, String containerPassword) {
+    public boolean setCryptedCredentialsFromContainer(TalkClientContact selfContact, byte[] jsonContainer, String containerPassword) {
         try {
             byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer,containerPassword,"credentials");
             ObjectMapper jsonMapper = new ObjectMapper();
