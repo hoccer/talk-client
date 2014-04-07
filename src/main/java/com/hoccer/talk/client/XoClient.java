@@ -1527,7 +1527,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 try {
                     resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
                 } catch (Exception ex) {
-                    LOG.debug("Caugth exception " + ex.getMessage());
+                    LOG.debug("Caught exception " + ex.getMessage());
                 }
                 for(int j = 0; j < resultingDeliveries.length; j++) {
                     updateOutgoingDelivery(resultingDeliveries[j]);
@@ -1998,6 +1998,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             plainKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
             // get public key for encrypting the key
             TalkKey talkPublicKey = receiver.getPublicKey();
+
+            // TODO: do not just log here! Raise! This can lead to plaintext being sent!
             if(talkPublicKey == null) {
                 LOG.error("no pubkey for encryption");
                 return;
