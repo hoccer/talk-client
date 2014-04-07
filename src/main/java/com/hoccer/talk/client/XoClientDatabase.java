@@ -182,12 +182,14 @@ public class XoClientDatabase {
         return findAllClientContactsOrderedByRecentMessage();
     }
 
-    public List<TalkClientContact> findAllClientContactsOrderedByRecentMessage() throws SQLException {
-        QueryBuilder<TalkClientMessage, Integer> query = mClientMessages.queryBuilder();
-        query.where().eq("seen", false);
-        query.orderBy("timestamp", false);
-        QueryBuilder<TalkClientContact, Integer> query1 = mClientContacts.queryBuilder();
-        List<TalkClientContact> orderedListOfSenders = query1.join(query).query();
+    private List<TalkClientContact> findAllClientContactsOrderedByRecentMessage() throws SQLException {
+        QueryBuilder<TalkClientMessage, Integer> recentUnreadMessages = mClientMessages.queryBuilder();
+        QueryBuilder<TalkClientContact, Integer> recentSenders = mClientContacts.queryBuilder();
+        recentUnreadMessages.orderBy("timestamp", false);
+        List<TalkClientContact> orderedListOfSenders = recentSenders.join(recentUnreadMessages).where()
+                .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .eq("deleted", false)
+                .and(2).query();
         List<TalkClientContact> allContacts = mClientContacts.queryBuilder().where()
                 .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
@@ -405,8 +407,10 @@ public class XoClientDatabase {
     }
 
     public List<TalkClientMessage> findUnseenMessages() throws SQLException {
-        return mClientMessages.queryForEq("seen", false);
+        return  mClientMessages.queryBuilder().orderBy("timestamp", false).
+                where().eq("seen", false).query();
     }
+
 
     public TalkClientMembership findMembershipByContacts(int groupId, int clientId, boolean create) throws SQLException {
         TalkClientMembership res = mClientMemberships.queryBuilder().where()
