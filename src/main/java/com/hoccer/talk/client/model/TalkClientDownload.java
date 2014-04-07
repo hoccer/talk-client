@@ -470,7 +470,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                     this.wait();
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOG.error("Error while performing download attempt: ", e);
             }
         }
         if (state == State.DECRYPTING) {
