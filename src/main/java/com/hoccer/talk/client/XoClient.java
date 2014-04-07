@@ -1531,13 +1531,13 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    public byte[] makeCryptedCredentialsContainer(TalkClientContact selfContact, String containerPassword) throws Exception {
-        byte[] credentials = extractCredentialsAsJson(selfContact);
+    public byte[] makeCryptedCredentialsContainer(String containerPassword) throws Exception {
+        byte[] credentials = extractCredentialsAsJson(getSelfContact());
         byte[] container = CryptoJSON.encryptedContainer(credentials, containerPassword, "credentials");
         return container;
     }
 
-    public boolean setCryptedCredentialsFromContainer(TalkClientContact selfContact, byte[] jsonContainer, String containerPassword) {
+    public boolean setCryptedCredentialsFromContainer(byte[] jsonContainer, String containerPassword) {
         try {
             byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer,containerPassword,"credentials");
             ObjectMapper jsonMapper = new ObjectMapper();
@@ -1557,9 +1557,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             if (clientIdNode == null) {
                 throw new Exception("parseEncryptedContainer: wrong or missing ciphered content");
             }
-            TalkClientSelf self = selfContact.getSelf();
+            TalkClientSelf self = getSelfContact().getSelf();
             self.provideCredentials(saltNode.asText(), password.asText());
-            selfContact.updateSelfRegistered(clientIdNode.asText());
+            getSelfContact().updateSelfRegistered(clientIdNode.asText());
             return true;
         } catch (Exception e) {
             LOG.error("setCryptedCredentialsFromContainer", e);
@@ -1569,10 +1569,10 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void testCredentialsContainer(TalkClientContact selfContact) {
         try {
-            byte[] container = makeCryptedCredentialsContainer(selfContact,"12345678");
+            byte[] container = makeCryptedCredentialsContainer("12345678");
             String containerString = new String(container,"UTF-8");
             LOG.info(containerString);
-            if (setCryptedCredentialsFromContainer(selfContact,container,"12345678")) {
+            if (setCryptedCredentialsFromContainer(container,"12345678")) {
                 LOG.info("reading credentials from container succeeded");
             } else {
                 LOG.info("reading credentials from container failed");
