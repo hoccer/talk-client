@@ -1231,7 +1231,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: HELLO");
                     hello();
                     LOG.debug("sync: updating presence");
-                    sendPresence();
+                    ScheduledFuture sendPresenceFuture = sendPresence();
                     LOG.debug("sync: syncing presences");
                     TalkPresence[] presences = mServerRpc.getPresences(never);
                     for(TalkPresence presence: presences) {
@@ -1263,6 +1263,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                             }
                         }
                     }
+
+                    // TODO: use the future here for mentioned reasons...
+                    // ensure we are finished with generating pub/private keys before going active...
+                    // sendPresenceFuture.get();
                 } catch (Throwable t) {
                     LOG.error("error during sync", t);
                 }
@@ -1611,9 +1615,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    private void sendPresence() {
+    private ScheduledFuture sendPresence() {
         LOG.debug("sendPresence()");
-        mExecutor.execute(new Runnable() {
+        return mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
                 Date now = new Date();
@@ -1633,7 +1637,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.error("other error", t);
                 }
             }
-        });
+        }, 0, TimeUnit.SECONDS);
     }
 
     public void setEnvironment(TalkEnvironment environment) {
