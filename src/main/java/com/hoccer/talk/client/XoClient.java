@@ -2524,6 +2524,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 //                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
                             String encodedGroupKey = new String(Base64.encodeBase64(encryptedGroupKey));
                             // send the key to the server for distribution
+                            // TODO: use updateGroupKeys
                             mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
                         }
                     } catch (SQLException e) {
