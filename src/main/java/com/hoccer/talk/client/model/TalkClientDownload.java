@@ -248,16 +248,16 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         this.downloadFile = id;
         this.fileName = attachment.getFilename();
 
-//        this.decryptionKey = Hex.encodeHexString(key);
-        this.decryptionKey = new String(Hex.encodeHex(key));
-        this.decryptedFile = UUID.randomUUID().toString();
-        this.contentHmac = attachment.getHmac();
-
-        String filename = attachment.getFilename();
-        if (filename != null) {
-            // XXX should avoid collisions here
-            this.decryptedFile = filename;
+        String fileName = attachment.getFilename();
+        if (fileName != null) {
+            Long timeStamp = new Date().getTime();
+            this.decryptedFile = fileName + "-" + timeStamp;
+        } else {
+            this.decryptedFile = UUID.randomUUID().toString();
         }
+
+        this.decryptionKey = new String(Hex.encodeHex(key));
+        this.contentHmac = attachment.getHmac();
     }
 
     public void provideContentUrl(XoTransferAgent agent, String url) {
