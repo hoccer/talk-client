@@ -512,7 +512,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             }
             uploadResponse.getEntity().consumeContent();
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error("Exception while performing upload request: ", e);
         }
 
         return true;
