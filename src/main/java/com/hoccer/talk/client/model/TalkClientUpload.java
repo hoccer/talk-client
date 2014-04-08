@@ -53,6 +53,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     @DatabaseField
     private String contentUrl;
 
+    @DatabaseField
+    private String fileName;
 
     /** Plain data file */
     @DatabaseField(width = 2000)
@@ -216,6 +218,11 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return type;
     }
 
+    @Override
+    public String getFileName() {
+        return fileName;
+    }
+
     public String getDataFile() {
         return dataFile;
     }
@@ -224,6 +231,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return downloadUrl;
     }
 
+    @Override
     public String getContentType() {
         return contentType;
     }
@@ -248,6 +256,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return progress;
     }
 
+    @Override
     public String getContentHmac() {
         return contentHmac;
     }
@@ -282,12 +291,13 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         this.mediaType = "image";
     }
 
-    public void initializeAsAttachment(String contentUrl, String url, String contentType, String mediaType, double aspectRatio, int contentLength, String hmac) {
+    public void initializeAsAttachment(String fileName, String contentUrl, String url, String contentType, String mediaType, double aspectRatio, int contentLength, String hmac) {
         LOG.info("[new] initializing as attachment: " + url + " length " + contentLength);
 
         this.type = Type.ATTACHMENT;
 
         this.contentUrl = contentUrl;
+        this.fileName = fileName;
 
         this.dataFile = url;
         this.dataLength = contentLength;

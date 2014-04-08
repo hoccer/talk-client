@@ -2166,6 +2166,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
             LOG.debug("attachment download url is '" + upload.getDownloadUrl() + "'");
             attachment = new TalkAttachment();
+            attachment.setFilename(upload.getFileName());
             attachment.setUrl(upload.getDownloadUrl());
             attachment.setContentSize(Integer.toString(upload.getDataLength()));
             attachment.setMediaType(upload.getMediaType());

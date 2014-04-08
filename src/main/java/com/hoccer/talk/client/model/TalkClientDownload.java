@@ -78,6 +78,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     private State state;
 
     @DatabaseField
+    private String fileName;
+
+    @DatabaseField
     private String contentUrl;
 
     @DatabaseField
@@ -200,6 +203,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     @Override
+    public String getFileName() {
+        return fileName;
+    }
+
+    @Override
     public String getContentDataUrl() {
         // TODO fix up this field on db upgrade
         if (dataFile != null) {
@@ -238,6 +246,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = id;
+        this.fileName = attachment.getFilename();
 
 //        this.decryptionKey = Hex.encodeHexString(key);
         this.decryptionKey = new String(Hex.encodeHex(key));
