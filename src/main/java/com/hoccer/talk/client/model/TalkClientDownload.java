@@ -47,8 +47,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 
-import sun.management.resources.agent;
-
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends XoTransfer implements IContentObject {
 
@@ -246,9 +244,12 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = id;
-        this.fileName = attachment.getFilename();
-
         this.decryptedFile = UUID.randomUUID().toString();
+
+        String fileName = attachment.getFilename();
+        if (fileName != null) {
+            this.fileName = fileName;
+        }
 
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.contentHmac = attachment.getHmac();
@@ -785,15 +786,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                         LOG.info("[downloadId: '" + clientDownloadId + "'] renaming to extension '" + mimet.getExtension() + "'");
 
                         String destinationDirectory = computeDecryptionDirectory(agent);
-                        String finalDestinationFilePath = createUniqueFileName(destinationDirectory, this.fileName, extension);
+                        String newFileName = createUniqueFileNameInDirectory(this.fileName, extension, destinationDirectory);
+                        String finalDestinationFilePath = destinationDirectory + File.separator + newFileName;
+
                         File newName = new File(finalDestinationFilePath);
                         if (destination.renameTo(newName)) {
                             if (decryptedFile != null) {
-                                this.decryptedFile = this.decryptedFile + extension;
-                                this.dataFile = computeDecryptionFile(agent);
+                                this.decryptedFile = newFileName;
+                                this.dataFile = finalDestinationFilePath;
                             } else {
-                                this.downloadFile = this.downloadFile + extension;
-                                this.dataFile = computeDownloadFile(agent);
+                                this.downloadFile = newFileName;
+                                this.dataFile = finalDestinationFilePath;
                             }
                         } else {
                             LOG.warn("could not rename file");
@@ -810,8 +813,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return true;
     }
 
-
-    private String createUniqueFileName(String directory, String file, String extension) {
+    private String createUniqueFileNameInDirectory(String file, String extension, String directory) {
         String path = directory + File.separator + file + extension;
         File f;
         int i = 0;
@@ -826,10 +828,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
         return path;
     }
-
-
-
-
 
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
