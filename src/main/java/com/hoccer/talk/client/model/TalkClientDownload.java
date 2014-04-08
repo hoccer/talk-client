@@ -248,13 +248,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         this.downloadFile = id;
         this.fileName = attachment.getFilename();
 
-        String fileName = attachment.getFilename();
-        if (fileName != null) {
-            Long timeStamp = new Date().getTime();
-            this.decryptedFile = fileName + "-" + timeStamp;
-        } else {
-            this.decryptedFile = UUID.randomUUID().toString();
-        }
+        this.decryptedFile = UUID.randomUUID().toString();
 
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.contentHmac = attachment.getHmac();
@@ -760,9 +754,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return true;
     }
 
-    private boolean performDetection(XoTransferAgent agent, String destinationFile) {
-        LOG.debug("performDetection(downloadId: '" + clientDownloadId + "', destinationFile: '" + destinationFile + "')");
-        File destination = new File(destinationFile);
+    private boolean performDetection(XoTransferAgent agent, String destinationFilePath) {
+        LOG.debug("performDetection(downloadId: '" + clientDownloadId + "', destinationFile: '" + destinationFilePath + "')");
+        File destination = new File(destinationFilePath);
 
         try {
             InputStream tis = new FileInputStream(destination);
@@ -789,7 +783,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                     String extension = mimet.getExtension();
                     if (extension != null) {
                         LOG.info("[downloadId: '" + clientDownloadId + "'] renaming to extension '" + mimet.getExtension() + "'");
-                        File newName = new File(destinationFile + extension);
+
+                        String destinationDirectory = computeDecryptionDirectory(agent);
+                        String finalDestinationFilePath = createUniqueFileName(destinationDirectory, this.fileName, extension);
+                        File newName = new File(finalDestinationFilePath);
                         if (destination.renameTo(newName)) {
                             if (decryptedFile != null) {
                                 this.decryptedFile = this.decryptedFile + extension;
@@ -812,6 +809,27 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
         return true;
     }
+
+
+    private String createUniqueFileName(String directory, String file, String extension) {
+        String path = directory + File.separator + file + extension;
+        File f;
+        int i = 0;
+        while (true) {
+            i++;
+            f = new File(path);
+            if (f.exists()) {
+                path = directory + File.separator + file + "_" + i + extension;
+            } else {
+                break;
+            }
+        }
+        return path;
+    }
+
+
+
+
 
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
