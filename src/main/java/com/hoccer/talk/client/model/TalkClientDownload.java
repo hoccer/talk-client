@@ -786,17 +786,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                         LOG.info("[downloadId: '" + clientDownloadId + "'] renaming to extension '" + mimet.getExtension() + "'");
 
                         String destinationDirectory = computeDecryptionDirectory(agent);
-                        String newFileName = createUniqueFileNameInDirectory(this.fileName, extension, destinationDirectory);
-                        String finalDestinationFilePath = destinationDirectory + File.separator + newFileName;
+                        String destinationFileName = createUniqueFileNameInDirectory(this.fileName, extension, destinationDirectory);
+                        String destinationPath = destinationDirectory + File.separator + destinationFileName;
 
-                        File newName = new File(finalDestinationFilePath);
+                        File newName = new File(destinationPath);
                         if (destination.renameTo(newName)) {
                             if (decryptedFile != null) {
-                                this.decryptedFile = newFileName;
-                                this.dataFile = finalDestinationFilePath;
+                                this.decryptedFile = destinationFileName;
+                                this.dataFile = destinationPath;
                             } else {
-                                this.downloadFile = newFileName;
-                                this.dataFile = finalDestinationFilePath;
+                                this.downloadFile = destinationFileName;
+                                this.dataFile = destinationPath;
                             }
                         } else {
                             LOG.warn("could not rename file");
@@ -814,19 +814,21 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     private String createUniqueFileNameInDirectory(String file, String extension, String directory) {
-        String path = directory + File.separator + file + extension;
+        String newFileName = file;
+        String path;
         File f;
         int i = 0;
         while (true) {
-            i++;
+            path = directory + File.separator + newFileName + extension;
             f = new File(path);
             if (f.exists()) {
-                path = directory + File.separator + file + "_" + i + extension;
+                i++;
+                newFileName = file + "_" + i;
             } else {
                 break;
             }
         }
-        return path;
+        return newFileName + extension;
     }
 
     private void markFailed(XoTransferAgent agent) {
