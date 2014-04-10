@@ -1788,6 +1788,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         mEnvironment = environment;
     }
 
+    // TODO: might be better to have the environment as parameter for sendEnvironment
     public void sendEnvironmentUpdate() {
         LOG.debug("sendEnvironmentUpdate()");
         if (this.getState() == STATE_ACTIVE && mEnvironment != null) {
