@@ -2518,7 +2518,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                             clientContact.isSelf()
                                     && member.isInvolved();
                     if(createGroup) {
-                        LOG.debug("creating group for member in state " + member.getState() + " group " + member.getGroupId());
+                        LOG.debug("creating group for member in state '" + member.getState() + "' group '" + member.getGroupId() + "'");
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
                         needGroupUpdate = true;
                     }
@@ -2529,17 +2529,17 @@ public class XoClient implements JsonRpcConnection.Listener {
             return;
         }
         if(clientContact == null) {
-            LOG.warn("gm update for unknown client " + member.getClientId());
+            LOG.warn("groupMemberUpdate for unknown client: " + member.getClientId());
         }
         if(groupContact == null) {
-            LOG.warn("gm update for unknown group " + member.getGroupId());
+            LOG.warn("groupMemberUpdate for unknown group: " + member.getGroupId());
         }
         if(clientContact == null || groupContact == null) {
             return;
         }
         // if this concerns our own membership
         if(clientContact.isSelf()) {
-            LOG.debug("gm is about us, decrypting group key");
+            LOG.debug("groupMember is about us, decrypting group key");
             groupContact.updateGroupMember(member);
             decryptGroupKey(groupContact, member);
             if(groupContact.isGroupAdmin()) {
