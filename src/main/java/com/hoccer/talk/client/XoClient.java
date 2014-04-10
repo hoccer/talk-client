@@ -1693,10 +1693,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(publicKey == null || privateKey == null) {
             Date now = new Date();
             try {
-                LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair");
-
                 mRSAKeysize = mClientHost.getRSAKeysize();
-                LOG.debug("generating RSA keypair with size "+mRSAKeysize);
+                LOG.info("[connection #" + mConnection.getConnectionId() + "] generating new RSA keypair with size "+mRSAKeysize);
                 KeyPair keyPair = RSACryptor.generateRSAKeyPair(mRSAKeysize);
 
                 LOG.trace("unwrapping public key");
