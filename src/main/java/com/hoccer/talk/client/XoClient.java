@@ -1111,7 +1111,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             mConnection.connect(XoClientConfiguration.CONNECT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            LOG.warn("[connection #" + mConnection.getConnectionId() + "] exception while connecting: " + e.toString());
+            LOG.warn("[connection #" + mConnection.getConnectionId() + "] exception while connecting: ", e);
         }
     }
 
