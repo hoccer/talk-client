@@ -1823,7 +1823,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 @Override
                 public void run() {
                     try {
-                        mServerRpc.destroyEnvironment(mSelfContact.getClientId(),mEnvironmentGroupId);
+                        mServerRpc.destroyEnvironment();
                     } catch (Throwable t) {
                         LOG.error("sendDestroyEnvironment: other error", t);
                     }
