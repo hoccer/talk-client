@@ -169,7 +169,6 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     // temporary group for geolocation grouping
     String mEnvironmentGroupId;
-    TalkEnvironment mEnvironment;
     AtomicBoolean mEnvironmentUpdateCallPending = new AtomicBoolean(false);
 
     int mRSAKeysize = 1024;
@@ -1778,30 +1777,25 @@ public class XoClient implements JsonRpcConnection.Listener {
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while sending presence: ", e);
                 } catch (Exception e) { // TODO: specify own exception in XoClientDatabase.savePresence!
-                    LOG.error("error in sendPresence");
+                    LOG.error("error in sendPresence", e);
                 }
             }
         }, 0, TimeUnit.SECONDS);
     }
 
-    public void setEnvironment(TalkEnvironment environment) {
-        mEnvironment = environment;
-    }
-
-    // TODO: might be better to have the environment as parameter for sendEnvironment
-    public void sendEnvironmentUpdate() {
+    public void sendEnvironmentUpdate(TalkEnvironment environment) {
         LOG.debug("sendEnvironmentUpdate()");
-        if (this.getState() == STATE_ACTIVE && mEnvironment != null) {
+        if (this.getState() == STATE_ACTIVE && environment != null) {
             if (mEnvironmentUpdateCallPending.compareAndSet(false,true)) {
-                final TalkEnvironment environment = mEnvironment;
-                mEnvironment = null;
+
+                final TalkEnvironment environmentToSend = environment;
                 mExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            environment.setClientId(mSelfContact.getClientId());
-                            environment.setGroupId(mEnvironmentGroupId);
-                            mEnvironmentGroupId = mServerRpc.updateEnvironment(environment);
+                            environmentToSend.setClientId(mSelfContact.getClientId());
+                            environmentToSend.setGroupId(mEnvironmentGroupId);
+                            mEnvironmentGroupId = mServerRpc.updateEnvironment(environmentToSend);
                         } catch (Throwable t) {
                             LOG.error("sendEnvironmentUpdate: other error", t);
                         }
