@@ -2573,6 +2573,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                         needRenewal = true;
                     }
                 }
+
+                // Mark as nearby contact and save to database.
+                if (groupContact.getGroupPresence().isTypeNearby()) {
+                    clientContact.setNearby(true);
+                    mDatabase.saveContact(clientContact);
+                }
+
                 membership.updateGroupMember(member);
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveClientMembership(membership);
@@ -2584,6 +2591,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
             listener.onGroupMembershipChanged(groupContact);
+            // TODO: ?? send onClientContactUpdated ??
         }
 
         if(needGroupUpdate) {

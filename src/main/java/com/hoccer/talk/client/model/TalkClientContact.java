@@ -410,6 +410,14 @@ public class TalkClientContact implements Serializable {
         return groupMemberships;
     }
 
+    public boolean isNearby() {
+        return isNearby;
+    }
+
+    public void setNearby(boolean isNearby) {
+        this.isNearby = isNearby;
+    }
+
     public boolean initializeSelf() {
         boolean changed = false;
         ensureSelf();
