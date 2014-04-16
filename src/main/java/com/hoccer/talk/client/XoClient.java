@@ -2,7 +2,6 @@ package com.hoccer.talk.client;
 
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.client.JsonRpcClientException;
-import better.jsonrpc.client.JsonRpcClientTimeout;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
@@ -42,7 +41,6 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
