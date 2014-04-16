@@ -1302,10 +1302,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
                     LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
-                    for (TalkClientContact group : contacts) {
-                        if (group.isGroup()) {
+                    for (TalkClientContact groupContact : contacts) {
+                        if (groupContact.isGroup()) {
                             try {
-                                TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
+                                TalkGroupMember[] members = mServerRpc.getGroupMembers(groupContact.getGroupId(), never);
                                 for (TalkGroupMember member : members) {
                                     updateGroupMember(member);
                                 }
