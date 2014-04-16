@@ -1315,7 +1315,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     for (int i = 0; i < groupContacts.size(); i++) {
                         TalkClientContact groupContact = groupContacts.get(i);
                         try {
-                            LOG.info("sync: membership in group (" + groupContact.getGroupId() + ") : '" + groupMembershipFlags[i] + "'");
+                            LOG.debug("sync: membership in group (" + groupContact.getGroupId() + ") : '" + groupMembershipFlags[i] + "'");
 
                             if (groupMembershipFlags[i]) {
                                 TalkGroupMember[] members = mServerRpc.getGroupMembers(groupContact.getGroupId(), never);
