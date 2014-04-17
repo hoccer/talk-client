@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -1331,14 +1332,18 @@ public class XoClient implements JsonRpcConnection.Listener {
                         }
                     }
 
-                    // TODO: use the future here for mentioned reasons...
-                    // ensure we are finished with generating pub/private keys before going active...
-                    // sendPresenceFuture.get();
+                    // ensure we are finished with generating pub/private keys before actually going active...
+                    // TODO: have a proper statemachine
+                    sendPresenceFuture.get();
 
                 } catch (SQLException e) {
                     LOG.error("SQL Error while syncing: ", e);
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while syncing: ", e);
+                } catch (InterruptedException e) {
+                    LOG.error("Error while asserting future", e);
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
                 }
                 switchState(STATE_ACTIVE, "sync successful");
             }
@@ -1792,7 +1797,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while sending presence: ", e);
                 } catch (Exception e) { // TODO: specify own exception in XoClientDatabase.savePresence!
-                    LOG.error("error in sendPresence");
+                    LOG.error("error in sendPresence", e);
                 }
             }
         }, 0, TimeUnit.SECONDS);
