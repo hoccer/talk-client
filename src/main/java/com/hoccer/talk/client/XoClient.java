@@ -21,6 +21,7 @@ import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.CryptoJSON;
+import com.hoccer.talk.crypto.CryptoUtils;
 import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
@@ -2723,8 +2724,19 @@ public class XoClient implements JsonRpcConnection.Listener {
 //                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
                             String encodedGroupKey = new String(Base64.encodeBase64(encryptedGroupKey));
                             // send the key to the server for distribution
+
                             // TODO: use updateGroupKeys
-                            mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+                            //mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+
+                            byte [] sharedKeyIdSalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+                            String sharedKeyIdSaltString = new String(Base64.encodeBase64(sharedKeyIdSalt));
+                            byte [] sharedKeyId = AESCryptor.calcSymmetricKeyId(newGroupKey,sharedKeyIdSalt);
+                            String sharedKeyIdString = new String(Base64.encodeBase64(sharedKeyId));
+
+                            mServerRpc.updateGroupKeys(group.getGroupId(), sharedKeyIdString, sharedKeyIdSaltString,
+                                    new String[]{client.getClientId()},
+                                    new String[]{clientPubKey.getKeyId()},
+                                    new String[]{encodedGroupKey});
                         }
                     } catch (SQLException e) {
                         LOG.error("sql error", e);
