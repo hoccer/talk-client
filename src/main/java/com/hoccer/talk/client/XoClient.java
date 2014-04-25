@@ -1959,7 +1959,6 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.saveClientDownload(clientMessage.getAttachmentDownload());
             }
             mDatabase.saveMessage(clientMessage.getMessage());
-            LOG.debug("Message saved. decrypted text is '" + mDatabase.findMessageByMessageId(clientMessage.getMessage().getMessageId(), false).getText() + "'");
             mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
             mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
@@ -2008,7 +2007,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // default message text
-        LOG.debug("Setting message's default body to empty string");
+        // LOG.debug("Setting message's default body to empty string");
         clientMessage.setText("");
 
         // get various fields
@@ -2103,7 +2102,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 //                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
                 decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody.getBytes(Charset.forName("UTF-8"))));
                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
-                LOG.debug("determined decrypted body to be '" + decryptedBody + "'");
+                //LOG.debug("determined decrypted body to be '" + decryptedBody + "'");
             }
             // decrypt attachment
             if(rawAttachment != null) {
@@ -2136,7 +2135,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // add decrypted information to message
         if (decryptedBody != null) {
-            LOG.debug("Setting message's body to '" + decryptedBody + "' after decryption");
+            //LOG.debug("Setting message's body to '" + decryptedBody + "' after decryption");
             clientMessage.setText(decryptedBody);
         }
         if(decryptedAttachment != null) {
