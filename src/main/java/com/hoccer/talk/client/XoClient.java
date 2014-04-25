@@ -1959,6 +1959,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.saveClientDownload(clientMessage.getAttachmentDownload());
             }
             mDatabase.saveMessage(clientMessage.getMessage());
+            LOG.debug("Message saved. decrypted text is '" + mDatabase.findMessageByMessageId(clientMessage.getMessage().getMessageId(), false).getText() + "'");
             mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
             mDatabase.saveClientMessage(clientMessage);
         } catch (SQLException e) {
