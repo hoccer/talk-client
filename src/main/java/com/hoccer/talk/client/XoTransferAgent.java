@@ -47,7 +47,7 @@ public class XoTransferAgent implements IXoTransferListener {
     }
 
     private void initializeHttpClient() {
-        mHttpClient = new HttpClientWithKeystore();
+        mHttpClient = new HttpClientWithKeyStore();
     }
 
     public XoClient getClient() {
