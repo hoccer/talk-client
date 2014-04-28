@@ -542,7 +542,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             clientInfo.setClientName(mClientHost.getClientName());
             clientInfo.setClientTime(mClientHost.getClientTime());
             clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-            clientInfo.setClientVersion(mClientHost.getClientVersionName() + "-" + mClientHost.getClientVersionCode());
+            clientInfo.setClientVersion(mClientHost.getClientVersionName());
+            clientInfo.setClientBuildNumber(mClientHost.getClientVersionCode());
             clientInfo.setDeviceModel(mClientHost.getDeviceModel());
             clientInfo.setSystemName(mClientHost.getSystemName());
             clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
