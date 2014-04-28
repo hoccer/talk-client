@@ -21,7 +21,6 @@ import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.CryptoJSON;
-import com.hoccer.talk.crypto.CryptoUtils;
 import com.hoccer.talk.crypto.RSACryptor;
 import com.hoccer.talk.model.*;
 import com.hoccer.talk.rpc.ITalkRpcClient;
@@ -543,7 +542,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             clientInfo.setClientName(mClientHost.getClientName());
             clientInfo.setClientTime(mClientHost.getClientTime());
             clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-            clientInfo.setClientVersion(mClientHost.getClientVersion());
+            clientInfo.setClientVersion(mClientHost.getClientVersionName() + "-" + mClientHost.getClientVersionCode());
             clientInfo.setDeviceModel(mClientHost.getDeviceModel());
             clientInfo.setSystemName(mClientHost.getSystemName());
             clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
