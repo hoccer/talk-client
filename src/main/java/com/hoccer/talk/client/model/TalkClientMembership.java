@@ -50,13 +50,29 @@ public class TalkClientMembership {
         if(this.member == null) {
             this.member = member;
         } else {
-            TalkGroupMember my = this.member;
-            my.setEncryptedGroupKey(member.getEncryptedGroupKey());
-            my.setRole(member.getRole());
-            my.setState(member.getState());
-            my.setMemberKeyId(member.getMemberKeyId());
-            my.setLastChanged(member.getLastChanged());
+            this.member.updateWith(member);
         }
+    }
+
+    public boolean hasLatestGroupKey() {
+        if (member != null && member.getSharedKeyId() != null && groupContact != null && groupContact.getGroupPresence() != null) {
+            if (member.getSharedKeyId().equals(groupContact.getGroupPresence().getSharedKeyId())) {
+                return true;
+            } else {
+                if (member.getSharedKeyDate().getTime() >= groupContact.getGroupPresence().getKeyDate().getTime()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean hasGroupKeyCryptedWithLatestPublicKey() {
+        if (clientContact != null && clientContact.getPublicKey() != null) {
+            String clientKeyId = clientContact.getPublicKey().getKeyId();
+            return member.getMemberKeyId() != null && clientKeyId.equals(member.getMemberKeyId());
+        }
+        return false;
     }
 
 }
