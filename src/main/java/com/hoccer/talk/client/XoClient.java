@@ -2,7 +2,6 @@ package com.hoccer.talk.client;
 
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.client.JsonRpcClientException;
-import better.jsonrpc.client.JsonRpcClientTimeout;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
@@ -42,7 +41,6 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -58,12 +56,15 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class XoClient implements JsonRpcConnection.Listener {
 
@@ -132,9 +133,9 @@ public class XoClient implements JsonRpcConnection.Listener {
     /** JSON-RPC client instance */
     protected JsonRpcWsClient mConnection;
     /* RPC handler for notifications */
-	TalkRpcClientImpl mHandler;
+    TalkRpcClientImpl mHandler;
     /* RPC proxy bound to our server */
-	ITalkRpcServer mServerRpc;
+    ITalkRpcServer mServerRpc;
 
     /** Executor doing all the heavy network and database work */
     ScheduledExecutorService mExecutor;
@@ -165,6 +166,10 @@ public class XoClient implements JsonRpcConnection.Listener {
     long mLastActivity = 0;
 
     ObjectMapper mJsonMapper;
+
+    // temporary group for geolocation grouping
+    String mEnvironmentGroupId;
+    AtomicBoolean mEnvironmentUpdateCallPending = new AtomicBoolean(false);
 
     int mRSAKeysize = 1024;
 
@@ -546,7 +551,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             clientInfo.setClientName(mClientHost.getClientName());
             clientInfo.setClientTime(mClientHost.getClientTime());
             clientInfo.setClientLanguage(mClientHost.getClientLanguage());
-            clientInfo.setClientVersion(mClientHost.getClientVersion());
+            clientInfo.setClientVersion(mClientHost.getClientVersionName());
+            clientInfo.setClientBuildNumber(mClientHost.getClientVersionCode());
             clientInfo.setDeviceModel(mClientHost.getDeviceModel());
             clientInfo.setSystemName(mClientHost.getSystemName());
             clientInfo.setSystemLanguage(mClientHost.getSystemLanguage());
@@ -612,8 +618,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 }
                 sendPresence();
             }
-        } catch (SQLException e) {
-            LOG.error("sql error", e);
+        } catch (Exception e) {
+            LOG.error("setClientString", e);
         }
     }
 
@@ -634,6 +640,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
         } catch (SQLException e) {
             LOG.error("sql error", e);
+        } catch (Exception e) { // TODO: specify exception in XoClientDatabase.savePresence!
+            LOG.error("error in setClientConnectionStatus", e);
         }
     }
 
@@ -668,8 +676,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
                     LOG.debug("sending new presence");
                     sendPresence();
-                } catch (SQLException e) {
-                    LOG.error("sql error", e);
+                } catch (Exception e) {
+                    LOG.error("setClientAvatar", e);
                 }
 
             }
@@ -825,7 +833,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
 
                     if(contact.isGroup()) {
-                        if(contact.isGroupJoined()) {
+                        if(contact.isGroupJoined() && !(contact.isGroupExisting() && contact.isGroupAdmin())) {
                             mServerRpc.leaveGroup(contact.getGroupId());
                         }
                         if(contact.isGroupExisting() && contact.isGroupAdmin()) {
@@ -1093,8 +1101,8 @@ public class XoClient implements JsonRpcConnection.Listener {
      * Called when the connection is opened
      * @param connection
      */
-	@Override
-	public void onOpen(JsonRpcConnection connection) {
+    @Override
+    public void onOpen(JsonRpcConnection connection) {
         LOG.debug("onOpen()");
         scheduleIdle();
         if(isRegistered()) {
@@ -1102,18 +1110,18 @@ public class XoClient implements JsonRpcConnection.Listener {
         } else {
             switchState(STATE_REGISTERING, "connected and unregistered");
         }
-	}
+    }
 
     /**
      * Called when the connection is closed
      * @param connection
      */
-	@Override
-	public void onClose(JsonRpcConnection connection) {
+    @Override
+    public void onClose(JsonRpcConnection connection) {
         LOG.debug("onClose()");
         shutdownIdle();
         handleDisconnect();
-	}
+    }
 
     private void doConnect() {
         LOG.debug("performing connect on connection #" + mConnection.getConnectionId());
@@ -1166,19 +1174,19 @@ public class XoClient implements JsonRpcConnection.Listener {
         shutdownKeepAlive();
         if(XoClientConfiguration.KEEPALIVE_ENABLED) {
             mKeepAliveFuture = mExecutor.scheduleAtFixedRate(new Runnable() {
-                    @Override
-                    public void run() {
-                        LOG.debug("performing keep-alive");
-                        try {
-                            mConnection.sendKeepAlive();
-                        } catch (IOException e) {
-                            LOG.error("error sending keepalive", e);
-                        }
+                @Override
+                public void run() {
+                    LOG.debug("performing keep-alive");
+                    try {
+                        mConnection.sendKeepAlive();
+                    } catch (IOException e) {
+                        LOG.error("error sending keepalive", e);
                     }
-                },
-                XoClientConfiguration.KEEPALIVE_INTERVAL,
-                XoClientConfiguration.KEEPALIVE_INTERVAL,
-                TimeUnit.SECONDS);
+                }
+            },
+                    XoClientConfiguration.KEEPALIVE_INTERVAL,
+                    XoClientConfiguration.KEEPALIVE_INTERVAL,
+                    TimeUnit.SECONDS);
         }
     }
 
@@ -1201,9 +1209,9 @@ public class XoClient implements JsonRpcConnection.Listener {
 
             // compute variable backoff component
             double variableTime =
-                Math.random() * Math.min(
-                    XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_MAXIMUM,
-                    variableFactor * XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_FACTOR);
+                    Math.random() * Math.min(
+                            XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_MAXIMUM,
+                            variableFactor * XoClientConfiguration.RECONNECT_BACKOFF_VARIABLE_FACTOR);
 
             // compute total backoff
             double totalTime = XoClientConfiguration.RECONNECT_BACKOFF_FIXED_DELAY + variableTime;
@@ -1283,7 +1291,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: HELLO");
                     hello();
                     LOG.debug("sync: updating presence");
-                    sendPresence();
+                    ScheduledFuture sendPresenceFuture = sendPresence();
                     LOG.debug("sync: syncing presences");
                     TalkPresence[] presences = mServerRpc.getPresences(never);
                     for (TalkPresence presence : presences) {
@@ -1301,26 +1309,50 @@ public class XoClient implements JsonRpcConnection.Listener {
                             updateGroupPresence(group);
                         }
                     }
+
                     LOG.debug("sync: syncing group memberships");
                     List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
-                    for (TalkClientContact group : contacts) {
-                        if (group.isGroup()) {
-                            try {
-                                TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
+                    List<TalkClientContact> groupContacts = new ArrayList<TalkClientContact>();
+                    List<String> groupIds = new ArrayList<String>();
+                    for (TalkClientContact contact : contacts) {
+                        if (contact.isGroup()) {
+                            groupContacts.add(contact);
+                            groupIds.add(contact.getGroupId());
+                        }
+                    }
+                    Boolean[] groupMembershipFlags = mServerRpc.isMemberInGroups(groupIds.toArray(new String[groupIds.size()]));
+
+                    for (int i = 0; i < groupContacts.size(); i++) {
+                        TalkClientContact groupContact = groupContacts.get(i);
+                        try {
+                            LOG.debug("sync: membership in group (" + groupContact.getGroupId() + ") : '" + groupMembershipFlags[i] + "'");
+
+                            if (groupMembershipFlags[i]) {
+                                TalkGroupMember[] members = mServerRpc.getGroupMembers(groupContact.getGroupId(), never);
                                 for (TalkGroupMember member : members) {
                                     updateGroupMember(member);
                                 }
-                            } catch (JsonRpcClientException e) {
-                                LOG.error("Error while updating group member: " , e);
-                            } catch (RuntimeException e) {
-                                LOG.error("Error while updating group members: ", e);
-                            }
+                            } // TODO: check if else => delete contact?
+
+                        } catch (JsonRpcClientException e) {
+                            LOG.error("Error while updating group member: ", e);
+                        } catch (RuntimeException e) {
+                            LOG.error("Error while updating group members: ", e);
                         }
                     }
+
+                    // ensure we are finished with generating pub/private keys before actually going active...
+                    // TODO: have a proper statemachine
+                    sendPresenceFuture.get();
+
                 } catch (SQLException e) {
                     LOG.error("SQL Error while syncing: ", e);
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while syncing: ", e);
+                } catch (InterruptedException e) {
+                    LOG.error("Error while asserting future", e);
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
                 }
                 switchState(STATE_ACTIVE, "sync successful");
             }
@@ -1407,7 +1439,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     /**
      * Client-side RPC implementation
      */
-	public class TalkRpcClientImpl implements ITalkRpcClient {
+    public class TalkRpcClientImpl implements ITalkRpcClient {
 
         @Override
         public void ping() {
@@ -1430,16 +1462,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         @Override
-		public void incomingDelivery(TalkDelivery d, TalkMessage m) {
-			LOG.debug("server: incomingDelivery()");
+        public void incomingDelivery(TalkDelivery d, TalkMessage m) {
+            LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
-		}
+        }
 
-		@Override
-		public void outgoingDelivery(TalkDelivery d) {
-			LOG.debug("server: outgoingDelivery()");
+        @Override
+        public void outgoingDelivery(TalkDelivery d) {
+            LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(d);
-		}
+        }
 
         @Override
         public void presenceUpdated(TalkPresence presence) {
@@ -1509,9 +1541,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.savePresence(presence);
                 mDatabase.saveContact(selfContact);
             } catch (SQLException e) {
-                LOG.error("SQL error", e);
-        }
-
+                LOG.error("SQL error on performRegistration", e);
+            } catch (Exception e) { // TODO: specify exception in XoClientDatabase.savePresence!
+                LOG.error("error on performRegistration", e);
+            }
 
         } catch (JsonRpcClientException e) {
             LOG.error("Error while performing registration: ", e);
@@ -1664,7 +1697,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 try {
                     resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
                 } catch (Exception ex) {
-                    LOG.debug("Caught exception ", ex);
+                    LOG.debug("Caught exception " + ex.getMessage());
                 }
                 for(int j = 0; j < resultingDeliveries.length; j++) {
                     updateOutgoingDelivery(resultingDeliveries[j]);
@@ -1689,8 +1722,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 mDatabase.saveContact(contact);
             }
             return presence;
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } catch (Exception e) {
+            LOG.error("ensureSelfPresence", e);
             return null;
         }
     }
@@ -1751,9 +1784,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    private void sendPresence() {
+    private ScheduledFuture sendPresence() {
         LOG.debug("sendPresence()");
-        mExecutor.execute(new Runnable() {
+        return mExecutor.schedule(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -1770,10 +1803,56 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.error("SQL error", e);
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while sending presence: ", e);
+                } catch (Exception e) { // TODO: specify own exception in XoClientDatabase.savePresence!
+                    LOG.error("error in sendPresence", e);
                 }
             }
-        });
+        }, 0, TimeUnit.SECONDS);
     }
+
+    public void sendEnvironmentUpdate(TalkEnvironment environment) {
+        LOG.debug("sendEnvironmentUpdate()");
+        if (this.getState() == STATE_ACTIVE && environment != null) {
+            if (mEnvironmentUpdateCallPending.compareAndSet(false,true)) {
+
+                final TalkEnvironment environmentToSend = environment;
+                mExecutor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            environmentToSend.setClientId(mSelfContact.getClientId());
+                            environmentToSend.setGroupId(mEnvironmentGroupId);
+                            mEnvironmentGroupId = mServerRpc.updateEnvironment(environmentToSend);
+                        } catch (Throwable t) {
+                            LOG.error("sendEnvironmentUpdate: other error", t);
+                        }
+                        mEnvironmentUpdateCallPending.set(false);
+                    }
+                });
+            } else {
+                LOG.debug("sendEnvironmentUpdate(): another update is still pending");
+            }
+        } else {
+            LOG.debug("sendEnvironmentUpdate(): client not yet active or no environment");
+        }
+    }
+
+
+    public void sendDestroyEnvironment(final String type) {
+        if (this.getState() == STATE_ACTIVE) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        mServerRpc.destroyEnvironment(type);
+                    } catch (Throwable t) {
+                        LOG.error("sendDestroyEnvironment: other error", t);
+                    }
+                }
+            });
+        }
+    }
+
 
     private void updateOutgoingDelivery(final TalkDelivery delivery) {
         LOG.debug("updateOutgoingDelivery(" + delivery.getMessageId() + ")");
@@ -1935,6 +2014,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // default message text
+        // LOG.debug("Setting message's default body to empty string");
         clientMessage.setText("");
 
         // get various fields
@@ -2029,6 +2109,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 //                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
                 decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody.getBytes(Charset.forName("UTF-8"))));
                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
+                //LOG.debug("determined decrypted body to be '" + decryptedBody + "'");
             }
             // decrypt attachment
             if(rawAttachment != null) {
@@ -2060,7 +2141,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // add decrypted information to message
-        if(decryptedBody != null) {
+        if (decryptedBody != null) {
+            //LOG.debug("Setting message's body to '" + decryptedBody + "' after decryption");
             clientMessage.setText(decryptedBody);
         }
         if(decryptedAttachment != null) {
@@ -2095,6 +2177,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             plainKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
             // get public key for encrypting the key
             TalkKey talkPublicKey = receiver.getPublicKey();
+
+            // TODO: do not just log here! Raise! This can lead to plaintext being sent!
             if(talkPublicKey == null) {
                 LOG.error("no pubkey for encryption");
                 return;
@@ -2127,7 +2211,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.error("error encrypting", e);
                 return;
             }
-        } else {
+        } else { //TODO: should elseif for isGroup() and MUST add a check for isSelf() (i.e. for sending messages to yourself)
             LOG.trace("using group key for encryption");
             // get and decode the group key
             String groupKey = receiver.getGroupKey();
@@ -2261,8 +2345,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
             mDatabase.savePresence(clientContact.getClientPresence());
             mDatabase.saveContact(clientContact);
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
+        } catch (Exception e) {
+            LOG.error("updateClientPresence", e);
         }
         if(avatarDownload != null && wantDownload) {
             mTransferAgent.requestDownload(avatarDownload);
@@ -2456,9 +2540,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                 if(groupContact == null) {
                     boolean createGroup =
                             clientContact.isSelf()
-                            && member.isInvolved();
+                                    && member.isInvolved();
                     if(createGroup) {
-                        LOG.debug("creating group for member in state " + member.getState() + " group " + member.getGroupId());
+                        LOG.debug("creating group for member in state '" + member.getState() + "' group '" + member.getGroupId() + "'");
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
                         needGroupUpdate = true;
                     }
@@ -2469,17 +2553,17 @@ public class XoClient implements JsonRpcConnection.Listener {
             return;
         }
         if(clientContact == null) {
-            LOG.warn("gm update for unknown client " + member.getClientId());
+            LOG.warn("groupMemberUpdate for unknown client: " + member.getClientId());
         }
         if(groupContact == null) {
-            LOG.warn("gm update for unknown group " + member.getGroupId());
+            LOG.warn("groupMemberUpdate for unknown group: " + member.getGroupId());
         }
         if(clientContact == null || groupContact == null) {
             return;
         }
         // if this concerns our own membership
         if(clientContact.isSelf()) {
-            LOG.debug("gm is about us, decrypting group key");
+            LOG.debug("groupMember is about us, decrypting group key");
             groupContact.updateGroupMember(member);
             decryptGroupKey(groupContact, member);
             if(groupContact.isGroupAdmin()) {
@@ -2519,6 +2603,16 @@ public class XoClient implements JsonRpcConnection.Listener {
                         needRenewal = true;
                     }
                 }
+
+                /* Mark as nearby contact and save to database. */
+                if (groupContact.getGroupPresence().isTypeNearby() && member.isJoined()) {
+                    clientContact.setNearby(true);
+                    mDatabase.saveContact(clientContact);
+                } else {
+                    clientContact.setNearby(false);
+                    mDatabase.saveContact(clientContact);
+                }
+
                 membership.updateGroupMember(member);
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveClientMembership(membership);
@@ -2530,6 +2624,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
             listener.onGroupMembershipChanged(groupContact);
+            // TODO: ?? send onClientContactUpdated ??
         }
 
         if(needGroupUpdate) {
@@ -2639,7 +2734,19 @@ public class XoClient implements JsonRpcConnection.Listener {
 //                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
                             String encodedGroupKey = new String(Base64.encodeBase64(encryptedGroupKey));
                             // send the key to the server for distribution
-                            mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+
+                            // TODO: use updateGroupKeys
+                            //mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+
+                            byte [] sharedKeyIdSalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+                            String sharedKeyIdSaltString = new String(Base64.encodeBase64(sharedKeyIdSalt));
+                            byte [] sharedKeyId = AESCryptor.calcSymmetricKeyId(newGroupKey,sharedKeyIdSalt);
+                            String sharedKeyIdString = new String(Base64.encodeBase64(sharedKeyId));
+
+                            mServerRpc.updateGroupKeys(group.getGroupId(), sharedKeyIdString, sharedKeyIdSaltString,
+                                    new String[]{client.getClientId()},
+                                    new String[]{clientPubKey.getKeyId()},
+                                    new String[]{encodedGroupKey});
                         }
                     } catch (SQLException e) {
                         LOG.error("sql error", e);

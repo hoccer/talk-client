@@ -25,7 +25,8 @@ public interface IXoClientHost {
 
     public String getClientName();
     public String getClientLanguage();
-    public String getClientVersion();
+    public String getClientVersionName();
+    public int getClientVersionCode();
     public Date getClientTime();
 
     public String getDeviceModel();

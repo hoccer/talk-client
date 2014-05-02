@@ -27,9 +27,9 @@ import java.util.Enumeration;
  * 
  * @author Arne Handt, it@handtwerk.de
  */
-public class HttpClientWithKeystore extends DefaultHttpClient {
+public class HttpClientWithKeyStore extends DefaultHttpClient {
 
-    private static final Logger LOG = Logger.getLogger(HttpClientWithKeystore.class);
+    private static final Logger LOG = Logger.getLogger(HttpClientWithKeyStore.class);
 
     /**
      * Global URL scheme registry
@@ -77,15 +77,15 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
     }
     
 
-    public HttpClientWithKeystore() {
+    public HttpClientWithKeyStore() {
         super();
     }
 
-    public HttpClientWithKeystore(ClientConnectionManager pConman, HttpParams pParams) {
+    public HttpClientWithKeyStore(ClientConnectionManager pConman, HttpParams pParams) {
         super(pConman, pParams);
     }
 
-    public HttpClientWithKeystore(HttpParams pParams) {
+    public HttpClientWithKeyStore(HttpParams pParams) {
         super(pParams);
     }
 
@@ -104,11 +104,11 @@ public class HttpClientWithKeystore extends DefaultHttpClient {
     }
 
     private static class SocketFactory extends SSLSocketFactory {
-        public SocketFactory(KeyStore truststore)
+        public SocketFactory(KeyStore trustStore)
                 throws NoSuchAlgorithmException, KeyManagementException,
                         KeyStoreException, UnrecoverableKeyException
         {
-            super(truststore);
+            super(trustStore);
         }
 
         @Override

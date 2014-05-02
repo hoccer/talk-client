@@ -13,6 +13,7 @@ import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
 import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * These represent a target of communication
@@ -84,6 +85,9 @@ public class TalkClientContact implements Serializable {
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientUpload avatarUpload;
+
+    @DatabaseField
+    private boolean isNearby;
     
 
     public TalkClientContact() {
@@ -406,6 +410,14 @@ public class TalkClientContact implements Serializable {
         return groupMemberships;
     }
 
+    public boolean isNearby() {
+        return isNearby;
+    }
+
+    public void setNearby(boolean isNearby) {
+        this.isNearby = isNearby;
+    }
+
     public boolean initializeSelf() {
         boolean changed = false;
         ensureSelf();
@@ -508,4 +520,10 @@ public class TalkClientContact implements Serializable {
         }
     }
 
+    public static TalkClientContact createGroupContact() {
+        String groupTag = UUID.randomUUID().toString();
+        TalkClientContact groupContact = new TalkClientContact(TYPE_GROUP);
+        groupContact.updateGroupTag(groupTag);
+        return groupContact;
+    }
 }
