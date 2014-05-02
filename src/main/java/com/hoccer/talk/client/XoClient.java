@@ -2,7 +2,6 @@ package com.hoccer.talk.client;
 
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.client.JsonRpcClientException;
-import better.jsonrpc.client.JsonRpcClientTimeout;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
@@ -42,7 +41,6 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -1531,27 +1529,27 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    public byte[] makeCryptedCredentialsContainer(String containerPassword) throws Exception {
+    public byte[] makeEncryptedCredentialsContainer(String containerPassword) throws Exception {
         byte[] credentials = extractCredentialsAsJson(getSelfContact());
         byte[] container = CryptoJSON.encryptedContainer(credentials, containerPassword, "credentials");
         return container;
     }
 
-    public boolean setCryptedCredentialsFromContainer(byte[] jsonContainer, String containerPassword) {
+    public boolean setEncryptedCredentialsFromContainer(byte[] jsonContainer, String containerPassword) {
         try {
             byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer,containerPassword,"credentials");
             ObjectMapper jsonMapper = new ObjectMapper();
             JsonNode json = jsonMapper.readTree(credentials);
             if (json == null ||  !json.isObject()) {
-                throw new Exception("setCryptedCredentialsFromContainer: not a json object");
+                throw new Exception("setEncryptedCredentialsFromContainer: not a json object");
             }
             JsonNode password = json.get("password");
             if (password == null) {
-                throw new Exception("setCryptedCredentialsFromContainer: missing password");
+                throw new Exception("setEncryptedCredentialsFromContainer: missing password");
             }
             JsonNode saltNode = json.get("salt");
             if (saltNode == null ) {
-                throw new Exception("setCryptedCredentialsFromContainer: missing salt");
+                throw new Exception("setEncryptedCredentialsFromContainer: missing salt");
             }
             JsonNode clientIdNode = json.get("clientId");
             if (clientIdNode == null) {
@@ -1562,17 +1560,17 @@ public class XoClient implements JsonRpcConnection.Listener {
             getSelfContact().updateSelfRegistered(clientIdNode.asText());
             return true;
         } catch (Exception e) {
-            LOG.error("setCryptedCredentialsFromContainer", e);
+            LOG.error("setEncryptedCredentialsFromContainer", e);
         }
         return false;
     }
 
     public void testCredentialsContainer(TalkClientContact selfContact) {
         try {
-            byte[] container = makeCryptedCredentialsContainer("12345678");
+            byte[] container = makeEncryptedCredentialsContainer("12345678");
             String containerString = new String(container,"UTF-8");
             LOG.info(containerString);
-            if (setCryptedCredentialsFromContainer(container,"12345678")) {
+            if (setEncryptedCredentialsFromContainer(container, "12345678")) {
                 LOG.info("reading credentials from container succeeded");
             } else {
                 LOG.info("reading credentials from container failed");
