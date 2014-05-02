@@ -1487,7 +1487,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.debug("registration: finished");
 
             TalkClientSelf self = mSelfContact.getSelf();
-            self.provideCredentials(saltString, secretString);
+            self.setCredentials(saltString, secretString);
             selfContact.updateSelfRegistered(clientId);
 
             try {
@@ -1512,9 +1512,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             String clientId = selfContact.getClientId();
             TalkClientSelf self = selfContact.getSelf();
-
-            //String saltString = new String(Base64.encodeBase64(Hex.decodeHex(self.getSrpSalt().toCharArray())));
-            //byte[] secretString = new String(Base64.encodeBase64(Hex.decodeHex(self.getSrpSecret().toCharArray())));
 
             ObjectMapper jsonMapper = new ObjectMapper();
             ObjectNode rootNode = jsonMapper.createObjectNode();
@@ -1556,31 +1553,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                 throw new Exception("parseEncryptedContainer: wrong or missing ciphered content");
             }
             TalkClientSelf self = getSelfContact().getSelf();
-            self.provideCredentials(saltNode.asText(), password.asText());
             getSelfContact().updateSelfRegistered(clientIdNode.asText());
+            self.setCredentials(saltNode.asText(), password.asText());
             return true;
         } catch (Exception e) {
             LOG.error("setEncryptedCredentialsFromContainer", e);
         }
         return false;
-    }
-
-    public void testCredentialsContainer(TalkClientContact selfContact) {
-        try {
-            byte[] container = makeEncryptedCredentialsContainer("12345678");
-            String containerString = new String(container, "UTF-8");
-            LOG.info(containerString);
-            if (setEncryptedCredentialsFromContainer(container, "12345678")) {
-                LOG.info("reading credentials from container succeeded");
-            } else {
-                LOG.info("reading credentials from container failed");
-
-            }
-        } catch (UnsupportedEncodingException e) {
-            LOG.error("testCredentialsContainer", e);
-        } catch (Exception e) {
-            LOG.error("testCredentialsContainer", e);
-        }
     }
 
     private void performLogin(TalkClientContact selfContact) {

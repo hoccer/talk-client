@@ -53,7 +53,7 @@ public class TalkClientSelf {
         registrationConfirmed = true;
     }
 
-    public void provideCredentials(String salt, String secret) {
+    public void setCredentials(String salt, String secret) {
         this.srpSalt = salt;
         this.srpSecret = secret;
     }
