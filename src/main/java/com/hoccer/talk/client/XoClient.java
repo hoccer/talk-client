@@ -1537,10 +1537,10 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public boolean setEncryptedCredentialsFromContainer(byte[] jsonContainer, String containerPassword) {
         try {
-            byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer,containerPassword,"credentials");
+            byte[] credentials = CryptoJSON.decryptedContainer(jsonContainer, containerPassword, "credentials");
             ObjectMapper jsonMapper = new ObjectMapper();
             JsonNode json = jsonMapper.readTree(credentials);
-            if (json == null ||  !json.isObject()) {
+            if (json == null || !json.isObject()) {
                 throw new Exception("setEncryptedCredentialsFromContainer: not a json object");
             }
             JsonNode password = json.get("password");
@@ -1548,7 +1548,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 throw new Exception("setEncryptedCredentialsFromContainer: missing password");
             }
             JsonNode saltNode = json.get("salt");
-            if (saltNode == null ) {
+            if (saltNode == null) {
                 throw new Exception("setEncryptedCredentialsFromContainer: missing salt");
             }
             JsonNode clientIdNode = json.get("clientId");
@@ -1568,7 +1568,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     public void testCredentialsContainer(TalkClientContact selfContact) {
         try {
             byte[] container = makeEncryptedCredentialsContainer("12345678");
-            String containerString = new String(container,"UTF-8");
+            String containerString = new String(container, "UTF-8");
             LOG.info(containerString);
             if (setEncryptedCredentialsFromContainer(container, "12345678")) {
                 LOG.info("reading credentials from container succeeded");
