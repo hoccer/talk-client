@@ -1552,9 +1552,22 @@ public class XoClient implements JsonRpcConnection.Listener {
             if (clientIdNode == null) {
                 throw new Exception("parseEncryptedContainer: wrong or missing ciphered content");
             }
+
+            // Update credentials
             TalkClientSelf self = getSelfContact().getSelf();
-            getSelfContact().updateSelfRegistered(clientIdNode.asText());
             self.setCredentials(saltNode.asText(), password.asText());
+
+            // Update client id
+            TalkClientContact selfContact = getSelfContact();
+            selfContact.updateSelfRegistered(clientIdNode.asText());
+
+            // save credentials and contact
+            mDatabase.saveCredentials(self);
+            mDatabase.saveContact(selfContact);
+
+            // re-trigger registration
+            //this.reconnect("Credentials changed.");
+
             return true;
         } catch (Exception e) {
             LOG.error("setEncryptedCredentialsFromContainer", e);
@@ -1595,7 +1608,6 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("decoder exception in login", e);
             throw new RuntimeException("exception during login", e);
         }
-        // testCredentialsContainer(selfContact);
         LOG.debug("login: successful");
     }
 
