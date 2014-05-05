@@ -2,7 +2,6 @@ package com.hoccer.talk.client;
 
 import better.jsonrpc.client.JsonRpcClient;
 import better.jsonrpc.client.JsonRpcClientException;
-import better.jsonrpc.client.JsonRpcClientTimeout;
 import better.jsonrpc.core.JsonRpcConnection;
 import better.jsonrpc.server.JsonRpcServer;
 import better.jsonrpc.websocket.JsonRpcWsClient;
@@ -42,7 +41,6 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -153,7 +151,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     Vector<IXoStateListener> mStateListeners = new Vector<IXoStateListener>();
     Vector<IXoUnseenListener> mUnseenListeners = new Vector<IXoUnseenListener>();
     Vector<IXoTokenListener> mTokenListeners = new Vector<IXoTokenListener>();
-
+    Vector<IXoAlertListener> mAlertListeners = new Vector<IXoAlertListener>();
 
     /** The current state of this client */
     int mState = STATE_INACTIVE;
@@ -410,6 +408,14 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public synchronized void unregisterPairingListener(IXoPairingListener listener) {
         mPairingListeners.remove(listener);
+    }
+
+    public synchronized void registerAlertListener(IXoAlertListener listener) {
+        mAlertListeners.add(listener);
+    }
+
+    public synchronized void unregisterAlertListener(IXoAlertListener listener) {
+        mAlertListeners.remove(listener);
     }
 
     private void notifyUnseenMessages(boolean notify) {
@@ -1418,6 +1424,11 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void alertUser(String message) {
             LOG.debug("server: alertUser()");
             LOG.info("ALERTING USER: \"" + message + "\"");
+
+            for (int i = 0; i < mAlertListeners.size(); i++) {
+                IXoAlertListener listener = mAlertListeners.get(i);
+                listener.onAlertMessageReceived(message);
+            }
         }
 
         @Override
