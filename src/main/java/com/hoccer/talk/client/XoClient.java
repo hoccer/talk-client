@@ -2677,7 +2677,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         } else {
             // handle case when we are not admin and can only update our own key
             if (clientContact.isSelf()) {
-                TalkClientMembership membership = clientContact.getSelfClientMembership();
+                TalkClientMembership membership = groupContact.getSelfClientMembership();
                 if (groupContact.groupHasValidKey()) {
                     // our group key seems fine
                     if (!(membership.hasLatestGroupKey()) && membership.hasGroupKeyCryptedWithLatestPublicKey()) {
