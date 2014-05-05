@@ -11,7 +11,9 @@ import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.field.DataType;
+import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
+import com.j256.ormlite.stmt.UpdateBuilder;
 import com.j256.ormlite.stmt.Where;
 
 import com.j256.ormlite.support.ConnectionSource;
@@ -421,4 +423,21 @@ public class XoClientDatabase {
         mSmsTokens.delete(token);
     }
 
+    public void deleteAllClientContacts() throws SQLException {
+        UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
+        updateBuilder.updateColumnValue("deleted", true).where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .and(2);
+        updateBuilder.update();
+    }
+
+    public void deleteAllGroupContacts() throws SQLException {
+        UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
+        updateBuilder.updateColumnValue("deleted", true).where()
+                .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .and(2);
+        updateBuilder.update();
+    }
 }
