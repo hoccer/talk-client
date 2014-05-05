@@ -68,9 +68,11 @@ public class TalkClientMembership {
     }
 
     public boolean hasGroupKeyCryptedWithLatestPublicKey() {
-        if (clientContact != null && clientContact.getPublicKey() != null) {
+        if (member != null && clientContact != null && clientContact.getPublicKey() != null) {
             String clientKeyId = clientContact.getPublicKey().getKeyId();
-            return member.getMemberKeyId() != null && clientKeyId.equals(member.getMemberKeyId());
+            if (clientKeyId != null) {
+                return member.getMemberKeyId() != null && clientKeyId.equals(member.getMemberKeyId());
+            }
         }
         return false;
     }

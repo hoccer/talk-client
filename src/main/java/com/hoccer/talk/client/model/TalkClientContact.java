@@ -209,7 +209,7 @@ public class TalkClientContact implements Serializable {
 
     // return true if I am free to set a new group key
     public boolean iCanSetKeys(XoClient theClient) {
-        return !groupHasKeyMaster(theClient) || iAmKeyMaster(theClient);
+        return (!groupHasKeyMaster(theClient) || iAmKeyMaster(theClient)) && isGroupAdmin();
 
     }
 

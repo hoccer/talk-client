@@ -2531,9 +2531,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             if(clientContact != null) {
                 groupContact = mDatabase.findContactByGroupId(member.getGroupId(), false);
                 if(groupContact == null) {
-                    boolean createGroup =
-                            clientContact.isSelf()
-                                    && member.isInvolved();
+                    boolean createGroup = clientContact.isSelf() && member.isInvolved();
                     if(createGroup) {
                         LOG.debug("creating group for member in state '" + member.getState() + "' group '" + member.getGroupId() + "'");
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
