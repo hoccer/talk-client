@@ -213,13 +213,33 @@ public class XoClientDatabase {
         return orderedListOfDistinctSenders;
     }
 
-    public List<TalkClientContact> findAllGroupContacts() throws SQLException {
+    public List<TalkClientContact> findAllNearbyClientContacts() throws  SQLException {
+        return mClientContacts.queryBuilder().where()
+                        .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                        .eq("deleted", false)
+                        .eq("isNearby", true)
+                    .and(3)
+                .query();
+    }
 
+    public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
                  .eq("contactType", TalkClientContact.TYPE_GROUP)
                  .eq("deleted", false)
                 .and(2)
                .query();
+    }
+
+    public List<TalkClientContact> findAllNearbyGroupContacts() throws SQLException {
+        List<TalkClientContact> allGroupContacts = this.findAllGroupContacts();
+        List<TalkClientContact> allNearbyGroupContacts = new ArrayList<TalkClientContact>();
+
+        for (TalkClientContact groupContact : allGroupContacts) {
+            if (groupContact.isGroupInvolved() && groupContact.isGroupExisting() && groupContact.getGroupPresence().isTypeNearby()) {
+                allNearbyGroupContacts.add(groupContact);
+            }
+        }
+        return allNearbyGroupContacts;
     }
 
     public List<TalkClientSmsToken> findAllSmsTokens() throws SQLException {
