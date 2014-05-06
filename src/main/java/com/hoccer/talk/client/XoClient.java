@@ -556,6 +556,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
                 LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
                 LOG.debug("Hello: Server version is '" + talkServerInfo.getVersion() + "'");
+                LOG.debug("Hello: supported protocol versions: '" + talkServerInfo.getProtocolVersions() + "'");
+                LOG.debug("Hello: git commit is '" + talkServerInfo.getCommitId() + "'");
             }
         } catch (JsonRpcClientException e) {
             LOG.error("Error while sending Hello: ", e);
