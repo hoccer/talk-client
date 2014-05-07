@@ -861,7 +861,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    public void createGroup(final TalkClientContact contact) {
+    public void createGroup(final TalkClientContact groupContact) {
         LOG.debug("createGroup()");
         resetIdle();
         mExecutor.execute(new Runnable() {
@@ -869,18 +869,18 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 try {
                     LOG.debug("creating group");
-                    TalkGroup groupPresence = contact.getGroupPresence();
-                    TalkClientUpload avatarUpload = contact.getAvatarUpload();
+                    TalkGroup groupPresence = groupContact.getGroupPresence();
+                    TalkClientUpload avatarUpload = groupContact.getAvatarUpload();
 
-                    contact.hackSetGroupPresence(null);
-                    contact.setAvatarUpload(null);
+                    groupContact.setAvatarUpload(null);
 
-                    try {
-                        mDatabase.saveContact(contact);
-                    } catch (SQLException e) {
-                        LOG.error("SQL error", e);
-                    }
+                    TalkGroupMember member = new TalkGroupMember();
+                    member.setClientId(mSelfContact.getClientId());
+                    member.setRole(TalkGroupMember.ROLE_ADMIN);
+                    member.setState(TalkGroupMember.STATE_JOINED);
+                    groupContact.updateGroupMember(member);
 
+                    generateGroupKey(groupContact);
                     LOG.debug("creating group on server");
                     String groupId = mServerRpc.createGroup(groupPresence);
 
@@ -890,25 +890,26 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                     groupPresence.setGroupId(groupId);            // was null
                     groupPresence.setState(TalkGroup.STATE_NONE); // was null
-                    contact.updateGroupId(groupId);
-                    contact.updateGroupPresence(groupPresence);   // was missing
+                    member.setGroupId(groupId);
+                    groupContact.updateGroupId(groupId);
+                    groupContact.updateGroupPresence(groupPresence);   // was missing
 
                     try {
                         mDatabase.saveGroup(groupPresence);
-                        mDatabase.saveContact(contact);
+                        mDatabase.saveContact(groupContact);
                     } catch (SQLException e) {
                         LOG.error("sql error", e);
                     }
 
-                    LOG.debug("new group contact " + contact.getClientContactId());
+                    LOG.debug("new group contact " + groupContact.getClientContactId());
 
                     for (int i = 0; i < mContactListeners.size(); i++) {
                         IXoContactListener listener = mContactListeners.get(i);
-                        listener.onContactAdded(contact);
+                        listener.onContactAdded(groupContact);
                     }
 
                     if(avatarUpload != null) {
-                        setGroupAvatar(contact, avatarUpload);
+                        setGroupAvatar(groupContact, avatarUpload);
                     }
 
                 } catch (JsonRpcClientException e) {
@@ -2660,13 +2661,14 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void updateGroupKeyOnServerIfNeeded(TalkClientContact groupContact, TalkClientContact clientContact) {
+        LOG.debug("UpdateGroupKeyOnServerIfNeeded");
         if (groupContact.iCanSetKeys(this)) {
             // handle case if we are admin and are or can become keymaster
             try {
                 TalkClientMembership membership = mDatabase.findMembershipByContacts(
                         groupContact.getClientContactId(), clientContact.getClientContactId(), true);
 
-                if (!(membership.hasLatestGroupKey()) && membership.hasGroupKeyCryptedWithLatestPublicKey()) {
+                if (!(membership.hasLatestGroupKey() && membership.hasGroupKeyCryptedWithLatestPublicKey())) {
                     if (!groupContact.groupHasKey()) {
                         generateGroupKey(groupContact);
                     }
