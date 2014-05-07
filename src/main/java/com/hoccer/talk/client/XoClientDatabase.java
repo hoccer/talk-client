@@ -8,6 +8,7 @@ import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
 import com.hoccer.talk.model.*;
+import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.field.DataType;
@@ -48,6 +49,8 @@ public class XoClientDatabase {
 
     Dao<TalkClientDownload, Integer> mClientDownloads;
     Dao<TalkClientUpload, Integer> mClientUploads;
+
+    Dao<TalkAttachment, Integer> mAttachments;
 
     Dao<TalkClientSmsToken, Integer> mSmsTokens;
 
@@ -99,6 +102,8 @@ public class XoClientDatabase {
 
         mClientDownloads = mBackend.getDao(TalkClientDownload.class);
         mClientUploads = mBackend.getDao(TalkClientUpload.class);
+
+        mAttachments = mBackend.getDao(TalkAttachment.class);
 
         mSmsTokens = mBackend.getDao(TalkClientSmsToken.class);
     }
@@ -433,6 +438,22 @@ public class XoClientDatabase {
         }
 
         return res;
+    }
+
+    public List<TalkAttachment> findAttachmentsByTypeAudio() throws SQLException {
+        List<TalkAttachment> audioAttachments = new ArrayList<TalkAttachment>();
+        CloseableIterator<TalkAttachment> iterator = mAttachments.closeableIterator();
+        try {
+            while (iterator.hasNext()){
+                TalkAttachment attachment = iterator.next();
+                if (attachment.getMediaType().equalsIgnoreCase("audio")) {
+                    audioAttachments.add(attachment);
+                }
+            }
+        } finally {
+            iterator.close();
+        }
+        return audioAttachments;
     }
 
     public void saveClientMembership(TalkClientMembership membership) throws SQLException {
