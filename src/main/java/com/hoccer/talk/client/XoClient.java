@@ -1561,16 +1561,16 @@ public class XoClient implements JsonRpcConnection.Listener {
             TalkClientContact selfContact = getSelfContact();
             selfContact.updateSelfRegistered(clientIdNode.asText());
 
-            // remove contacts + groups from DB
-            mDatabase.deleteAllClientContacts();
-            mDatabase.deleteAllGroupContacts();
-
             // save credentials and contact
             mDatabase.saveCredentials(self);
             mDatabase.saveContact(selfContact);
 
+            // remove contacts + groups from DB
+            mDatabase.deleteAllClientContacts();
+            mDatabase.deleteAllGroupContacts();
+
             // re-trigger registration
-            //this.reconnect("Credentials changed.");
+            this.reconnect("Credentials changed.");
 
             return true;
         } catch (SQLException sqlException) {
