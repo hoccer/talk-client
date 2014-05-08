@@ -47,8 +47,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 
-import sun.management.resources.agent;
-
 @DatabaseTable(tableName = "clientDownload")
 public class TalkClientDownload extends XoTransfer implements IContentObject {
 
@@ -76,6 +74,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     @DatabaseField
     private State state;
+
+    @DatabaseField
+    private String fileName;
 
     @DatabaseField
     private String contentUrl;
@@ -200,6 +201,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     @Override
+    public String getFileName() {
+        return fileName;
+    }
+
+    @Override
     public String getContentDataUrl() {
         // TODO fix up this field on db upgrade
         if (dataFile != null) {
@@ -238,17 +244,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = id;
-
-//        this.decryptionKey = Hex.encodeHexString(key);
-        this.decryptionKey = new String(Hex.encodeHex(key));
         this.decryptedFile = UUID.randomUUID().toString();
-        this.contentHmac = attachment.getHmac();
 
-        String filename = attachment.getFilename();
-        if (filename != null) {
-            // XXX should avoid collisions here
-            this.decryptedFile = filename;
+        String fileName = attachment.getFileName();
+        if (fileName != null) {
+            this.fileName = fileName;
         }
+
+        this.decryptionKey = new String(Hex.encodeHex(key));
+        this.contentHmac = attachment.getHmac();
     }
 
     public void provideContentUrl(XoTransferAgent agent, String url) {
@@ -470,7 +474,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                     this.wait();
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOG.error("Error while performing download attempt: ", e);
             }
         }
         if (state == State.DECRYPTING) {
@@ -751,9 +755,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return true;
     }
 
-    private boolean performDetection(XoTransferAgent agent, String destinationFile) {
-        LOG.debug("performDetection(downloadId: '" + clientDownloadId + "', destinationFile: '" + destinationFile + "')");
-        File destination = new File(destinationFile);
+    private boolean performDetection(XoTransferAgent agent, String destinationFilePath) {
+        LOG.debug("performDetection(downloadId: '" + clientDownloadId + "', destinationFile: '" + destinationFilePath + "')");
+        File destination = new File(destinationFilePath);
 
         try {
             InputStream tis = new FileInputStream(destination);
@@ -780,14 +784,19 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
                     String extension = mimet.getExtension();
                     if (extension != null) {
                         LOG.info("[downloadId: '" + clientDownloadId + "'] renaming to extension '" + mimet.getExtension() + "'");
-                        File newName = new File(destinationFile + extension);
+
+                        String destinationDirectory = computeDecryptionDirectory(agent);
+                        String destinationFileName = createUniqueFileNameInDirectory(this.fileName, extension, destinationDirectory);
+                        String destinationPath = destinationDirectory + File.separator + destinationFileName;
+
+                        File newName = new File(destinationPath);
                         if (destination.renameTo(newName)) {
                             if (decryptedFile != null) {
-                                this.decryptedFile = this.decryptedFile + extension;
-                                this.dataFile = computeDecryptionFile(agent);
+                                this.decryptedFile = destinationFileName;
+                                this.dataFile = destinationPath;
                             } else {
-                                this.downloadFile = this.downloadFile + extension;
-                                this.dataFile = computeDownloadFile(agent);
+                                this.downloadFile = destinationFileName;
+                                this.dataFile = destinationPath;
                             }
                         } else {
                             LOG.warn("could not rename file");
@@ -802,6 +811,34 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Creates a unique file name by checking whether a file already exists in a given directory.
+     * In case a file with the same name already exists the given file name will be expanded by an underscore and
+     * a running number (foo_1.bar) to prevent the existing file from being overwritten.
+     *
+     * @param file The given file name
+     * @param extension The given file extension
+     * @param directory The directory to check
+     * @return The file name including running number and extension (foo_1.bar)
+     */
+    private String createUniqueFileNameInDirectory(String file, String extension, String directory) {
+        String newFileName = file;
+        String path;
+        File f;
+        int i = 0;
+        while (true) {
+            path = directory + File.separator + newFileName + extension;
+            f = new File(path);
+            if (f.exists()) {
+                i++;
+                newFileName = file + "_" + i;
+            } else {
+                break;
+            }
+        }
+        return newFileName + extension;
     }
 
     private void markFailed(XoTransferAgent agent) {
