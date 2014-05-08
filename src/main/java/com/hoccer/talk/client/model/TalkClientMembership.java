@@ -10,10 +10,10 @@ public class TalkClientMembership {
     @DatabaseField(generatedId = true)
     private int clientMembershipId;
 
-    @DatabaseField(foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(foreign = true, foreignAutoRefresh = true)
     private TalkClientContact groupContact;
 
-    @DatabaseField(foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(foreign = true, foreignAutoRefresh = true)
     private TalkClientContact clientContact;
 
     @DatabaseField(foreign = true, foreignAutoRefresh = true, canBeNull = true)

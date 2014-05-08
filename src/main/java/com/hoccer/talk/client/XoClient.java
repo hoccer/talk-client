@@ -146,6 +146,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     Vector<IXoUnseenListener> mUnseenListeners = new Vector<IXoUnseenListener>();
     Vector<IXoTokenListener> mTokenListeners = new Vector<IXoTokenListener>();
 
+    Set<String> mGroupKeyUpdateInProgess = new HashSet<String>();
 
     /** The current state of this client */
     int mState = STATE_INACTIVE;
@@ -878,6 +879,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     member.setClientId(mSelfContact.getClientId());
                     member.setRole(TalkGroupMember.ROLE_ADMIN);
                     member.setState(TalkGroupMember.STATE_JOINED);
+                    member.setMemberKeyId(mSelfContact.getPublicKey().getKeyId()); // TODO: make sure all members are properly updated when the public key changes
                     groupContact.updateGroupMember(member);
 
                     generateGroupKey(groupContact);
@@ -895,8 +897,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                     groupContact.updateGroupPresence(groupPresence);   // was missing
 
                     try {
+                        mDatabase.saveGroupMember(member);
                         mDatabase.saveGroup(groupPresence);
                         mDatabase.saveContact(groupContact);
+                        TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                                groupContact.getClientContactId(), mSelfContact.getClientContactId(), true);
+                        membership.updateGroupMember(member);
+                        mDatabase.saveClientMembership(membership);
                     } catch (SQLException e) {
                         LOG.error("sql error", e);
                     }
@@ -911,6 +918,26 @@ public class XoClient implements JsonRpcConnection.Listener {
                     if(avatarUpload != null) {
                         setGroupAvatar(groupContact, avatarUpload);
                     }
+
+                    // start of error checking section, remove when all works
+                    TalkClientMembership membership = null;
+                    try {
+                        LOG.error("createGroup: looking for membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        membership = mDatabase.findMembershipByContacts(
+                                groupContact.getClientContactId(), mSelfContact.getClientContactId(), false);
+                        if (membership == null) {
+                            LOG.error("createGroup: not found: membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        }
+                        // just for error checking purposes, the following condition should never be true
+                        if (membership != null && (membership.getGroupContact().getContactType() == null || membership.getClientContact().getContactType() == null)) {
+                            LOG.error("createGroup: defective membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        }
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                    // end of error checking section
+
+
 
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while creating group: ", e);
@@ -2557,18 +2584,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         // if this concerns our own membership
         if(clientContact.isSelf()) {
             LOG.debug("groupMember is about us, decrypting group key");
-            groupContact.updateGroupMember(member);
-            decryptGroupKey(groupContact, member);
-            /*
-            if(groupContact.isGroupAdmin()) {
-                if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
-                    LOG.debug("we have no key, renewing");
-                    needRenewal = true;
-                }
-            }
-            */
             try {
-                mDatabase.saveGroupMember(groupContact.getGroupMember());
+                groupContact.updateGroupMember(member);
+                TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                        groupContact.getClientContactId(), clientContact.getClientContactId(), true);
+                membership.updateGroupMember(member);
+
+                decryptGroupKey(groupContact, member);
+
+                //mDatabase.saveGroupMember(groupContact.getGroupMember());
+                mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveContact(groupContact);
             } catch (SQLException e) {
                 LOG.error("SQL error", e);
@@ -2644,7 +2669,18 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         // now check if we need to update some key
-        updateGroupKeyOnServerIfNeeded(groupContact, clientContact);
+        final TalkClientContact fGroupContact = groupContact;
+        final TalkClientContact fClientContact = clientContact;
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    updateGroupKeyOnServerIfNeeded(fGroupContact, fClientContact);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while updateGroupKeyOnServerIfNeeded: ", e);
+                }
+            }
+        });
 
         /*
         if(needRenewal && groupContact.isGroupAdmin()) {
@@ -2661,33 +2697,74 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void updateGroupKeyOnServerIfNeeded(TalkClientContact groupContact, TalkClientContact clientContact) {
-        LOG.debug("UpdateGroupKeyOnServerIfNeeded");
-        if (groupContact.iCanSetKeys(this)) {
-            // handle case if we are admin and are or can become keymaster
-            try {
-                TalkClientMembership membership = mDatabase.findMembershipByContacts(
-                        groupContact.getClientContactId(), clientContact.getClientContactId(), true);
+        String groupName = groupContact.getName();
+        String clientName = clientContact.getName();
+        LOG.debug("UpdateGroupKeyOnServerIfNeeded group nick="+groupContact.getName()+", clientContact nick="+clientContact.getName());
+        if (mGroupKeyUpdateInProgess.contains(groupContact.getGroupId())) {
+            LOG.debug("UpdateGroupKeyOnServerIfNeeded: ALREADY IN PROGRESS: group nick="+groupContact.getName()+", clientContact nick="+clientContact.getName());
+            return;
+        }
+        mGroupKeyUpdateInProgess.add(groupContact.getGroupId());
+        try {
+            if (groupContact.iCanSetKeys(this)) {
+                // handle case if we are admin and are or can become keymaster
+                try {
+                    LOG.error("updateGroupKeyOnServerIfNeeded: looking for membership for group="+groupContact.getClientContactId()+" client="+clientContact.getClientContactId());
+                    TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                            groupContact.getClientContactId(), clientContact.getClientContactId(), false);
 
-                if (!(membership.hasLatestGroupKey() && membership.hasGroupKeyCryptedWithLatestPublicKey())) {
-                    if (!groupContact.groupHasKey()) {
-                        generateGroupKey(groupContact);
+                    // just for error checking purposes, the following condition should never be true
+                    if (membership != null && (membership.getGroupContact().getContactType() == null || membership.getClientContact().getContactType() == null)) {
+                        LOG.error("updateGroupKeyOnServerIfNeeded: defective membership for group="+groupContact.getName()+" client="+clientContact.getName());
                     }
-                    updateGroupKeys(groupContact,new String[]{clientContact.getClientId()});
+
+                    if (membership != null && membership.getGroupContact().getContactType() != null && membership.getClientContact().getContactType() != null) {
+                        // check and repair self membership id
+                        // TODO: maybe move this to updateGroupHere and make sure the own key is also updated on the server
+                        boolean hasLatestGroupKey= membership.hasLatestGroupKey();
+                        boolean hasGroupKeyCryptedWithLatestPublicKey = membership.hasGroupKeyCryptedWithLatestPublicKey();
+                        if (!(hasLatestGroupKey && hasGroupKeyCryptedWithLatestPublicKey)) {
+                            if (!groupContact.groupHasKey()) {
+                                LOG.debug("updateGroupKeyOnServerIfNeeded: calling generateGroupKey");
+                                generateGroupKey(groupContact);
+                            }
+
+                            if (membership.getClientContact().isSelf()) {
+                                TalkGroupMember member = membership.getMember();
+                                // check and set current member key id for self contact
+                                if (member != null) {
+                                    if (member.getMemberKeyId() == null || !member.getMemberKeyId().equals(mSelfContact.getPublicKey().getKeyId())) {
+                                        member.setMemberKeyId(mSelfContact.getPublicKey().getKeyId());
+                                        mDatabase.saveGroupMember(member);
+                                    }
+                                }
+                            }
+
+                            LOG.debug("updateGroupKeyOnServerIfNeeded: calling updateGroupKeys");
+                            updateGroupKeys(groupContact,new String[]{clientContact.getClientId()});
+                            LOG.debug("updateGroupKeyOnServerIfNeeded: updateGroupKeys returned");
+                        }
+                    } else {
+                        LOG.error("updateGroupKeyOnServerIfNeeded: null membership for group="+groupContact.getName()+" client="+clientContact.getName());
+                    }
+                } catch (SQLException e) {
+                    LOG.error("SQL error retrieving group membership", e);
                 }
-            } catch (SQLException e) {
-                LOG.error("SQL error retrieving group membership", e);
-            }
-        } else {
-            // handle case when we are not admin and can only update our own key
-            if (clientContact.isSelf()) {
-                TalkClientMembership membership = groupContact.getSelfClientMembership(this);
-                if (groupContact.groupHasValidKey()) {
-                    // our group key seems fine
-                    if (!(membership.hasLatestGroupKey()) && membership.hasGroupKeyCryptedWithLatestPublicKey()) {
-                        updateMyGroupKey(groupContact);
+            } else {
+                // handle case when we are not admin and can only update our own key
+                if (clientContact.isSelf()) {
+                    TalkClientMembership membership = groupContact.getSelfClientMembership(this);
+                    if (groupContact.groupHasValidKey()) {
+                        // our group key seems fine
+                        if (!(membership.hasLatestGroupKey()) && membership.hasGroupKeyCryptedWithLatestPublicKey()) {
+                            updateMyGroupKey(groupContact);
+                        }
                     }
                 }
             }
+            mGroupKeyUpdateInProgess.remove(groupContact.getGroupId());
+        } finally {
+            mGroupKeyUpdateInProgess.remove(groupContact.getGroupId());
         }
     }
 

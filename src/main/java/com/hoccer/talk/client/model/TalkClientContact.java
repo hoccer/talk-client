@@ -229,13 +229,13 @@ public class TalkClientContact implements Serializable {
     //returns true if I am the one currently responsible for group key setting
     @GroupMethodOnly
     public boolean iAmKeyMaster(XoClient theClient) {
-        return isGroupAdmin() && groupHasKeyMaster(theClient) && iAmKeySupplier();
+        return isGroupAdmin() && groupHasKeyMaster(theClient) && iAmKeySupplier(theClient);
     }
 
     // returns true if the group key has been supplied by me
     @GroupMethodOnly
-    public boolean iAmKeySupplier() {
-        return this.groupPresence.getKeySupplier().equals(getSelf().getRegistrationName());
+    public boolean iAmKeySupplier(XoClient theClient) {
+        return this.groupPresence.getKeySupplier().equals(theClient.getSelfContact().getClientId());
     }
 
     // returns true if some client is probably setting group keys right now
@@ -245,7 +245,7 @@ public class TalkClientContact implements Serializable {
         if (getGroupPresence() != null && getGroupPresence().getKeyDate() != null) {
             long timePassed = estimatedServerTime.getTime() - getGroupPresence().getKeyDate().getTime();
             boolean result = groupHasKeyOnServer() && timePassed < 30 * 1000;
-            if (result && !iAmKeySupplier()) {
+            if (result && !iAmKeySupplier(theClient)) {
                 result = memberCanBeKeyMaster(this.groupPresence.getKeySupplier(), theClient);
             }
             return result;
