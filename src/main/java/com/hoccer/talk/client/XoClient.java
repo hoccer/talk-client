@@ -616,7 +616,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                     IXoContactListener listener = mContactListeners.get(i);
                     listener.onClientPresenceChanged(mSelfContact);
                 }
-                sendPresence();
+
+                mExecutor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        sendPresence();
+                    }
+                });
             }
         } catch (SQLException e) {
             LOG.error("sql error", e);
@@ -635,7 +641,13 @@ public class XoClient implements JsonRpcConnection.Listener {
                         IXoContactListener listener = mContactListeners.get(i);
                         listener.onClientPresenceChanged(mSelfContact);
                     }
-                    sendPresence();
+
+                    mExecutor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            sendPresence();
+                        }
+                    });
                 }
             }
         } catch (SQLException e) {
@@ -1307,28 +1319,38 @@ public class XoClient implements JsonRpcConnection.Listener {
                             updateGroupPresence(group);
                         }
                     }
-                    LOG.debug("sync: syncing group memberships");
-                    List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
-                    for (TalkClientContact group : contacts) {
-                        if (group.isGroup()) {
-                            try {
-                                TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
-                                for (TalkGroupMember member : members) {
-                                    updateGroupMember(member);
+
+                    try {
+                        LOG.debug("sync: syncing group memberships");
+                        List<TalkClientContact> contacts = mDatabase.findAllGroupContacts();
+                        for (TalkClientContact group : contacts) {
+                            if (group.isGroup()) {
+                                try {
+                                    TalkGroupMember[] members = mServerRpc.getGroupMembers(group.getGroupId(), never);
+                                    for (TalkGroupMember member : members) {
+                                        updateGroupMember(member);
+                                    }
+                                } catch (JsonRpcClientException e) {
+                                    LOG.error("Error while updating group member: ", e);
+                                } catch (RuntimeException e) {
+                                    LOG.error("Error while updating group members: ", e);
                                 }
-                            } catch (JsonRpcClientException e) {
-                                LOG.error("Error while updating group member: " , e);
-                            } catch (RuntimeException e) {
-                                LOG.error("Error while updating group members: ", e);
                             }
                         }
+                    } catch (SQLException e) {
+                        LOG.error("SQL Error while syncing: ", e);
+
+                        // TODO: consider resync ??
                     }
-                } catch (SQLException e) {
-                    LOG.error("SQL Error while syncing: ", e);
+                    
+                    switchState(STATE_ACTIVE, "sync successful");
+
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while syncing: ", e);
+
+                    LOG.debug("Rescheduling synchronization.");
+                    scheduleSync();
                 }
-                switchState(STATE_ACTIVE, "sync successful");
             }
         });
     }
@@ -1583,16 +1605,22 @@ public class XoClient implements JsonRpcConnection.Listener {
             TalkClientContact selfContact = getSelfContact();
             selfContact.updateSelfRegistered(clientIdNode.asText());
 
+            mSelfContact = selfContact;
+
             // save credentials and contact
             mDatabase.saveCredentials(self);
             mDatabase.saveContact(selfContact);
 
             // remove contacts + groups from DB
-            mDatabase.deleteAllClientContacts();
-            mDatabase.deleteAllGroupContacts();
+            //mDatabase.deleteAllClientContacts();
+            //mDatabase.deleteAllGroupContacts();
 
-            // re-trigger registration
-            this.reconnect("Credentials changed.");
+            mDatabase.eraseAllRelationships();
+            mDatabase.eraseAllClientContacts();
+            mDatabase.eraseAllGroupMemberships();
+            mDatabase.eraseAllGroupContacts();
+
+            reconnect("Credentials imported.");
 
             return true;
         } catch (SQLException sqlException) {
@@ -1762,9 +1790,12 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     private void sendPresence() {
         LOG.debug("sendPresence()");
+
+        /*
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+        */
                 try {
                     TalkClientContact contact = mSelfContact;
                     ensureSelfPresence(contact);
@@ -1780,8 +1811,11 @@ public class XoClient implements JsonRpcConnection.Listener {
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while sending presence: ", e);
                 }
+
+        /*
             }
         });
+        */
     }
 
     private void updateOutgoingDelivery(final TalkDelivery delivery) {

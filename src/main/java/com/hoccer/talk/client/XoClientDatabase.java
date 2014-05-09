@@ -461,9 +461,37 @@ public class XoClientDatabase {
     public void deleteAllGroupContacts() throws SQLException {
         UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
         updateBuilder.updateColumnValue("deleted", true).where()
-                .eq("deleted", false)
-                .eq("contactType", TalkClientContact.TYPE_GROUP)
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_GROUP)
                 .and(2);
         updateBuilder.update();
+    }
+
+    public void eraseAllClientContacts() throws  SQLException {
+        DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
+        deleteBuilder.where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .and(2);
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllGroupContacts() throws SQLException {
+        DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
+        deleteBuilder.where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .and(2);
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllRelationships() throws SQLException {
+        DeleteBuilder<TalkRelationship, Long> deleteBuilder = mRelationships.deleteBuilder();
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllGroupMemberships() throws SQLException {
+        DeleteBuilder<TalkGroupMember, Long> deleteBuilder = mGroupMembers.deleteBuilder();
+        deleteBuilder.delete();
     }
 }
