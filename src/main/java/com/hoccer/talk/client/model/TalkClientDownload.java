@@ -333,6 +333,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         return downloadUrl;
     }
 
+    /**
+     * Only used for migrating existing filecache Uris to new host. Delete this Method once
+     * the migration is done!
+     *
+     * @param url
+     */
+    @Deprecated
+    public void setDownloadUrl(String downloadUrl) {
+        this.downloadUrl = downloadUrl;
+    }
+
     public String getDownloadFile() {
         return downloadFile;
     }

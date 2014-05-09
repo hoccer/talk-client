@@ -447,4 +447,26 @@ public class XoClientDatabase {
         mSmsTokens.delete(token);
     }
 
+    public void migrateAllFilecacheUris() throws SQLException {
+        List<TalkClientMessage> messages = mClientMessages.queryBuilder().where()
+                .isNotNull("attachmentUpload")
+                .or()
+                .isNotNull("attachmentDownload").query();
+        for(TalkClientMessage message : messages) {
+            TalkClientDownload download = message.getAttachmentDownload();
+            TalkClientUpload upload = message.getAttachmentUpload();
+            if(download != null) {
+                download.setDownloadUrl(migrateFilecacheUrl(download.getDownloadUrl()));
+            }
+            if(upload != null) {
+                upload.setUploadUrl(migrateFilecacheUrl(upload.getUploadUrl()));
+            }
+        }
+    }
+
+    private String migrateFilecacheUrl(String url) {
+        url.replace("", "");
+
+        return null;
+    }
 }
