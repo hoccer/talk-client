@@ -474,7 +474,6 @@ public class XoClientDatabase {
     }
 
     public List<TalkAttachment> findAttachmentsByMediaType(String mediaType) throws SQLException {
-        LOG.error("BAZINGA: request for attachment of type " + mediaType);
         return mAttachments.queryForEq("mediaType", mediaType);
     }
 
