@@ -1,6 +1,8 @@
 package com.hoccer.talk.client.model;
 
+import com.hoccer.talk.client.XoClient;
 import com.hoccer.talk.content.IContentObject;
+import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.model.TalkGroup;
 import com.hoccer.talk.model.TalkGroupMember;
 import com.hoccer.talk.model.TalkKey;
@@ -11,8 +13,13 @@ import com.j256.ormlite.dao.ForeignCollection;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
+import org.apache.commons.codec.binary.Base64;
 
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
+import java.util.Date;
 import java.util.UUID;
 
 /**
@@ -22,6 +29,12 @@ import java.util.UUID;
  */
 @DatabaseTable(tableName = "clientContact")
 public class TalkClientContact implements Serializable {
+
+    public @interface ClientMethodOnly {};
+    public @interface ClientOrGroupMethodOnly {};
+    public @interface ClientOrSelfMethodOnly {};
+    public @interface GroupMethodOnly {};
+    public @interface SelfMethodOnly {};
 
     public static final String TYPE_SELF   = "self";
     public static final String TYPE_CLIENT = "client";
@@ -73,6 +86,7 @@ public class TalkClientContact implements Serializable {
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkGroup groupPresence;
 
+    // when contact is a group, groupMember is the own member description
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkGroupMember groupMember;
 
@@ -91,15 +105,18 @@ public class TalkClientContact implements Serializable {
     
 
     public TalkClientContact() {
-
+        //System.out.println("TalkClientContact(): this="+this);
+        //new Exception().printStackTrace(System.out);
     }
 
     public TalkClientContact(String contactType) {
         this.contactType = contactType;
+        //System.out.println("TalkClientContact(): contactType="+contactType+" this="+this);
     }
 
     public TalkClientContact(String contactType, String id) {
         this(contactType);
+        //System.out.println("TalkClientContact: contactType="+contactType+" id="+id);
         if(contactType.equals(TYPE_CLIENT) || contactType.equals(TYPE_SELF)) {
             this.clientId = id;
         }
@@ -108,6 +125,7 @@ public class TalkClientContact implements Serializable {
         }
     }
 
+    @SelfMethodOnly
     public boolean isEditable() {
         return isSelf() || isGroupAdmin() || (isGroup() && !isGroupRegistered());
     }
@@ -201,6 +219,120 @@ public class TalkClientContact implements Serializable {
         return isGroup() && this.groupMember != null && this.groupMember.isJoined();
     }
 
+    // return true if I am free to set a new group key
+    @GroupMethodOnly
+    public boolean iCanSetKeys(XoClient theClient) {
+        return (!groupHasKeyMaster(theClient) || iAmKeyMaster(theClient)) && isGroupAdmin();
+
+    }
+
+    //returns true if I am the one currently responsible for group key setting
+    @GroupMethodOnly
+    public boolean iAmKeyMaster(XoClient theClient) {
+        return isGroupAdmin() && groupHasKeyMaster(theClient) && iAmKeySupplier(theClient);
+    }
+
+    // returns true if the group key has been supplied by me
+    @GroupMethodOnly
+    public boolean iAmKeySupplier(XoClient theClient) {
+        return this.groupPresence.getKeySupplier().equals(theClient.getSelfContact().getClientId());
+    }
+
+    // returns true if some client is probably setting group keys right now
+    @GroupMethodOnly
+    public boolean groupHasKeyMaster(XoClient theClient) {
+        Date estimatedServerTime = theClient.estimatedServerTime();
+        if (getGroupPresence() != null && getGroupPresence().getKeyDate() != null) {
+            long timePassed = estimatedServerTime.getTime() - getGroupPresence().getKeyDate().getTime();
+            boolean result = groupHasKeyOnServer() && timePassed < 30 * 1000;
+            if (result && !iAmKeySupplier(theClient)) {
+                result = memberCanBeKeyMaster(this.groupPresence.getKeySupplier(), theClient);
+            }
+            return result;
+        }
+        return false;
+    }
+
+    // returns false when the client with memberClientID can not be a keymaster because of missing group membership, admin rights or not being online
+    @GroupMethodOnly
+    public boolean memberCanBeKeyMaster(String memberClientID, XoClient theClient)  {
+        ensureGroup();
+        if(!this.isGroupRegistered()) {
+            return false;
+        }
+        try {
+            TalkClientContact contact = theClient.getDatabase().findContactByClientId(memberClientID, false);
+            if (contact != null) {
+                TalkClientMembership membership = theClient.getDatabase().findMembershipByContacts(this.getClientContactId(),contact.getClientContactId(),false);
+                TalkGroupMember member = membership.getMember();
+                if(member != null && member.isAdmin()) {
+                    if(contact.getClientId().equals(memberClientID)) {
+                        if (contact.getClientPresence().getConnectionStatus().equals(TalkPresence.CONN_STATUS_ONLINE)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+/*
+        int myId = getClientContactId();
+        ForeignCollection<TalkClientMembership> memberships = this.getGroupMemberships();
+        if(memberships != null) {
+            for(TalkClientMembership membership: memberships) {
+                TalkGroupMember member = membership.getMember();
+                if(member != null && member.isAdmin()) {
+                    TalkClientContact contact = membership.getClientContact();
+                    if(contact.getClientId().equals(memberClientID)) {
+                        if (contact.getClientPresence().getConnectionStatus().equals(TalkPresence.CONN_STATUS_ONLINE)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        */
+        return false;
+    }
+
+    // returns true if someone has set a group key for the group on the server by calling updateGroupKeys after the group has been created
+    @GroupMethodOnly
+    public boolean groupHasKeyOnServer() {
+        ensureGroup();
+        return this.groupPresence.getKeySupplier() != null &&
+                this.groupPresence.getSharedKeyId() != null &&
+                this.groupPresence.getSharedKeyIdSalt() != null &&
+                this.groupPresence.getKeyDate() != null;
+    }
+
+    // returns true if there is actually a group key locally stored
+    @GroupMethodOnly
+    public boolean groupHasKey() {
+        ensureGroup();
+        return this.getGroupKey() != null &&
+                Base64.decodeBase64(this.getGroupKey().getBytes(Charset.forName("UTF-8"))).length == AESCryptor.KEY_SIZE;
+    }
+
+    // return true if there is a group key and the stored shared key id matches the computed key id
+    @GroupMethodOnly
+    public boolean groupHasValidKey() {
+        ensureGroup();
+        if (groupHasKey() && getGroupPresence() != null) {
+            byte [] sharedKey = Base64.decodeBase64(this.getGroupKey().getBytes(Charset.forName("UTF-8")));
+            byte [] sharedKeyId = Base64.decodeBase64(this.groupPresence.getSharedKeyId().getBytes(Charset.forName("UTF-8")));
+            byte [] sharedKeySalt = Base64.decodeBase64(this.groupPresence.getSharedKeyIdSalt().getBytes(Charset.forName("UTF-8")));
+            try {
+                byte [] actualSharedKeyId = AESCryptor.calcSymmetricKeyId(sharedKey,sharedKeySalt);
+                return actualSharedKeyId.equals(sharedKey);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+        }
+        return false;
+    }
+
+    // return true if the this contact is joined member of group
     public boolean isClientGroupJoined(TalkClientContact group) {
         if(!group.isGroupRegistered()) {
             return false;
@@ -275,6 +407,7 @@ public class TalkClientContact implements Serializable {
         return avatarDownload;
     }
 
+    @ClientOrGroupMethodOnly
     public void setAvatarDownload(TalkClientDownload avatarDownload) {
         ensureClientOrGroup();
         this.avatarDownload = avatarDownload;
@@ -284,6 +417,7 @@ public class TalkClientContact implements Serializable {
         return avatarUpload;
     }
 
+    @ClientOrSelfMethodOnly
     public void setAvatarUpload(TalkClientUpload avatarUpload) {
         ensureGroupOrSelf();
         this.avatarUpload = avatarUpload;
@@ -334,7 +468,6 @@ public class TalkClientContact implements Serializable {
         return contactType;
     }
 
-
     public TalkKey getPublicKey() {
         return publicKey;
     }
@@ -350,64 +483,103 @@ public class TalkClientContact implements Serializable {
     public void setPrivateKey(TalkPrivateKey privateKey) {
         this.privateKey = privateKey;
     }
-    
 
+    @SelfMethodOnly
     public TalkClientSelf getSelf() {
         ensureSelf();
         return self;
     }
 
-
+    @ClientOrSelfMethodOnly
     public String getClientId() {
         ensureClientOrSelf();
         return clientId;
     }
 
-
+    @ClientOrSelfMethodOnly
     public TalkPresence getClientPresence() {
         ensureClientOrSelf();
         return clientPresence;
     }
 
+    @ClientMethodOnly
     public TalkRelationship getClientRelationship() {
         ensureClient();
         return clientRelationship;
     }
 
-
+    @GroupMethodOnly
     public String getGroupId() {
         ensureGroup();
         return groupId;
     }
 
+    @GroupMethodOnly
     public String getGroupTag() {
         ensureGroup();
         return groupTag;
     }
 
+    @GroupMethodOnly
     public TalkGroup getGroupPresence() {
         ensureGroup();
         return groupPresence;
     }
 
+    @GroupMethodOnly
     public TalkGroupMember getGroupMember() {
         ensureGroup();
         return groupMember;
     }
 
+    // the actual group key, Base64-encoded
+    @GroupMethodOnly
     public String getGroupKey() {
         ensureGroup();
         return groupKey;
     }
 
+    // the actual group key, Base64-encoded
+    @GroupMethodOnly
     public void setGroupKey(String groupKey) {
         ensureGroup();
         this.groupKey = groupKey;
     }
 
+    @GroupMethodOnly
     public ForeignCollection<TalkClientMembership> getGroupMemberships() {
         ensureGroup();
         return groupMemberships;
+    }
+
+    @GroupMethodOnly
+    public TalkClientMembership getSelfClientMembership(XoClient theClient) {
+        ensureGroup();
+        if(!this.isGroupRegistered()) {
+            return null;
+        }
+        try {
+            TalkClientContact contact = theClient.getSelfContact();
+            if (contact != null) {
+                TalkClientMembership membership = theClient.getDatabase().findMembershipByContacts(this.getClientContactId(),contact.getClientContactId(),false);
+                return membership;
+             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+/*
+        ensureGroup();
+        ForeignCollection<TalkClientMembership> memberships = this.getGroupMemberships();
+        if(memberships != null && memberships.size() > 0) {
+            for(TalkClientMembership membership: memberships) {
+                TalkClientContact contact = membership.getClientContact();
+                if (contact != null && contact.isSelf()) {
+                    return membership;
+                }
+            }
+        }
+        */
+        return null;
     }
 
     public boolean isNearby() {
@@ -418,6 +590,7 @@ public class TalkClientContact implements Serializable {
         this.isNearby = isNearby;
     }
 
+    @SelfMethodOnly
     public boolean initializeSelf() {
         boolean changed = false;
         ensureSelf();
@@ -432,58 +605,54 @@ public class TalkClientContact implements Serializable {
         return changed;
     }
 
+    @SelfMethodOnly
     public void updateSelfConfirmed() {
         ensureSelf();
         this.self.confirmRegistration();
     }
 
+    @SelfMethodOnly
     public void updateSelfRegistered(String clientId) {
         ensureSelf();
         this.clientId = clientId;
     }
 
+    @GroupMethodOnly
     public void updateGroupId(String groupId) {
         ensureGroup();
         this.groupId = groupId;
     }
 
+    @GroupMethodOnly
     public void updateGroupTag(String groupTag) {
         ensureGroup();
         this.groupTag = groupTag;
     }
 
+    @ClientOrSelfMethodOnly
     public void updatePresence(TalkPresence presence) {
         ensureClientOrSelf();
         if(this.clientPresence == null) {
             this.clientPresence = presence;
         } else {
-            TalkPresence my = this.clientPresence;
-            my.setClientName(presence.getClientName());
-            my.setClientStatus(presence.getClientStatus());
-            my.setConnectionStatus(presence.getConnectionStatus());
-            my.setAvatarUrl(presence.getAvatarUrl());
-            my.setKeyId(presence.getKeyId());
-            my.setTimestamp(presence.getTimestamp());
+            this.clientPresence.updateWith(presence);
         }
     }
 
+    @ClientMethodOnly
     public void updateRelationship(TalkRelationship relationship) {
         ensureClient();
         if(this.clientRelationship == null) {
             this.clientRelationship = relationship;
         } else {
-            TalkRelationship my = this.clientRelationship;
-            my.setClientId(relationship.getClientId());
-            my.setOtherClientId(relationship.getOtherClientId());
-            my.setLastChanged(relationship.getLastChanged());
-            my.setState(relationship.getState());
-
+            this.clientRelationship.updateWith(relationship);
         }
         if(this.clientRelationship.isRelated()) {
             markAsRelated();
         }
     }
 
+    @GroupMethodOnly
     public void updateGroupPresence(TalkGroup group) {
         ensureGroup();
         if(this.groupPresence == null) {
@@ -495,25 +664,17 @@ public class TalkClientContact implements Serializable {
             }
             this.groupPresence = group;
         } else {
-            TalkGroup my = this.groupPresence;
-            my.setState(group.getState());
-            my.setGroupName(group.getGroupName());
-            my.setGroupAvatarUrl(group.getGroupAvatarUrl());
-            my.setLastChanged(group.getLastChanged());
+            this.groupPresence.updateWith(group);
         }
     }
 
+    @GroupMethodOnly
     public void updateGroupMember(TalkGroupMember member) {
         ensureGroup();
         if(this.groupMember == null) {
             this.groupMember = member;
         } else {
-            TalkGroupMember my = this.groupMember;
-            my.setState(member.getState());
-            my.setLastChanged(member.getLastChanged());
-            my.setMemberKeyId(member.getMemberKeyId());
-            my.setEncryptedGroupKey(member.getEncryptedGroupKey());
-            my.setRole(member.getRole());
+            this.groupMember.updateWith(member);
         }
         if(this.groupMember.isInvolved()) {
             markAsRelated();

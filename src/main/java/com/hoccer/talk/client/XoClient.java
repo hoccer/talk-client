@@ -48,18 +48,9 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SecureRandom;
+import java.security.*;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -155,6 +146,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     Vector<IXoUnseenListener> mUnseenListeners = new Vector<IXoUnseenListener>();
     Vector<IXoTokenListener> mTokenListeners = new Vector<IXoTokenListener>();
 
+    Set<String> mGroupKeyUpdateInProgess = new HashSet<String>();
 
     /** The current state of this client */
     int mState = STATE_INACTIVE;
@@ -172,6 +164,8 @@ public class XoClient implements JsonRpcConnection.Listener {
     AtomicBoolean mEnvironmentUpdateCallPending = new AtomicBoolean(false);
 
     int mRSAKeysize = 1024;
+
+    private long serverTimeDiff = 0;
 
     /**
      * Create a Hoccer Talk client using the given client database
@@ -534,19 +528,12 @@ public class XoClient implements JsonRpcConnection.Listener {
         ensureSelfKey(mSelfContact);
     }
 
-    public void scheduleHello() {
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                hello();
-            }
-        });
+    public Date estimatedServerTime() {
+        return new Date(new Date().getTime() + this.serverTimeDiff);
     }
 
     public void hello() {
-
         try {
-
             TalkClientInfo clientInfo = new TalkClientInfo();
             clientInfo.setClientName(mClientHost.getClientName());
             clientInfo.setClientTime(mClientHost.getClientTime());
@@ -564,8 +551,14 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.debug("Hello: Saying hello to the server.");
             TalkServerInfo talkServerInfo = mServerRpc.hello(clientInfo);
             if (talkServerInfo != null) {
+                // serverTimeDiff is positive if server time is ahead of client time
+                this.serverTimeDiff = talkServerInfo.getServerTime().getTime() - new Date().getTime();
+                LOG.info("Hello: client time differs from server time by "+this.serverTimeDiff+" ms");
                 LOG.debug("Hello: Current server time: " + talkServerInfo.getServerTime().toString());
                 LOG.debug("Hello: Server switched to supportMode: " + talkServerInfo.isSupportMode());
+                LOG.debug("Hello: Server version is '" + talkServerInfo.getVersion() + "'");
+                LOG.debug("Hello: supported protocol versions: '" + talkServerInfo.getProtocolVersions() + "'");
+                LOG.debug("Hello: git commit is '" + talkServerInfo.getCommitId() + "'");
             }
         } catch (JsonRpcClientException e) {
             LOG.error("Error while sending Hello: ", e);
@@ -869,7 +862,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
-    public void createGroup(final TalkClientContact contact) {
+    public void createGroup(final TalkClientContact groupContact) {
         LOG.debug("createGroup()");
         resetIdle();
         mExecutor.execute(new Runnable() {
@@ -877,18 +870,19 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 try {
                     LOG.debug("creating group");
-                    TalkGroup groupPresence = contact.getGroupPresence();
-                    TalkClientUpload avatarUpload = contact.getAvatarUpload();
+                    TalkGroup groupPresence = groupContact.getGroupPresence();
+                    TalkClientUpload avatarUpload = groupContact.getAvatarUpload();
 
-                    contact.hackSetGroupPresence(null);
-                    contact.setAvatarUpload(null);
+                    groupContact.setAvatarUpload(null);
 
-                    try {
-                        mDatabase.saveContact(contact);
-                    } catch (SQLException e) {
-                        LOG.error("SQL error", e);
-                    }
+                    TalkGroupMember member = new TalkGroupMember();
+                    member.setClientId(mSelfContact.getClientId());
+                    member.setRole(TalkGroupMember.ROLE_ADMIN);
+                    member.setState(TalkGroupMember.STATE_JOINED);
+                    member.setMemberKeyId(mSelfContact.getPublicKey().getKeyId()); // TODO: make sure all members are properly updated when the public key changes
+                    groupContact.updateGroupMember(member);
 
+                    generateGroupKey(groupContact);
                     LOG.debug("creating group on server");
                     String groupId = mServerRpc.createGroup(groupPresence);
 
@@ -898,26 +892,52 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                     groupPresence.setGroupId(groupId);            // was null
                     groupPresence.setState(TalkGroup.STATE_NONE); // was null
-                    contact.updateGroupId(groupId);
-                    contact.updateGroupPresence(groupPresence);   // was missing
+                    member.setGroupId(groupId);
+                    groupContact.updateGroupId(groupId);
+                    groupContact.updateGroupPresence(groupPresence);   // was missing
 
                     try {
+                        mDatabase.saveGroupMember(member);
                         mDatabase.saveGroup(groupPresence);
-                        mDatabase.saveContact(contact);
+                        mDatabase.saveContact(groupContact);
+                        TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                                groupContact.getClientContactId(), mSelfContact.getClientContactId(), true);
+                        membership.updateGroupMember(member);
+                        mDatabase.saveClientMembership(membership);
                     } catch (SQLException e) {
                         LOG.error("sql error", e);
                     }
 
-                    LOG.debug("new group contact " + contact.getClientContactId());
+                    LOG.debug("new group contact " + groupContact.getClientContactId());
 
                     for (int i = 0; i < mContactListeners.size(); i++) {
                         IXoContactListener listener = mContactListeners.get(i);
-                        listener.onContactAdded(contact);
+                        listener.onContactAdded(groupContact);
                     }
 
                     if(avatarUpload != null) {
-                        setGroupAvatar(contact, avatarUpload);
+                        setGroupAvatar(groupContact, avatarUpload);
                     }
+
+                    // start of error checking section, remove when all works
+                    TalkClientMembership membership = null;
+                    try {
+                        LOG.error("createGroup: looking for membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        membership = mDatabase.findMembershipByContacts(
+                                groupContact.getClientContactId(), mSelfContact.getClientContactId(), false);
+                        if (membership == null) {
+                            LOG.error("createGroup: not found: membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        }
+                        // just for error checking purposes, the following condition should never be true
+                        if (membership != null && (membership.getGroupContact().getContactType() == null || membership.getClientContact().getContactType() == null)) {
+                            LOG.error("createGroup: defective membership for group="+groupContact.getClientContactId()+" client="+mSelfContact.getClientContactId());
+                        }
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                    // end of error checking section
+
+
 
                 } catch (JsonRpcClientException e) {
                     LOG.error("Error while creating group: ", e);
@@ -2524,23 +2544,21 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public void updateGroupMember(TalkGroupMember member) {
-        updateGroupMember(member, false);
+        updateGroupMemberHere(member);
     }
 
-    public void updateGroupMember(TalkGroupMember member, boolean alwaysRenew) {
+    public void updateGroupMemberHere(TalkGroupMember member) {
         LOG.debug("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         boolean needGroupUpdate = false;
-        boolean needRenewal = alwaysRenew;
+        boolean needKeyRenewal = false;
         try {
             clientContact = mDatabase.findContactByClientId(member.getClientId(), false);
             if(clientContact != null) {
                 groupContact = mDatabase.findContactByGroupId(member.getGroupId(), false);
                 if(groupContact == null) {
-                    boolean createGroup =
-                            clientContact.isSelf()
-                                    && member.isInvolved();
+                    boolean createGroup = clientContact.isSelf() && member.isInvolved();
                     if(createGroup) {
                         LOG.debug("creating group for member in state '" + member.getState() + "' group '" + member.getGroupId() + "'");
                         groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
@@ -2564,16 +2582,16 @@ public class XoClient implements JsonRpcConnection.Listener {
         // if this concerns our own membership
         if(clientContact.isSelf()) {
             LOG.debug("groupMember is about us, decrypting group key");
-            groupContact.updateGroupMember(member);
-            decryptGroupKey(groupContact, member);
-            if(groupContact.isGroupAdmin()) {
-                if(member.getEncryptedGroupKey() == null || member.getMemberKeyId() == null) {
-                    LOG.debug("we have no key, renewing");
-                    needRenewal = true;
-                }
-            }
             try {
-                mDatabase.saveGroupMember(groupContact.getGroupMember());
+                groupContact.updateGroupMember(member);
+                TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                        groupContact.getClientContactId(), clientContact.getClientContactId(), true);
+                membership.updateGroupMember(member);
+
+                decryptGroupKey(groupContact, member);
+
+                //mDatabase.saveGroupMember(groupContact.getGroupMember());
+                mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveContact(groupContact);
             } catch (SQLException e) {
                 LOG.error("SQL error", e);
@@ -2589,7 +2607,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                 if(oldMember != null) {
                     LOG.debug("old " + oldMember.getState() + " new " + member.getState());
                 }
-                if(groupContact.isGroupAdmin()) {
+                /*
+                if(groupContact.iCanSetKeys(this)) {
                     if(oldMember == null) {
                         LOG.debug("client is new, renewing");
                         needRenewal = true;
@@ -2603,7 +2622,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                         needRenewal = true;
                     }
                 }
-
+                */
                 /* Mark as nearby contact and save to database. */
                 if (groupContact.getGroupPresence().isTypeNearby() && member.isJoined()) {
                     clientContact.setNearby(true);
@@ -2647,6 +2666,21 @@ public class XoClient implements JsonRpcConnection.Listener {
             });
         }
 
+        // now check if we need to update some key
+        final TalkClientContact fGroupContact = groupContact;
+        final TalkClientContact fClientContact = clientContact;
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    updateGroupKeyOnServerIfNeeded(fGroupContact, fClientContact);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while updateGroupKeyOnServerIfNeeded: ", e);
+                }
+            }
+        });
+
+        /*
         if(needRenewal && groupContact.isGroupAdmin()) {
             LOG.debug("initiating key renewal");
             final TalkClientContact finalGroup = groupContact;
@@ -2656,6 +2690,79 @@ public class XoClient implements JsonRpcConnection.Listener {
                     renewGroupKey(finalGroup);
                 }
             }, 500, TimeUnit.MILLISECONDS);
+        }
+        */
+    }
+
+    private void updateGroupKeyOnServerIfNeeded(TalkClientContact groupContact, TalkClientContact clientContact) {
+        String groupName = groupContact.getName();
+        String clientName = clientContact.getName();
+        LOG.debug("UpdateGroupKeyOnServerIfNeeded group nick="+groupContact.getName()+", clientContact nick="+clientContact.getName());
+        if (mGroupKeyUpdateInProgess.contains(groupContact.getGroupId())) {
+            LOG.debug("UpdateGroupKeyOnServerIfNeeded: ALREADY IN PROGRESS: group nick="+groupContact.getName()+", clientContact nick="+clientContact.getName());
+            return;
+        }
+        mGroupKeyUpdateInProgess.add(groupContact.getGroupId());
+        try {
+            if (groupContact.iCanSetKeys(this)) {
+                // handle case if we are admin and are or can become keymaster
+                try {
+                    LOG.error("updateGroupKeyOnServerIfNeeded: looking for membership for group="+groupContact.getClientContactId()+" client="+clientContact.getClientContactId());
+                    TalkClientMembership membership = mDatabase.findMembershipByContacts(
+                            groupContact.getClientContactId(), clientContact.getClientContactId(), false);
+
+                    // just for error checking purposes, the following condition should never be true
+                    if (membership != null && (membership.getGroupContact().getContactType() == null || membership.getClientContact().getContactType() == null)) {
+                        LOG.error("updateGroupKeyOnServerIfNeeded: defective membership for group="+groupContact.getName()+" client="+clientContact.getName());
+                    }
+
+                    if (membership != null && membership.getGroupContact().getContactType() != null && membership.getClientContact().getContactType() != null) {
+                        // check and repair self membership id
+                        // TODO: maybe move this to updateGroupHere and make sure the own key is also updated on the server
+                        boolean hasLatestGroupKey= membership.hasLatestGroupKey();
+                        boolean hasGroupKeyCryptedWithLatestPublicKey = membership.hasGroupKeyCryptedWithLatestPublicKey();
+                        if (!(hasLatestGroupKey && hasGroupKeyCryptedWithLatestPublicKey)) {
+                            if (!groupContact.groupHasKey()) {
+                                LOG.debug("updateGroupKeyOnServerIfNeeded: calling generateGroupKey");
+                                generateGroupKey(groupContact);
+                            }
+
+                            if (membership.getClientContact().isSelf()) {
+                                TalkGroupMember member = membership.getMember();
+                                // check and set current member key id for self contact
+                                if (member != null) {
+                                    if (member.getMemberKeyId() == null || !member.getMemberKeyId().equals(mSelfContact.getPublicKey().getKeyId())) {
+                                        member.setMemberKeyId(mSelfContact.getPublicKey().getKeyId());
+                                        mDatabase.saveGroupMember(member);
+                                    }
+                                }
+                            }
+
+                            LOG.debug("updateGroupKeyOnServerIfNeeded: calling updateGroupKeys");
+                            updateGroupKeys(groupContact,new String[]{clientContact.getClientId()});
+                            LOG.debug("updateGroupKeyOnServerIfNeeded: updateGroupKeys returned");
+                        }
+                    } else {
+                        LOG.error("updateGroupKeyOnServerIfNeeded: null membership for group="+groupContact.getName()+" client="+clientContact.getName());
+                    }
+                } catch (SQLException e) {
+                    LOG.error("SQL error retrieving group membership", e);
+                }
+            } else {
+                // handle case when we are not admin and can only update our own key
+                if (clientContact.isSelf()) {
+                    TalkClientMembership membership = groupContact.getSelfClientMembership(this);
+                    if (groupContact.groupHasValidKey()) {
+                        // our group key seems fine
+                        if (!(membership.hasLatestGroupKey()) && membership.hasGroupKeyCryptedWithLatestPublicKey()) {
+                            updateMyGroupKey(groupContact);
+                        }
+                    }
+                }
+            }
+            mGroupKeyUpdateInProgess.remove(groupContact.getGroupId());
+        } finally {
+            mGroupKeyUpdateInProgess.remove(groupContact.getGroupId());
         }
     }
 
@@ -2676,29 +2783,126 @@ public class XoClient implements JsonRpcConnection.Listener {
                 if(privateKey == null) {
                     LOG.error("could not decode private key");
                 } else {
-//                    byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey);
                     byte[] rawEncryptedGroupKey = Base64.decodeBase64(encryptedGroupKey.getBytes(Charset.forName("UTF-8")));
                     byte[] rawGroupKey = RSACryptor.decryptRSA(privateKey, rawEncryptedGroupKey);
                     LOG.debug("successfully decrypted group key");
-//                    String groupKey = Base64.encodeBase64String(rawGroupKey);
                     String groupKey = new String(Base64.encodeBase64(rawGroupKey));
                     group.setGroupKey(groupKey);
                 }
             }
         } catch (SQLException e) {
             LOG.error("SQL error", e);
-        } catch (IllegalBlockSizeException e) {
-            LOG.error("error decrypting group key", e);
-        } catch (InvalidKeyException e) {
-            LOG.error("error decrypting group key", e);
-        } catch (BadPaddingException e) {
-            LOG.error("error decrypting group key", e);
-        } catch (NoSuchAlgorithmException e) {
-            LOG.error("error decrypting group key", e);
-        } catch (NoSuchPaddingException e) {
+        } catch (GeneralSecurityException e) {
             LOG.error("error decrypting group key", e);
         }
     }
+
+    // updates the member group keys for @group on the server;
+    // when @clientIds is null, all members are considered, otherwise only clients
+    // denoted in clientId are updated
+    private void updateGroupKeys(TalkClientContact group, String[] onlyWithClientIds) {
+
+        HashSet<String> clientIdSet = new HashSet<String>(Arrays.asList(onlyWithClientIds));
+
+        ArrayList<String> clientIds = new ArrayList<String>();
+        ArrayList<String> publicKeyIds = new ArrayList<String>();
+        ArrayList<String> encryptedSharedKeys = new ArrayList<String>();
+
+        ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
+        if (memberships != null) {
+
+            // use key from group
+            byte[] rawGroupKey = Base64.decodeBase64(group.getGroupKey().getBytes(Charset.forName("UTF-8")));
+            String sharedKeyIdSaltString = group.getGroupPresence().getSharedKeyIdSalt();
+            String sharedKeyIdString = group.getGroupPresence().getSharedKeyId();
+
+            // prepare ArrayList with keys first first
+            for (TalkClientMembership membership : memberships) {
+                TalkGroupMember member = membership.getMember();
+                if (member != null && member.isJoinedOrInvited() && ((onlyWithClientIds == null) || clientIdSet.contains(member.getClientId()))) {
+                    LOG.debug("joined member contact " + membership.getClientContact().getClientContactId());
+                    try {
+                        TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
+                        LOG.debug("encrypting new group key for client contact " + client.getClientContactId());
+
+                        TalkKey clientPubKey = client.getPublicKey();
+                        if (clientPubKey == null) {
+                            LOG.warn("no public key for client contact " + client.getClientContactId());
+                        } else {
+                            // encrypt and encode key for client
+                            PublicKey clientKey = clientPubKey.getAsNative();
+
+                            byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, rawGroupKey);
+                            String encryptedSharedKeyString = new String(Base64.encodeBase64(encryptedGroupKey));
+
+                            clientIds.add(member.getClientId());
+                            publicKeyIds.add(member.getMemberKeyId());
+                            encryptedSharedKeys.add(encryptedSharedKeyString);
+                        }
+                    } catch (SQLException e) {
+                        LOG.error("sql error", e);
+                    } catch (GeneralSecurityException e) {
+                        LOG.error("encryption error", e);
+                    }
+                }
+            }
+            if (clientIds.size() > 0) {
+                try {
+                    final String[] outOfDateKeys = mServerRpc.updateGroupKeys(group.getGroupId(), sharedKeyIdString, sharedKeyIdSaltString,
+                            clientIds.toArray(new String[]{}),
+                            publicKeyIds.toArray(new String[]{}),
+                            encryptedSharedKeys.toArray(new String[]{}));
+                    if (outOfDateKeys != null) {
+                        if (outOfDateKeys.length == 1 && outOfDateKeys[0].equals(this.getSelfContact().getClientId())) {
+                            LOG.info("Group locked on server, doing nothing");
+                        } else {
+                            if (outOfDateKeys.length > 0) {
+                                LOG.info("scheduling call to updateGroupKeys again to process out-of-date keys "+outOfDateKeys);
+                                final TalkClientContact finalGroup = group;
+                                mExecutor.schedule(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        updateGroupKeys(finalGroup, outOfDateKeys);
+                                    }
+                                }, 500, TimeUnit.MILLISECONDS);
+                            }
+                        }
+                    }
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while updating group key: ", e);
+                }
+            }
+        }
+    }
+
+    private void generateGroupKey(TalkClientContact group) {
+        if(!group.isGroupAdmin()) {
+            LOG.warn("we are not admin, must not generate a group key");
+            return;
+        }
+        try {
+            // generate the new key
+            byte[] newGroupKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            byte [] sharedKeyIdSalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
+            String sharedKeyIdSaltString = new String(Base64.encodeBase64(sharedKeyIdSalt));
+            byte [] sharedKeyId = new byte[0];
+            sharedKeyId = AESCryptor.calcSymmetricKeyId(newGroupKey, sharedKeyIdSalt);
+            String sharedKeyIdString = new String(Base64.encodeBase64(sharedKeyId));
+
+            // remember the group key for ourselves
+            group.setGroupKey(new String(Base64.encodeBase64(newGroupKey)));
+            group.getGroupPresence().setSharedKeyIdSalt(sharedKeyIdSaltString);
+            group.getGroupPresence().setSharedKeyId(sharedKeyIdString);
+
+            mDatabase.saveContact(group);
+
+        } catch (NoSuchAlgorithmException e) {
+            LOG.error("failed to generate new group key, bad crypto provider or export restricted java security settings", e);
+        }  catch (SQLException e) {
+            LOG.error("sql error saving group contact after key generation", e);
+        }
+    }
+
 
     private void renewGroupKey(TalkClientContact group) {
         LOG.debug("renewing group key for group contact " + group.getClientContactId());
@@ -2708,72 +2912,53 @@ public class XoClient implements JsonRpcConnection.Listener {
             return;
         }
 
-        // generate the new key
-        byte[] newGroupKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
-        // remember the group key for ourselves
-//        group.setGroupKey(Base64.encodeBase64String(newGroupKey));
-        group.setGroupKey(new String(Base64.encodeBase64(newGroupKey)));
-        // distribute the group key
-        ForeignCollection<TalkClientMembership> memberships = group.getGroupMemberships();
-        if(memberships != null) {
-            LOG.debug("will send key to " + memberships.size() + " members");
-            for(TalkClientMembership membership: memberships) {
-                TalkGroupMember member = membership.getMember();
-                if(member != null && member.isJoined()) {
-                    LOG.debug("joined member contact " + membership.getClientContact().getClientContactId());
-                    try {
-                        TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
-                        LOG.debug("encrypting new group key for client contact " + client.getClientContactId());
-                        TalkKey clientPubKey = client.getPublicKey();
-                        if(clientPubKey == null) {
-                            LOG.warn("no public key for client contact " + client.getClientContactId());
-                        } else {
-                            // encrypt and encode key for client
-                            PublicKey clientKey = clientPubKey.getAsNative();
-                            byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, newGroupKey);
-//                            String encodedGroupKey = Base64.encodeBase64String(encryptedGroupKey);
-                            String encodedGroupKey = new String(Base64.encodeBase64(encryptedGroupKey));
-                            // send the key to the server for distribution
+        generateGroupKey(group);
+        updateGroupKeys(group, null);
+    }
 
-                            // TODO: use updateGroupKeys
-                            //mServerRpc.updateGroupKey(group.getGroupId(), client.getClientId(), clientPubKey.getKeyId(), encodedGroupKey);
+    // update my membership group key when my public key has changed;
+    // the shared group key must match the current group key on the server
+    private void updateMyGroupKey(TalkClientContact group) {
 
-                            byte [] sharedKeyIdSalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
-                            String sharedKeyIdSaltString = new String(Base64.encodeBase64(sharedKeyIdSalt));
-                            byte [] sharedKeyId = AESCryptor.calcSymmetricKeyId(newGroupKey,sharedKeyIdSalt);
-                            String sharedKeyIdString = new String(Base64.encodeBase64(sharedKeyId));
+        TalkClientMembership membership = group.getSelfClientMembership(this);
 
-                            mServerRpc.updateGroupKeys(group.getGroupId(), sharedKeyIdString, sharedKeyIdSaltString,
-                                    new String[]{client.getClientId()},
-                                    new String[]{clientPubKey.getKeyId()},
-                                    new String[]{encodedGroupKey});
-                        }
-                    } catch (SQLException e) {
-                        LOG.error("sql error", e);
-                    } catch (IllegalBlockSizeException e) {
-                        LOG.error("encryption error", e);
-                    } catch (InvalidKeyException e) {
-                        LOG.error("encryption error", e);
-                    } catch (BadPaddingException e) {
-                        LOG.error("encryption error", e);
-                    } catch (NoSuchAlgorithmException e) {
-                        LOG.error("encryption error", e);
-                    } catch (NoSuchPaddingException e) {
-                        LOG.error("encryption error", e);
-                    }  catch (JsonRpcClientException e) {
-                        LOG.error("Error while updating group key: ", e);
+        if (membership != null) {
+
+            // use key from group
+            byte[] rawGroupKey = Base64.decodeBase64(group.getGroupKey().getBytes(Charset.forName("UTF-8")));
+            String sharedKeyIdSaltString = group.getGroupPresence().getSharedKeyIdSalt();
+            String sharedKeyIdString = group.getGroupPresence().getSharedKeyId();
+
+            TalkGroupMember member = membership.getMember();
+            if (member != null && member.isJoinedOrInvited()) {
+                TalkClientContact client = membership.getClientContact();
+                try {
+                    // TalkClientContact client = mDatabase.findClientContactById(membership.getClientContact().getClientContactId());
+                    LOG.debug("encrypting new group key for myself= " + client.getClientContactId());
+
+                    TalkKey clientPubKey = client.getPublicKey();
+                    if (clientPubKey == null) {
+                        LOG.error("no public key for myself " + client.getClientContactId());
+                    } else {
+                        // encrypt and encode key for client
+                        PublicKey clientKey = clientPubKey.getAsNative();
+
+                        byte[] encryptedGroupKey = RSACryptor.encryptRSA(clientKey, rawGroupKey);
+                        String encryptedSharedKeyString = new String(Base64.encodeBase64(encryptedGroupKey));
+
+                        mServerRpc.updateMyGroupKey(group.getGroupId(), sharedKeyIdString, sharedKeyIdSaltString, member.getMemberKeyId(), encryptedSharedKeyString);
                     }
+                //} catch (SQLException e) {
+                //    LOG.error("sql error", e);
+                } catch (GeneralSecurityException e) {
+                    LOG.error("Encryption error while updating my group key", e);
+                } catch (JsonRpcClientException e) {
+                    LOG.error("Error while updating my group key: ", e);
                 }
             }
         }
-
-        // save the new group key
-        try {
-            mDatabase.saveContact(group);
-        } catch (SQLException e) {
-            LOG.error("sql error", e);
-        }
     }
+
 
     public void requestDownload(TalkClientDownload download) {
         mTransferAgent.requestDownload(download);
