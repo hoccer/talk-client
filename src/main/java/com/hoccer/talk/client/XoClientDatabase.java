@@ -218,13 +218,33 @@ public class XoClientDatabase {
         return orderedListOfDistinctSenders;
     }
 
-    public List<TalkClientContact> findAllGroupContacts() throws SQLException {
+    public List<TalkClientContact> findAllNearbyClientContacts() throws  SQLException {
+        return mClientContacts.queryBuilder().where()
+                        .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                        .eq("deleted", false)
+                        .eq("isNearby", true)
+                    .and(3)
+                .query();
+    }
 
+    public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
                  .eq("contactType", TalkClientContact.TYPE_GROUP)
                  .eq("deleted", false)
                 .and(2)
                .query();
+    }
+
+    public List<TalkClientContact> findAllNearbyGroupContacts() throws SQLException {
+        List<TalkClientContact> allGroupContacts = this.findAllGroupContacts();
+        List<TalkClientContact> allNearbyGroupContacts = new ArrayList<TalkClientContact>();
+
+        for (TalkClientContact groupContact : allGroupContacts) {
+            if (groupContact.isGroupInvolved() && groupContact.isGroupExisting() && groupContact.getGroupPresence().isTypeNearby()) {
+                allNearbyGroupContacts.add(groupContact);
+            }
+        }
+        return allNearbyGroupContacts;
     }
 
     public List<TalkClientSmsToken> findAllSmsTokens() throws SQLException {
@@ -393,6 +413,14 @@ public class XoClientDatabase {
         return mClientDownloads.queryForId(clientDownloadId);
     }
 
+    public List<TalkClientDownload> findClientDownloadByMediaType(String mediaType) throws SQLException {
+        return mClientDownloads.queryForEq("mediaType", mediaType);
+    }
+
+    public List<TalkClientDownload> findAllClientDownloads() throws SQLException {
+        return mClientDownloads.queryForAll();
+    }
+
     public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
         return mClientMessages.queryForId(clientMessageId);
     }
@@ -446,6 +474,7 @@ public class XoClientDatabase {
     }
 
     public List<TalkAttachment> findAttachmentsByMediaType(String mediaType) throws SQLException {
+        LOG.error("BAZINGA: request for attachment of type " + mediaType);
         return mAttachments.queryForEq("mediaType", mediaType);
     }
 
