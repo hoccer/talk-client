@@ -449,24 +449,27 @@ public class XoClientDatabase {
 
     public void migrateAllFilecacheUris() throws SQLException {
         List<TalkClientMessage> messages = mClientMessages.queryBuilder().where()
-                .isNotNull("attachmentUpload")
+                .isNotNull("attachmentUpload_id")
                 .or()
-                .isNotNull("attachmentDownload").query();
+                .isNotNull("attachmentDownload_id").query();
         for(TalkClientMessage message : messages) {
             TalkClientDownload download = message.getAttachmentDownload();
             TalkClientUpload upload = message.getAttachmentUpload();
             if(download != null) {
                 download.setDownloadUrl(migrateFilecacheUrl(download.getDownloadUrl()));
+                mClientDownloads.update(download);
             }
             if(upload != null) {
                 upload.setUploadUrl(migrateFilecacheUrl(upload.getUploadUrl()));
+                mClientUploads.update(upload);
             }
         }
     }
 
     private String migrateFilecacheUrl(String url) {
-        url.replace("", "");
-
-        return null;
+        String migratedUrl = url.substring(url.indexOf("/", 8));
+        migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
+        LOG.debug("migrated url: " + url + " to: " + migratedUrl);
+        return migratedUrl;
     }
 }
