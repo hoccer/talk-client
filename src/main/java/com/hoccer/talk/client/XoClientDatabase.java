@@ -441,7 +441,9 @@ public class XoClientDatabase {
     }
 
     public List<TalkAttachment> findAttachmentsByTypeAudio() throws SQLException {
-        List<TalkAttachment> audioAttachments = new ArrayList<TalkAttachment>();
+
+        List<TalkAttachment> audioAttachments = mAttachments.queryForEq("mediaType", "audio");
+        /*
         CloseableIterator<TalkAttachment> iterator = mAttachments.closeableIterator();
         try {
             while (iterator.hasNext()){
@@ -453,6 +455,7 @@ public class XoClientDatabase {
         } finally {
             iterator.close();
         }
+        */
         return audioAttachments;
     }
 
