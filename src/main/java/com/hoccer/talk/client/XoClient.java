@@ -2809,7 +2809,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                             publicKeyIds.toArray(new String[]{}),
                             encryptedSharedKeys.toArray(new String[]{}));
                     if (outOfDateKeys != null) {
-                        if (outOfDateKeys.length == 1 && outOfDateKeys[0].equals(this.getSelfContact().getClientId())) {
+                        if (outOfDateKeys.length == 1 && outOfDateKeys[0].equals("LOCKED")) {
                             LOG.info("Group locked on server, doing nothing");
                         } else {
                             if (outOfDateKeys.length > 0) {
