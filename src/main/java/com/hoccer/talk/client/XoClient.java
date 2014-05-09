@@ -1978,48 +1978,61 @@ public class XoClient implements JsonRpcConnection.Listener {
             clientMessage.setConversationContact(groupContact);
         }
 
-        decryptMessage(clientMessage, delivery, message);
-
-        clientMessage.updateIncoming(delivery, message);
-
-        TalkClientDownload attachmentDownload = clientMessage.getAttachmentDownload();
+        boolean messageFailed = true;
         try {
+            decryptMessage(clientMessage, delivery, message);
+
+            clientMessage.updateIncoming(delivery, message);
+
+            TalkClientDownload attachmentDownload = clientMessage.getAttachmentDownload();
+
             if(attachmentDownload != null) {
                 mDatabase.saveClientDownload(clientMessage.getAttachmentDownload());
             }
             mDatabase.saveMessage(clientMessage.getMessage());
             mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
             mDatabase.saveClientMessage(clientMessage);
-        } catch (SQLException e) {
-            LOG.error("SQL error", e);
-        }
 
-        if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
+            if(attachmentDownload != null) {
+                mTransferAgent.registerDownload(attachmentDownload);
+            }
+
+            for(IXoMessageListener listener: mMessageListeners) {
+                if(newMessage) {
+                    listener.onMessageAdded(clientMessage);
+                } else {
+                    listener.onMessageStateChanged(clientMessage);
+                }
+            }
+
+            notifyUnseenMessages(newMessage);
+            messageFailed = false;
+        } catch (GeneralSecurityException e) {
+        } catch (IOException e) {
+        } catch (SQLException e) {
+        }
+        if (!messageFailed) {
+            if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
+                mExecutor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        LOG.debug("confirming " + delivery.getMessageId());
+                        mServerRpc.deliveryConfirm(delivery.getMessageId());
+                    }
+                });
+            }
+        } else {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.debug("confirming " + delivery.getMessageId());
-                    mServerRpc.deliveryConfirm(delivery.getMessageId());
+                    LOG.debug("aborting " + delivery.getMessageId());
+                    mServerRpc.deliveryAbort(delivery.getMessageId(),delivery.getReceiverId());
                 }
             });
         }
-
-        if(attachmentDownload != null) {
-            mTransferAgent.registerDownload(attachmentDownload);
-        }
-
-        for(IXoMessageListener listener: mMessageListeners) {
-            if(newMessage) {
-                listener.onMessageAdded(clientMessage);
-            } else {
-                listener.onMessageStateChanged(clientMessage);
-            }
-        }
-
-        notifyUnseenMessages(newMessage);
     }
 
-    private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) {
+    private void decryptMessage(TalkClientMessage clientMessage, TalkDelivery delivery, TalkMessage message) throws GeneralSecurityException, IOException, SQLException {
         LOG.debug("decryptMessage()");
 
         // contact (provides decryption context)
@@ -2063,28 +2076,15 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("could not decode private key");
                         return;
                     } else {
-//                        decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext));
                         decryptedKey = RSACryptor.decryptRSA(privateKey, Base64.decodeBase64(keyCiphertext.getBytes(Charset.forName("UTF-8"))));
                     }
                 }
             } catch (SQLException e) {
                 LOG.error("sql error", e);
-                return;
-            } catch (IllegalBlockSizeException e) {
+                throw e;
+            } catch (GeneralSecurityException e) {
                 LOG.error("decryption error", e);
-                return;
-            } catch (InvalidKeyException e) {
-                LOG.error("decryption error", e);
-                return;
-            } catch (BadPaddingException e) {
-                LOG.error("decryption error", e);
-                return;
-            } catch (NoSuchAlgorithmException e) {
-                LOG.error("decryption error", e);
-                return;
-            } catch (NoSuchPaddingException e) {
-                LOG.error("decryption error", e);
-                return;
+                throw e;
             }
         } else if(contact.isGroup()) {
             LOG.trace("decrypting using group key");
@@ -2094,11 +2094,10 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.warn("no group key");
                 return;
             }
-//            decryptedKey = Base64.decodeBase64(contact.getGroupKey());
             decryptedKey = Base64.decodeBase64(contact.getGroupKey().getBytes(Charset.forName("UTF-8")));
         } else {
             LOG.error("don't know how to decrypt messages from contact of type " + contact.getContactType());
-            return;
+            throw new RuntimeException("don't know how to decrypt messages from contact of type " + contact.getContactType());
         }
 
         // check that we have a key
@@ -2109,7 +2108,6 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // apply salt if present
         if(keySalt != null) {
-//            byte[] decodedSalt = Base64.decodeBase64(keySalt);
             byte[] decodedSalt = Base64.decodeBase64(keySalt.getBytes(Charset.forName("UTF-8")));
             if(decodedSalt.length != decryptedKey.length) {
                 LOG.error("message salt has wrong size");
@@ -2128,38 +2126,21 @@ public class XoClient implements JsonRpcConnection.Listener {
         try {
             // decrypt body
             if(rawBody != null) {
-//                decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody));
                 decryptedBodyRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawBody.getBytes(Charset.forName("UTF-8"))));
                 decryptedBody = new String(decryptedBodyRaw, "UTF-8");
                 //LOG.debug("determined decrypted body to be '" + decryptedBody + "'");
             }
             // decrypt attachment
             if(rawAttachment != null) {
-//                decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment));
                 decryptedAttachmentRaw = AESCryptor.decrypt(decryptedKey, AESCryptor.NULL_SALT, Base64.decodeBase64(rawAttachment.getBytes(Charset.forName("UTF-8"))));
                 decryptedAttachment = mJsonMapper.readValue(decryptedAttachmentRaw, TalkAttachment.class);
             }
-        } catch (NoSuchPaddingException e) {
+        } catch (GeneralSecurityException e) {
             LOG.error("error decrypting", e);
-            return;
-        } catch (NoSuchAlgorithmException e) {
-            LOG.error("error decrypting", e);
-            return;
-        } catch (InvalidKeyException e) {
-            LOG.error("error decrypting", e);
-            return;
-        } catch (BadPaddingException e) {
-            LOG.error("error decrypting", e);
-            return;
-        } catch (IllegalBlockSizeException e) {
-            LOG.error("error decrypting", e);
-            return;
-        } catch (InvalidAlgorithmParameterException e) {
-            LOG.error("error decrypting", e);
-            return;
+            throw e;
         } catch (IOException e) {
             LOG.error("error decrypting", e);
-            return;
+            throw e;
         }
 
         // add decrypted information to message
@@ -2200,40 +2181,24 @@ public class XoClient implements JsonRpcConnection.Listener {
             // get public key for encrypting the key
             TalkKey talkPublicKey = receiver.getPublicKey();
 
-            // TODO: do not just log here! Raise! This can lead to plaintext being sent!
             if(talkPublicKey == null) {
-                LOG.error("no pubkey for encryption");
-                return;
+                throw new RuntimeException("no pubkey for encryption");
             }
             // retrieve native version of the key
             PublicKey publicKey = talkPublicKey.getAsNative();
             if(publicKey == null) {
-                LOG.error("could not get public key for encryption");
-                return;
+                throw new RuntimeException("could not get public key for encryption");
             }
             // encrypt the message key
             try {
                 byte[] encryptedKey = RSACryptor.encryptRSA(publicKey, plainKey);
                 delivery.setKeyId(talkPublicKey.getKeyId());
-//                delivery.setKeyCiphertext(Base64.encodeBase64String(encryptedKey));
                 delivery.setKeyCiphertext(new String(Base64.encodeBase64(encryptedKey)));
-            } catch (NoSuchPaddingException e) {
-                LOG.error("error encrypting", e);
-                return;
-            } catch (NoSuchAlgorithmException e) {
-                LOG.error("error encrypting", e);
-                return;
-            } catch (InvalidKeyException e) {
-                LOG.error("error encrypting", e);
-                return;
-            } catch (BadPaddingException e) {
-                LOG.error("error encrypting", e);
-                return;
-            } catch (IllegalBlockSizeException e) {
+            } catch (GeneralSecurityException e) {
                 LOG.error("error encrypting", e);
                 return;
             }
-        } else { //TODO: should elseif for isGroup() and MUST add a check for isSelf() (i.e. for sending messages to yourself)
+        } else if (receiver.isGroup()) {
             LOG.trace("using group key for encryption");
             // get and decode the group key
             String groupKey = receiver.getGroupKey();
@@ -2241,14 +2206,16 @@ public class XoClient implements JsonRpcConnection.Listener {
                 LOG.warn("no group key");
                 return;
             }
-//            plainKey = Base64.decodeBase64(groupKey);
             plainKey = Base64.decodeBase64(groupKey.getBytes(Charset.forName("UTF-8")));
             // generate message-specific salt
             keySalt = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
             // encode the salt for transmission
-//            String encodedSalt = Base64.encodeBase64String(keySalt);
             String encodedSalt = new String(Base64.encodeBase64(keySalt));
             message.setSalt(encodedSalt);
+            message.setSharedKeyId(receiver.getGroupPresence().getSharedKeyId());
+            message.setSharedKeyIdSalt(receiver.getGroupPresence().getSharedKeyIdSalt());
+        } else {
+            throw new RuntimeException("bad receiver type, is neither group nor client");
         }
 
         // apply salt if present
@@ -2268,7 +2235,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         if(upload != null) {
             LOG.debug("generating attachment");
 
-//            upload.provideEncryptionKey(Hex.encodeHexString(plainKey));
             upload.provideEncryptionKey(new String(Hex.encodeHex(plainKey)));
 
             try {
@@ -2293,27 +2259,15 @@ public class XoClient implements JsonRpcConnection.Listener {
             // encrypt body
             LOG.trace("encrypting body");
             byte[] encryptedBody = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, message.getBody().getBytes("UTF-8"));
-//            message.setBody(Base64.encodeBase64String(encryptedBody));
             message.setBody(new String(Base64.encodeBase64(encryptedBody)));
             // encrypt attachment dtor
             if(attachment != null) {
                 LOG.trace("encrypting attachment");
                 byte[] encodedAttachment = mJsonMapper.writeValueAsBytes(attachment);
                 byte[] encryptedAttachment = AESCryptor.encrypt(plainKey, AESCryptor.NULL_SALT, encodedAttachment);
-//                message.setAttachment(Base64.encodeBase64String(encryptedAttachment));
                 message.setAttachment(new String(Base64.encodeBase64(encryptedAttachment)));
             }
-        } catch (NoSuchPaddingException e) {
-            LOG.error("error encrypting", e);
-        } catch (NoSuchAlgorithmException e) {
-            LOG.error("error encrypting", e);
-        } catch (InvalidKeyException e) {
-            LOG.error("error encrypting", e);
-        } catch (BadPaddingException e) {
-            LOG.error("error encrypting", e);
-        } catch (IllegalBlockSizeException e) {
-            LOG.error("error encrypting", e);
-        } catch (InvalidAlgorithmParameterException e) {
+        } catch (GeneralSecurityException e) {
             LOG.error("error encrypting", e);
         } catch (UnsupportedEncodingException e) {
             LOG.error("error encrypting", e);
