@@ -71,7 +71,17 @@ public class TalkClientMembership {
         if (member != null && clientContact != null && clientContact.getPublicKey() != null) {
             String clientKeyId = clientContact.getPublicKey().getKeyId();
             if (clientKeyId != null) {
-                return member.getMemberKeyId() != null && clientKeyId.equals(member.getMemberKeyId());
+                if (member.getMemberKeyId() != null) {
+                    if (clientKeyId.equals(member.getMemberKeyId())) {
+                        return true;
+                    } else {
+                        System.out.println("TCM: clientKeyId not equal to member key id");
+                    }
+                } else {
+                    System.out.println("TCM: getMemberKeyId null");
+                }
+            } else {
+                System.out.println("TCM: clientKeyId null");
             }
         }
         return false;

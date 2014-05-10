@@ -264,13 +264,28 @@ public class TalkClientContact implements Serializable {
             TalkClientContact contact = theClient.getDatabase().findContactByClientId(memberClientID, false);
             if (contact != null) {
                 TalkClientMembership membership = theClient.getDatabase().findMembershipByContacts(this.getClientContactId(),contact.getClientContactId(),false);
-                TalkGroupMember member = membership.getMember();
-                if(member != null && member.isAdmin()) {
-                    if(contact.getClientId().equals(memberClientID)) {
-                        if (contact.getClientPresence().getConnectionStatus().equals(TalkPresence.CONN_STATUS_ONLINE)) {
-                            return true;
+                if (membership != null) {
+                    TalkGroupMember member = membership.getMember();
+                    if(member != null) {
+                        if  (member.isAdmin()) {
+                            if(contact.getClientId().equals(memberClientID)) {
+                                if (contact.getClientPresence().isConnected()) {
+                                    System.out.println("TCC: memberCanBeKeyMaster YES");
+                                    return true;
+                                } else {
+                                    System.out.println("TCC: member contact not connected");
+                                }
+                            } else {
+                                System.out.println("TCC: clientId not memberClientID");
+                            }
+                        }  else {
+                            System.out.println("TCC: member not admin");
                         }
+                    } else {
+                        System.out.println("TCC: member is null");
                     }
+                }  else {
+                    System.out.println("TCC: membership is null");
                 }
             }
         } catch (SQLException e) {
