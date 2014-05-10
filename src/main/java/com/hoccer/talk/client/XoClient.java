@@ -1109,6 +1109,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
+                    mServerRpc.ready();
                     LOG.info("[connection #" + mConnection.getConnectionId() + "] connected and ready");
                 }
             });
