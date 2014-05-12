@@ -187,13 +187,10 @@ public class XoClientDatabase {
         QueryBuilder<TalkClientContact, Integer> recentSenders = mClientContacts.queryBuilder();
         recentUnreadMessages.orderBy("timestamp", false);
         List<TalkClientContact> orderedListOfSenders = recentSenders.join(recentUnreadMessages).where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2).query();
+                .query();
         List<TalkClientContact> allContacts = mClientContacts.queryBuilder().where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2)
                 .query();
         ArrayList<TalkClientContact> orderedListOfDistinctSenders = new ArrayList<TalkClientContact>();
         for (int i=0; i<orderedListOfSenders.size(); i++) {
