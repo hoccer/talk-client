@@ -277,31 +277,29 @@ public class XoClientDatabase {
     }
 
     public synchronized List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
-        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE,
-                TalkDelivery.STATE_NEW);
+        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
 
         List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
         try {
-            int inProgressCount = 0;
-            for (TalkDelivery d : newDeliveries) {
-                TalkClientMessage m = mClientMessages.queryBuilder()
-                        .where().eq("outgoingDelivery" + "_id", d)
+            for (TalkDelivery newDelivery : newDeliveries) {
+                TalkClientMessage message = mClientMessages.queryBuilder()
+                        .where()
+                        .eq("outgoingDelivery" + "_id", newDelivery)
                         .queryForFirst();
-                if (m != null) {
-                    if (!m.isInProgress()) {
-                        m.setProgressState(true);
-                        mClientMessages.createOrUpdate(m);
-                        messages.add(m);
-                    } else {
-                        inProgressCount++;
+
+                if (message != null) {
+
+                    if (!message.isInProgress()) {
+                        messages.add(message);
                     }
+
                 } else {
-                    LOG.error("No outgoing delivery for message with tag '" + d.getMessageTag() + "'.");
+                    LOG.error("No outgoing delivery for message with tag '" + newDelivery.getMessageTag() + "'.");
                 }
             }
-            LOG.debug(Integer.toString(inProgressCount) + " Messages still in Progress");
-        } catch (Throwable t) {
-            LOG.error("SQL fnord", t);
+
+        } catch (SQLException e) {
+            LOG.error("Error while fetching messages for delivery: ", e);
         }
 
         return messages;
