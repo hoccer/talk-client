@@ -1340,7 +1340,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     LOG.debug("sync: syncing presences");
                     TalkPresence[] presences = mServerRpc.getPresences(never);
                     for (TalkPresence presence : presences) {
-                        updateClientPresence(presence);
+                        updateClientPresence(presence, null);
                     }
                     LOG.debug("sync: syncing relationships");
                     TalkRelationship[] relationships = mServerRpc.getRelationships(never);
@@ -1542,7 +1542,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         @Override
         public void presenceUpdated(TalkPresence presence) {
             LOG.debug("server: presenceUpdated(" + presence.getClientId() + ")");
-            updateClientPresence(presence);
+            updateClientPresence(presence, null);
+        }
+
+        @Override
+        public void presenceModified(TalkPresence presence) {
+            LOG.debug("server: presenceModified(" + presence.getClientId() + ")");
+            Set<String> fields = presence.nonNullFields();
+            updateClientPresence(presence, fields);
         }
 
         @Override
@@ -2331,7 +2338,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     }
 
-    private void updateClientPresence(TalkPresence presence) {
+    private void updateClientPresence(TalkPresence presence, Set<String> fields) {
         LOG.debug("updateClientPresence(" + presence.getClientId() + ")");
         TalkClientContact clientContact = null;
         try {
@@ -2350,12 +2357,22 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.warn("contact is not a client contact!? " + clientContact.getContactType());
             return;
         }
-
-        clientContact.updatePresence(presence);
+        if (fields == null) {
+            clientContact.updatePresence(presence);
+        } else {
+            clientContact.modifyPresence(presence, fields);
+        }
 
         boolean wantDownload = false;
         try {
-            wantDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
+            if (fields == null)  {
+                wantDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), presence.getTimestamp());
+            } else {
+                if (fields.contains(TalkPresence.FIELD_AVATAR_URL)) {
+                    // TODO: check this date collision-avoidance stuff if is ok
+                    wantDownload = updateAvatarDownload(clientContact, presence.getAvatarUrl(), "c-" + presence.getClientId(), new Date());
+                }
+            }
         } catch (MalformedURLException e) {
             LOG.warn("malformed avatar url", e);
         }
@@ -2375,12 +2392,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         final TalkClientContact fContact = clientContact;
-        mExecutor.execute(new Runnable() {
+        if (fields == null || fields.contains(TalkPresence.FIELD_KEY_ID)) {
+            mExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 requestClientKey(fContact);
             }
         });
+        }
 
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
@@ -2828,7 +2847,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                                 if (member != null) {
                                     if (member.getMemberKeyId() == null || !member.getMemberKeyId().equals(mSelfContact.getPublicKey().getKeyId())) {
                                         member.setMemberKeyId(mSelfContact.getPublicKey().getKeyId());
-                                        LOG.warn("updateGroupKeyOnServerIfNeeded: set member key id to:"+member.getMemberKeyId());
+                                        LOG.warn("updateGroupKeyOnServerIfNeeded: set member key id to:" + member.getMemberKeyId());
                                         mDatabase.saveGroupMember(member);
                                     }
                                 }

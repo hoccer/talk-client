@@ -20,6 +20,7 @@ import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -653,7 +654,15 @@ public class TalkClientContact implements Serializable {
             this.clientPresence.updateWith(presence);
         }
     }
-
+    @ClientOrSelfMethodOnly
+    public void modifyPresence(TalkPresence presence, Set<String> fields) {
+        ensureClientOrSelf();
+        if(this.clientPresence == null) {
+            throw new RuntimeException("try to modify empty presence");
+        } else {
+            this.clientPresence.updateWith(presence,fields);
+        }
+    }
     @ClientMethodOnly
     public void updateRelationship(TalkRelationship relationship) {
         ensureClient();
