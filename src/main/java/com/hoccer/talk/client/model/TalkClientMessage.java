@@ -22,10 +22,10 @@ public class TalkClientMessage {
     @DatabaseField(canBeNull = true)
     private String messageTag;
 
-    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientContact conversationContact;
 
-    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = false)
+    @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
     private TalkClientContact senderContact;
 
     @DatabaseField(canBeNull = true, foreign = true, foreignAutoRefresh = true)
