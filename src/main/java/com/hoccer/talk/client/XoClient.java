@@ -1511,6 +1511,11 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void ping() {
             LOG.debug("server: ping()");
         }
+        @Override
+        public String[] getEncryptedGroupKeys(String groupId, String sharedKeyId, String sharedKeyIdSalt, String[] clientIds, String[] publicKeyIds) {
+            LOG.debug("server: getEncryptedGroupKeys()");
+            return new String[0];
+        }
 
         @Override
         public void alertUser(String message) {
