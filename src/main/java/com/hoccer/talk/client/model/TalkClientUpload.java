@@ -273,6 +273,21 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
         return type == Type.ATTACHMENT;
     }
 
+    /**
+     * Only used for migrating existing filecache Uris to new host. Delete this Method once
+     * the migration is done!
+     *
+     * @param url
+     */
+    @Deprecated
+    public void setUploadUrl(String url) {
+        this.uploadUrl = url;
+    }
+
+    public String getUploadUrl() {
+        return this.uploadUrl;
+    }
+
     public void provideEncryptionKey(String key) {
         this.encryptionKey = key;
     }
