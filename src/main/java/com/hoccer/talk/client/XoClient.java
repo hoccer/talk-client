@@ -48,13 +48,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SecureRandom;
+import java.security.*;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
@@ -988,6 +982,12 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void requestDelivery() {
+
+        if (mState < STATE_ACTIVE) {
+            LOG.info("requestDelivery() - cannot perform delivery in INACTIVE state.");
+            return;
+        }
+
         resetIdle();
         mExecutor.execute(new Runnable() {
             @Override
@@ -1076,6 +1076,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                 @Override
                 public void run() {
                     LOG.info("[connection #" + mConnection.getConnectionId() + "] connected and ready");
+
+                    LOG.info("Delivering unsent messages: ");
+                    requestDelivery();
                 }
             });
         }
@@ -1669,46 +1672,65 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void performDeliveries() {
-        LOG.debug("performing deliveries");
+        LOG.debug("performDeliveries()");
+
         try {
             List<TalkClientMessage> clientMessages = mDatabase.findMessagesForDelivery();
-            LOG.debug(clientMessages.size() + " to deliver");
+
+            LOG.debug(clientMessages.size() + " messages to deliver");
+
             TalkDelivery[] deliveries = new TalkDelivery[clientMessages.size()];
             TalkMessage[] messages = new TalkMessage[clientMessages.size()];
-            int i = 0;
-            for(TalkClientMessage clientMessage: clientMessages) {
-                LOG.debug("preparing " + clientMessage.getClientMessageId());
+
+            for(int i = 0; i < clientMessages.size(); i++) {
+                TalkClientMessage clientMessage = clientMessages.get(i);
+
+                LOG.debug("preparing delivery of message " + clientMessage.getClientMessageId());
+
                 deliveries[i] = clientMessage.getOutgoingDelivery();
                 messages[i] = clientMessage.getMessage();
+
                 TalkClientUpload attachmentUpload = clientMessage.getAttachmentUpload();
-                if(attachmentUpload != null) {
-                    if(!attachmentUpload.performRegistration(mTransferAgent, true)) {
-                        LOG.error("could not register attachment");
+                if (attachmentUpload != null) {
+                    if (!attachmentUpload.performRegistration(mTransferAgent, true)) {
+                        LOG.error("could not register attachment for message " + clientMessage.getClientMessageId());
                     }
                 }
                 try {
-                    encryptMessage(clientMessage, deliveries[i], messages[i]); //Encrypting here
-                } catch (Throwable t) {
-                    LOG.error("error encrypting", t);
+                    encryptMessage(clientMessage, deliveries[i], messages[i]);
+                } catch (Exception e) {
+                    LOG.error("error while encrypting message " + clientMessage.getClientMessageId(), e);
                 }
-                i++;
             }
-            for(i = 0; i < messages.length; i++) {
-                LOG.debug("delivering " + i);
+
+            for(int i = 0; i < clientMessages.size(); i++) {
+                TalkClientMessage clientMessage =  clientMessages.get(i);
+
+                LOG.debug(i + " delivering message " + clientMessage.getClientMessageId());
+
+                TalkMessage message = messages[i];
                 TalkDelivery[] delivery = new TalkDelivery[1];
                 delivery[0] = deliveries[i];
                 TalkDelivery[] resultingDeliveries = new TalkDelivery[0];
+
                 try {
-                    resultingDeliveries = mServerRpc.deliveryRequest(messages[i], delivery);
-                } catch (Exception ex) {
-                    LOG.debug("Caught exception ", ex);
+                    clientMessage.setProgressState(true);
+                    mDatabase.saveClientMessage(clientMessage);
+                    resultingDeliveries = mServerRpc.deliveryRequest(message, delivery);
+
+                } catch (Exception e) {
+                    LOG.error("error while performing delivery request for message " + clientMessage.getClientMessageId(), e);
+
+                    clientMessage.setProgressState(false);
+                    mDatabase.saveClientMessage(clientMessage);
                 }
+
                 for(int j = 0; j < resultingDeliveries.length; j++) {
                     updateOutgoingDelivery(resultingDeliveries[j]);
                 }
             }
         } catch (SQLException e) {
-            LOG.error("SQL error", e);
+            LOG.error("SQL error while performing deliveries: ", e);
         }
     }
 

@@ -189,13 +189,10 @@ public class XoClientDatabase {
         QueryBuilder<TalkClientContact, Integer> recentSenders = mClientContacts.queryBuilder();
         recentUnreadMessages.orderBy("timestamp", false);
         List<TalkClientContact> orderedListOfSenders = recentSenders.join(recentUnreadMessages).where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2).query();
+                .query();
         List<TalkClientContact> allContacts = mClientContacts.queryBuilder().where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2)
                 .query();
         ArrayList<TalkClientContact> orderedListOfDistinctSenders = new ArrayList<TalkClientContact>();
         for (int i=0; i<orderedListOfSenders.size(); i++) {
@@ -282,31 +279,29 @@ public class XoClientDatabase {
     }
 
     public synchronized List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
-        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE,
-                TalkDelivery.STATE_NEW);
+        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
 
         List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
         try {
-            int inProgressCount = 0;
-            for (TalkDelivery d : newDeliveries) {
-                TalkClientMessage m = mClientMessages.queryBuilder()
-                        .where().eq("outgoingDelivery" + "_id", d)
+            for (TalkDelivery newDelivery : newDeliveries) {
+                TalkClientMessage message = mClientMessages.queryBuilder()
+                        .where()
+                        .eq("outgoingDelivery" + "_id", newDelivery)
                         .queryForFirst();
-                if (m != null) {
-                    if (!m.isInProgress()) {
-                        m.setProgressState(true);
-                        mClientMessages.createOrUpdate(m);
-                        messages.add(m);
-                    } else {
-                        inProgressCount++;
+
+                if (message != null) {
+
+                    if (!message.isInProgress()) {
+                        messages.add(message);
                     }
+
                 } else {
-                    LOG.error("No outgoing delivery for message with tag '" + d.getMessageTag() + "'.");
+                    LOG.error("No outgoing delivery for message with tag '" + newDelivery.getMessageTag() + "'.");
                 }
             }
-            LOG.debug(Integer.toString(inProgressCount) + " Messages still in Progress");
-        } catch (Throwable t) {
-            LOG.error("SQL fnord", t);
+
+        } catch (SQLException e) {
+            LOG.error("Error while fetching messages for delivery: ", e);
         }
 
         return messages;
@@ -493,5 +488,30 @@ public class XoClientDatabase {
     public void eraseAllGroupMemberships() throws SQLException {
         DeleteBuilder<TalkGroupMember, Long> deleteBuilder = mGroupMembers.deleteBuilder();
         deleteBuilder.delete();
+
+    public void migrateAllFilecacheUris() throws SQLException {
+        List<TalkClientMessage> messages = mClientMessages.queryBuilder().where()
+                .isNotNull("attachmentUpload_id")
+                .or()
+                .isNotNull("attachmentDownload_id").query();
+        for(TalkClientMessage message : messages) {
+            TalkClientDownload download = message.getAttachmentDownload();
+            TalkClientUpload upload = message.getAttachmentUpload();
+            if(download != null) {
+                download.setDownloadUrl(migrateFilecacheUrl(download.getDownloadUrl()));
+                mClientDownloads.update(download);
+            }
+            if(upload != null) {
+                upload.setUploadUrl(migrateFilecacheUrl(upload.getUploadUrl()));
+                mClientUploads.update(upload);
+            }
+        }
+    }
+
+    private String migrateFilecacheUrl(String url) {
+        String migratedUrl = url.substring(url.indexOf("/", 8));
+        migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
+        LOG.debug("migrated url: " + url + " to: " + migratedUrl);
+        return migratedUrl;
     }
 }
