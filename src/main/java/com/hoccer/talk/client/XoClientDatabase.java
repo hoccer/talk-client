@@ -488,6 +488,7 @@ public class XoClientDatabase {
     public void eraseAllGroupMemberships() throws SQLException {
         DeleteBuilder<TalkGroupMember, Long> deleteBuilder = mGroupMembers.deleteBuilder();
         deleteBuilder.delete();
+    }
 
     public void migrateAllFilecacheUris() throws SQLException {
         List<TalkClientMessage> messages = mClientMessages.queryBuilder().where()
