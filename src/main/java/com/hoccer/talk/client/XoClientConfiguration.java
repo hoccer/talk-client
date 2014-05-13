@@ -69,4 +69,7 @@ public class XoClientConfiguration {
             "TLSv1"
     };
 
+    /** The app's URL scheme for registration links */
+    public static final String HXO_URL_SCHEME = "hxo://";
+
 }

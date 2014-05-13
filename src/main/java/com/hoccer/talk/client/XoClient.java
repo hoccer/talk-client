@@ -2919,7 +2919,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             @Override
             public void run() {
                 // check if the url is for a pairing token
-                if(urlString.startsWith("hxo://")) {
+                if(urlString.startsWith(XoClientConfiguration.HXO_URL_SCHEME)) {
                     String token = urlString.substring(6);
                     // build new token object
                     TalkClientSmsToken tokenObject = new TalkClientSmsToken();
