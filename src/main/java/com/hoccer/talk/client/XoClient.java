@@ -1438,6 +1438,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     // ensure we are finished with generating pub/private keys before actually going active...
                     // TODO: have a proper statemachine
                     sendPresenceFuture.get();
+
+                    switchState(STATE_ACTIVE, "Synchronization successfull");
                     
                 } catch (SQLException e) {
                     LOG.error("SQL Error while syncing: ", e);
