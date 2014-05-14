@@ -2795,8 +2795,6 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mDatabase.saveContact(clientContact);
                 }
 
-                // TODO: does this really work
-
                 membership.updateGroupMember(member);
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveClientMembership(membership);
