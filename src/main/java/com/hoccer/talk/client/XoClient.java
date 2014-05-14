@@ -2645,7 +2645,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     private void updateGroupPresence(TalkGroup group) {
         LOG.info("updateGroupPresence(" + group.getGroupId() + ")");
 
-        TalkClientContact groupContact = null; // TODO: is this a group contact?
+        TalkClientContact groupContact = null;
         try {
             groupContact = mDatabase.findContactByGroupTag(group.getGroupTag());
             if(groupContact == null) {
