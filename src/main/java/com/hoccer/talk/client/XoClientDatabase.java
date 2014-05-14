@@ -417,6 +417,15 @@ public class XoClientDatabase {
         return mClientDownloads.queryForEq("mediaType", mediaType);
     }
 
+    public List<TalkClientDownload> findClientDownloadByConversationContactAndMediaType(int conversationContactId, String mediaType) throws SQLException {
+        QueryBuilder<TalkClientDownload, Integer> downloadsQb = mClientDownloads.queryBuilder();
+        downloadsQb.setWhere(downloadsQb.where().eq("mediaType", mediaType));
+        QueryBuilder<TalkClientMessage, Integer> messagesQb = mClientMessages.queryBuilder();
+        messagesQb.setWhere(messagesQb.where().eq("conversationContact_id", conversationContactId));
+
+        return downloadsQb.join(messagesQb).query();
+    }
+
     public List<TalkClientDownload> findAllClientDownloads() throws SQLException {
         return mClientDownloads.queryForAll();
     }
@@ -466,15 +475,6 @@ public class XoClientDatabase {
         }
 
         return res;
-    }
-
-
-    public List<TalkAttachment> findAllAttachments() throws SQLException {
-        return mAttachments.queryForAll();
-    }
-
-    public List<TalkAttachment> findAttachmentsByMediaType(String mediaType) throws SQLException {
-        return mAttachments.queryForEq("mediaType", mediaType);
     }
 
     public void saveClientMembership(TalkClientMembership membership) throws SQLException {
