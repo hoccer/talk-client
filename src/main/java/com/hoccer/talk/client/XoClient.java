@@ -2646,7 +2646,7 @@ public class XoClient implements JsonRpcConnection.Listener {
     private void updateGroupPresence(TalkGroup group) {
         LOG.info("updateGroupPresence(" + group.getGroupId() + ")");
 
-        TalkClientContact contact = null;
+        TalkClientContact contact = null; // TODO: is this a group contact?
         try {
             contact = mDatabase.findContactByGroupTag(group.getGroupTag());
             if(contact == null) {
@@ -2664,30 +2664,44 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         contact.updateGroupPresence(group);
 
+        // TODO: change nearby status?
+
         try {
             updateAvatarDownload(contact, group.getGroupAvatarUrl(), "g-" + group.getGroupId(), group.getLastChanged());
         } catch (MalformedURLException e) {
             LOG.warn("Malformed avatar URL", e);
         }
 
-        TalkClientDownload avatarDownload = contact.getAvatarDownload();
+        updateAvatarsForGroupContact(contact);
+
         try {
-            if(avatarDownload != null) {
-                mDatabase.saveClientDownload(avatarDownload);
-            }
             mDatabase.saveGroup(contact.getGroupPresence());
             mDatabase.saveContact(contact);
         } catch (SQLException e) {
             LOG.error("SQL error", e);
         }
+
+
         LOG.info("updateGroupPresence(" + group.getGroupId() + ") - saved");
-        if(avatarDownload != null) {
-            mTransferAgent.requestDownload(avatarDownload);
-        }
+
 
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
             listener.onGroupPresenceChanged(contact);
+        }
+    }
+
+    private void updateAvatarsForGroupContact(TalkClientContact contact) {
+        TalkClientDownload avatarDownload = contact.getAvatarDownload();
+        try {
+            if(avatarDownload != null) {
+                mDatabase.saveClientDownload(avatarDownload);
+            }
+        } catch (SQLException e) {
+            LOG.error("SQL Error when saving avatar download", e);
+        }
+        if(avatarDownload != null) {
+            mTransferAgent.requestDownload(avatarDownload);
         }
     }
 
@@ -2782,6 +2796,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mDatabase.saveContact(clientContact);
                 }
 
+                // TODO: does this really work
+
                 membership.updateGroupMember(member);
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveClientMembership(membership);
@@ -2796,6 +2812,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             // TODO: ?? send onClientContactUpdated ??
         }
 
+        // TODO: needGroupUpdate is never changed, do we mean newGroup or newClient instead ??
         if (needGroupUpdate) {
             LOG.debug("we now require a group update to retrieve presences");
             mExecutor.execute(new Runnable() {
