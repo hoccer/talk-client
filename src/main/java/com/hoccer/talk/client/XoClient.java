@@ -1137,8 +1137,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 public void run() {
                     mServerRpc.ready();
                     LOG.info("[connection #" + mConnection.getConnectionId() + "] connected and ready");
-
-                    LOG.info("Delivering unsent messages: ");
+                    LOG.info("Delivering potentially unsent messages.");
                     requestDelivery();
                 }
             });
