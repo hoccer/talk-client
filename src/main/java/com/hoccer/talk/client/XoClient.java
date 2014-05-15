@@ -2645,48 +2645,82 @@ public class XoClient implements JsonRpcConnection.Listener {
     private void updateGroupPresence(TalkGroup group) {
         LOG.info("updateGroupPresence(" + group.getGroupId() + ")");
 
-        TalkClientContact contact = null; // TODO: is this a group contact?
+        TalkClientContact groupContact = null;
         try {
-            contact = mDatabase.findContactByGroupTag(group.getGroupTag());
-            if(contact == null) {
-                contact = mDatabase.findContactByGroupId(group.getGroupId(), true);
+            groupContact = mDatabase.findContactByGroupTag(group.getGroupTag());
+            if(groupContact == null) {
+                groupContact = mDatabase.findContactByGroupId(group.getGroupId(), true);
             }
         } catch (SQLException e) {
             LOG.error("SQL error", e);
             return;
         }
 
-        if(contact == null) {
+        if(groupContact == null) {
             LOG.warn("gp update for unknown group " + group.getGroupId());
             return;
         }
 
-        contact.updateGroupPresence(group);
-
-        // TODO: change nearby status?
+        groupContact.updateGroupPresence(group);
 
         try {
-            updateAvatarDownload(contact, group.getGroupAvatarUrl(), "g-" + group.getGroupId(), group.getLastChanged());
+            updateAvatarDownload(groupContact, group.getGroupAvatarUrl(), "g-" + group.getGroupId(), group.getLastChanged());
         } catch (MalformedURLException e) {
             LOG.warn("Malformed avatar URL", e);
         }
 
-        updateAvatarsForGroupContact(contact);
+        updateAvatarsForGroupContact(groupContact);
 
         try {
-            mDatabase.saveGroup(contact.getGroupPresence());
-            mDatabase.saveContact(contact);
+            mDatabase.saveGroup(groupContact.getGroupPresence());
+            mDatabase.saveContact(groupContact);
         } catch (SQLException e) {
             LOG.error("SQL error", e);
         }
 
-
         LOG.info("updateGroupPresence(" + group.getGroupId() + ") - saved");
-
 
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
-            listener.onGroupPresenceChanged(contact);
+            listener.onGroupPresenceChanged(groupContact);
+        }
+    }
+
+    private void destroyNearbyGroup(TalkClientContact groupContact) {
+        LOG.debug("destroying nearby group with id " + groupContact.getGroupId());
+
+        // delete group
+        groupContact.markAsDeleted();
+        groupContact.setNearby(false);
+
+        // reset group state
+        TalkGroup groupPresence = groupContact.getGroupPresence();
+        groupPresence.setState(TalkGroup.STATE_NONE);
+
+        try {
+            // delete all group members
+            for (TalkClientMembership membership : groupContact.getGroupMemberships()) {
+
+                // reset nearby status of group member contact
+                TalkClientContact groupMemberContact = membership.getClientContact();
+                groupMemberContact.setNearby(false);
+
+                // delete when not related
+                if (groupMemberContact.isEverRelated() == false) {
+                    groupMemberContact.markAsDeleted();
+                }
+                mDatabase.saveContact(groupMemberContact);
+
+                // reset group membership state
+                TalkGroupMember member = membership.getMember();
+                member.setState(TalkGroupMember.STATE_NONE);
+                mDatabase.saveGroupMember(member);
+            }
+
+            mDatabase.saveContact(groupContact);
+            mDatabase.saveGroup(groupPresence);
+        } catch (SQLException e) {
+            LOG.error("Error while destroying nearby group " + groupContact.getGroupId());
         }
     }
 
@@ -2768,9 +2802,16 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                 decryptGroupKey(groupContact, member);
 
-                //mDatabase.saveGroupMember(groupContact.getGroupMember());
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveContact(groupContact);
+
+                // quietly destroy nearby group
+                if (!member.isInvolved()) {
+                    if (groupContact.getGroupPresence().isTypeNearby()) {
+                       destroyNearbyGroup(groupContact);
+                    }
+                }
+
             } catch (SQLException e) {
                 LOG.error("SQL error", e);
             }
@@ -2794,8 +2835,6 @@ public class XoClient implements JsonRpcConnection.Listener {
                     clientContact.setNearby(false);
                     mDatabase.saveContact(clientContact);
                 }
-
-                // TODO: does this really work
 
                 membership.updateGroupMember(member);
                 mDatabase.saveGroupMember(membership.getMember());
