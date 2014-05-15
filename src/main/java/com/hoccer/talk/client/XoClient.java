@@ -2710,7 +2710,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
 
     public void updateGroupMemberHere(TalkGroupMember member) {
-        LOG.info("updateGroupMember(" + member.getGroupId() + "/" + member.getClientId() + ")");
+        LOG.info("updateGroupMember(groupId: '" + member.getGroupId() + "', clientId: '" + member.getClientId() + "', state: '" + member.getState() + "')");
         TalkClientContact groupContact = null;
         TalkClientContact clientContact = null;
         boolean needGroupUpdate = false;
