@@ -212,15 +212,6 @@ public class XoClientDatabase {
         return orderedListOfDistinctSenders;
     }
 
-    public List<TalkClientContact> findAllNearbyClientContacts() throws  SQLException {
-        return mClientContacts.queryBuilder().where()
-                        .eq("contactType", TalkClientContact.TYPE_CLIENT)
-                        .eq("deleted", false)
-                        .eq("isNearby", true)
-                    .and(3)
-                .query();
-    }
-
     public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
                  .eq("contactType", TalkClientContact.TYPE_GROUP)
@@ -229,15 +220,29 @@ public class XoClientDatabase {
                .query();
     }
 
-    public List<TalkClientContact> findAllNearbyGroupContacts() throws SQLException {
+    public List<TalkClientContact> findAllNearbyContacts() throws SQLException {
         List<TalkClientContact> allGroupContacts = this.findAllGroupContacts();
         List<TalkClientContact> allNearbyGroupContacts = new ArrayList<TalkClientContact>();
+        List<TalkClientContact> allNearbyClientContacts = new ArrayList<TalkClientContact>();
 
+        // add all nearby groups
         for (TalkClientContact groupContact : allGroupContacts) {
             if (groupContact.isGroupInvolved() && groupContact.isGroupExisting() && groupContact.getGroupPresence().isTypeNearby()) {
                 allNearbyGroupContacts.add(groupContact);
             }
         }
+
+        for (TalkClientContact groupContact : allNearbyGroupContacts) {
+            // all all group members
+            for (TalkClientMembership groupMember : groupContact.getGroupMemberships()) {
+                TalkClientContact clientContact = groupMember.getClientContact();
+                if (clientContact.isClient() && clientContact.isNearby()) {
+                    allNearbyClientContacts.add(clientContact);
+                }
+            }
+            allNearbyGroupContacts.addAll(allNearbyClientContacts);
+        }
+
         return allNearbyGroupContacts;
     }
 

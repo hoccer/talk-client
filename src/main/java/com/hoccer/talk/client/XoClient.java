@@ -2766,7 +2766,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 boolean createContact = member.isInvolved() && !member.isGroupRemoved();
                 if (createContact) {
                     LOG.info("creating contact for member in state '" + member.getState() + "' clientId '" + member.getClientId() + "'");
-                    groupContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
+                    clientContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
                     newContact = true;
                 } else {
                     LOG.warn("ignoring incoming member for unknown contact for member in state '" + member.getState() + "' clientId '" + member.getGroupId() + "'");
@@ -2843,7 +2843,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         for (int i = 0; i < mContactListeners.size(); i++) {
             IXoContactListener listener = mContactListeners.get(i);
             listener.onGroupMembershipChanged(groupContact);
-            // TODO: ?? send onClientContactUpdated ??
         }
 
         // TODO: needGroupUpdate is never changed, do we mean newGroup or newClient instead ??
