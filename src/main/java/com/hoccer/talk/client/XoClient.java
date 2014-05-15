@@ -2800,6 +2800,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                 mDatabase.saveGroupMember(membership.getMember());
                 mDatabase.saveContact(groupContact);
+                mDatabase.saveClientMembership(membership);
 
                 // quietly destroy nearby group
                 if (!member.isInvolved()) {
