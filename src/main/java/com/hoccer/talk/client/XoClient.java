@@ -2766,7 +2766,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 boolean createContact = member.isInvolved() && !member.isGroupRemoved();
                 if (createContact) {
                     LOG.info("creating contact for member in state '" + member.getState() + "' clientId '" + member.getClientId() + "'");
-                    clientContact = mDatabase.findContactByGroupId(member.getGroupId(), true);
+                    clientContact = mDatabase.findContactByClientId(member.getClientId(), true);
                     newContact = true;
                 } else {
                     LOG.warn("ignoring incoming member for unknown contact for member in state '" + member.getState() + "' clientId '" + member.getGroupId() + "'");
