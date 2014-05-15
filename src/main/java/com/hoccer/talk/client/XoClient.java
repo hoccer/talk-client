@@ -2678,6 +2678,11 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
+        // quietly destroy nearby group
+        if (group.isTypeNearby() && !group.exists()) {
+            destroyNearbyGroup(groupContact);
+        }
+
         LOG.info("updateGroupPresence(" + group.getGroupId() + ") - saved");
 
         for (int i = 0; i < mContactListeners.size(); i++) {
@@ -2689,26 +2694,17 @@ public class XoClient implements JsonRpcConnection.Listener {
     private void destroyNearbyGroup(TalkClientContact groupContact) {
         LOG.debug("destroying nearby group with id " + groupContact.getGroupId());
 
-        // delete group
-        groupContact.markAsDeleted();
-        groupContact.setNearby(false);
-
         // reset group state
         TalkGroup groupPresence = groupContact.getGroupPresence();
         groupPresence.setState(TalkGroup.STATE_NONE);
 
         try {
-            // delete all group members
+            // remove all group members
             for (TalkClientMembership membership : groupContact.getGroupMemberships()) {
 
                 // reset nearby status of group member contact
                 TalkClientContact groupMemberContact = membership.getClientContact();
                 groupMemberContact.setNearby(false);
-
-                // delete when not related
-                if (groupMemberContact.isEverRelated() == false) {
-                    groupMemberContact.markAsDeleted();
-                }
                 mDatabase.saveContact(groupMemberContact);
 
                 // reset group membership state
@@ -2808,7 +2804,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 // quietly destroy nearby group
                 if (!member.isInvolved()) {
                     if (groupContact.getGroupPresence().isTypeNearby()) {
-                       destroyNearbyGroup(groupContact);
+                        destroyNearbyGroup(groupContact);
                     }
                 }
 
