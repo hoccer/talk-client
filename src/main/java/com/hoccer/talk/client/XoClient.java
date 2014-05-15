@@ -2741,11 +2741,11 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     public void updateGroupMemberHere(TalkGroupMember member) {
         LOG.info("updateGroupMember(groupId: '" + member.getGroupId() + "', clientId: '" + member.getClientId() + "', state: '" + member.getState() + "')");
-        TalkClientContact groupContact = null;
-        TalkClientContact clientContact = null;
+        TalkClientContact groupContact;
+        TalkClientContact clientContact;
         boolean needGroupUpdate = false;
-        boolean newGroup = false;
-        boolean newContact = false;
+        boolean newGroup = false; // TODO: should we read this flags somewhere ??
+        boolean newContact = false; // TODO: should we read this flags somewhere ??
 
         try {
             groupContact = mDatabase.findContactByGroupId(member.getGroupId(), false);
