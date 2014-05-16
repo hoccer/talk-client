@@ -429,9 +429,9 @@ public class XoClientDatabase {
         downloadQb.where()
                 .eq("mediaType", mediaType);
 
-        List<TalkClientDownload> messages = downloadQb.join(messageQb).query();
+        List<TalkClientDownload> downloads = downloadQb.join(messageQb).query();
 
-        return messages;
+        return downloads;
     }
 
     public List<TalkClientDownload> findAllClientDownloads() throws SQLException {
@@ -457,6 +457,13 @@ public class XoClientDatabase {
                         .isNotNull("text")
                         .eq("conversationContact_id", contactId)
                     .and(2)
+                .queryForFirst();
+    }
+
+    public TalkClientMessage findMessageByDownloadId(int downloadId) throws SQLException {
+        return mClientMessages.queryBuilder()
+                .where()
+                    .eq("attachmentDownload_id", downloadId)
                 .queryForFirst();
     }
 
