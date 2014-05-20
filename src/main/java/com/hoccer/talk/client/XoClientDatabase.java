@@ -12,7 +12,9 @@ import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.field.DataType;
+import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
+import com.j256.ormlite.stmt.UpdateBuilder;
 import com.j256.ormlite.stmt.Where;
 
 import com.j256.ormlite.support.ConnectionSource;
@@ -196,13 +198,10 @@ public class XoClientDatabase {
         QueryBuilder<TalkClientContact, Integer> recentSenders = mClientContacts.queryBuilder();
         recentUnreadMessages.orderBy("timestamp", false);
         List<TalkClientContact> orderedListOfSenders = recentSenders.join(recentUnreadMessages).where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2).query();
+                .query();
         List<TalkClientContact> allContacts = mClientContacts.queryBuilder().where()
-                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .eq("deleted", false)
-                .and(2)
                 .query();
         ArrayList<TalkClientContact> orderedListOfDistinctSenders = new ArrayList<TalkClientContact>();
         for (int i=0; i<orderedListOfSenders.size(); i++) {
@@ -218,15 +217,6 @@ public class XoClientDatabase {
         return orderedListOfDistinctSenders;
     }
 
-    public List<TalkClientContact> findAllNearbyClientContacts() throws  SQLException {
-        return mClientContacts.queryBuilder().where()
-                        .eq("contactType", TalkClientContact.TYPE_CLIENT)
-                        .eq("deleted", false)
-                        .eq("isNearby", true)
-                    .and(3)
-                .query();
-    }
-
     public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
                  .eq("contactType", TalkClientContact.TYPE_GROUP)
@@ -235,15 +225,29 @@ public class XoClientDatabase {
                .query();
     }
 
-    public List<TalkClientContact> findAllNearbyGroupContacts() throws SQLException {
+    public List<TalkClientContact> findAllNearbyContacts() throws SQLException {
         List<TalkClientContact> allGroupContacts = this.findAllGroupContacts();
         List<TalkClientContact> allNearbyGroupContacts = new ArrayList<TalkClientContact>();
+        List<TalkClientContact> allNearbyClientContacts = new ArrayList<TalkClientContact>();
 
+        // add all nearby groups
         for (TalkClientContact groupContact : allGroupContacts) {
             if (groupContact.isGroupInvolved() && groupContact.isGroupExisting() && groupContact.getGroupPresence().isTypeNearby()) {
                 allNearbyGroupContacts.add(groupContact);
             }
         }
+
+        for (TalkClientContact groupContact : allNearbyGroupContacts) {
+            // all all group members
+            for (TalkClientMembership groupMember : groupContact.getGroupMemberships()) {
+                TalkClientContact clientContact = groupMember.getClientContact();
+                if (clientContact.isClient() && clientContact.isNearby()) {
+                    allNearbyClientContacts.add(clientContact);
+                }
+            }
+            allNearbyGroupContacts.addAll(allNearbyClientContacts);
+        }
+
         return allNearbyGroupContacts;
     }
 
@@ -309,31 +313,29 @@ public class XoClientDatabase {
     }
 
     public synchronized List<TalkClientMessage> findMessagesForDelivery() throws SQLException {
-        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE,
-                TalkDelivery.STATE_NEW);
+        List<TalkDelivery> newDeliveries = mDeliveries.queryForEq(TalkDelivery.FIELD_STATE, TalkDelivery.STATE_NEW);
 
         List<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
         try {
-            int inProgressCount = 0;
-            for (TalkDelivery d : newDeliveries) {
-                TalkClientMessage m = mClientMessages.queryBuilder()
-                        .where().eq("outgoingDelivery" + "_id", d)
+            for (TalkDelivery newDelivery : newDeliveries) {
+                TalkClientMessage message = mClientMessages.queryBuilder()
+                        .where()
+                        .eq("outgoingDelivery" + "_id", newDelivery)
                         .queryForFirst();
-                if (m != null) {
-                    if (!m.isInProgress()) {
-                        m.setProgressState(true);
-                        mClientMessages.createOrUpdate(m);
-                        messages.add(m);
-                    } else {
-                        inProgressCount++;
+
+                if (message != null) {
+
+                    if (!message.isInProgress()) {
+                        messages.add(message);
                     }
+
                 } else {
-                    LOG.error("No outgoing delivery for message with tag '" + d.getMessageTag() + "'.");
+                    LOG.error("No outgoing delivery for message with tag '" + newDelivery.getMessageTag() + "'.");
                 }
             }
-            LOG.debug(Integer.toString(inProgressCount) + " Messages still in Progress");
-        } catch (Throwable t) {
-            LOG.error("SQL fnord", t);
+
+        } catch (SQLException e) {
+            LOG.error("Error while fetching messages for delivery: ", e);
         }
 
         return messages;
@@ -508,4 +510,75 @@ public class XoClientDatabase {
         mSmsTokens.delete(token);
     }
 
+    public void deleteAllClientContacts() throws SQLException {
+        UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
+        updateBuilder.updateColumnValue("deleted", true).where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .and(2);
+        updateBuilder.update();
+    }
+
+    public void deleteAllGroupContacts() throws SQLException {
+        UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
+        updateBuilder.updateColumnValue("deleted", true).where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .and(2);
+        updateBuilder.update();
+    }
+
+    public void eraseAllClientContacts() throws  SQLException {
+        DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
+        deleteBuilder.where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .and(2);
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllGroupContacts() throws SQLException {
+        DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
+        deleteBuilder.where()
+                    .eq("deleted", false)
+                    .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .and(2);
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllRelationships() throws SQLException {
+        DeleteBuilder<TalkRelationship, Long> deleteBuilder = mRelationships.deleteBuilder();
+        deleteBuilder.delete();
+    }
+
+    public void eraseAllGroupMemberships() throws SQLException {
+        DeleteBuilder<TalkGroupMember, Long> deleteBuilder = mGroupMembers.deleteBuilder();
+        deleteBuilder.delete();
+    }
+
+    public void migrateAllFilecacheUris() throws SQLException {
+        List<TalkClientMessage> messages = mClientMessages.queryBuilder().where()
+                .isNotNull("attachmentUpload_id")
+                .or()
+                .isNotNull("attachmentDownload_id").query();
+        for(TalkClientMessage message : messages) {
+            TalkClientDownload download = message.getAttachmentDownload();
+            TalkClientUpload upload = message.getAttachmentUpload();
+            if(download != null) {
+                download.setDownloadUrl(migrateFilecacheUrl(download.getDownloadUrl()));
+                mClientDownloads.update(download);
+            }
+            if(upload != null) {
+                upload.setUploadUrl(migrateFilecacheUrl(upload.getUploadUrl()));
+                mClientUploads.update(upload);
+            }
+        }
+    }
+
+    private String migrateFilecacheUrl(String url) {
+        String migratedUrl = url.substring(url.indexOf("/", 8));
+        migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
+        LOG.debug("migrated url: " + url + " to: " + migratedUrl);
+        return migratedUrl;
+    }
 }
