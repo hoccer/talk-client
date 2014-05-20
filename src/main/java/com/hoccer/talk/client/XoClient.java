@@ -155,6 +155,8 @@ public class XoClient implements JsonRpcConnection.Listener {
     /** Last client activity */
     long mLastActivity = 0;
 
+    int mIdleTimeout = XoClientConfiguration.IDLE_TIMEOUT;
+
     ObjectMapper mJsonMapper;
 
     // temporary group for geolocation grouping
@@ -353,6 +355,14 @@ public class XoClient implements JsonRpcConnection.Listener {
         return stateToString(mState);
     }
 
+    public int getIdleTimeout() {
+        return mIdleTimeout;
+    }
+
+    public void setIdleTimeout(int idleTimeout) {
+        mIdleTimeout = idleTimeout;
+    }
+
     public synchronized void registerStateListener(IXoStateListener listener) {
         mStateListeners.add(listener);
     }
@@ -431,7 +441,11 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public boolean isIdle() {
-        return (System.currentTimeMillis() - mLastActivity) > (XoClientConfiguration.IDLE_TIMEOUT * 1000);
+        if (mIdleTimeout > 0) {
+            return (System.currentTimeMillis() - mLastActivity) > (mIdleTimeout * 1000);
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -1216,14 +1230,14 @@ public class XoClient implements JsonRpcConnection.Listener {
 
     private void scheduleIdle() {
         shutdownIdle();
-        if(mState > STATE_CONNECTING) {
+        if(mState > STATE_CONNECTING && mIdleTimeout > 0) {
             mAutoDisconnectFuture = mExecutor.schedule(new Runnable() {
                 @Override
                 public void run() {
                     switchState(STATE_IDLE, "activity timeout");
                     mAutoDisconnectFuture = null;
                 }
-            }, XoClientConfiguration.IDLE_TIMEOUT, TimeUnit.SECONDS);
+            }, mIdleTimeout, TimeUnit.SECONDS);
         }
     }
 
