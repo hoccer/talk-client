@@ -9,6 +9,14 @@ public class XoClientConfiguration {
 
 //    public static final String SERVER_URI = "wss://talkserver-test1.talk.hoccer.de/";
     public static final String SERVER_URI = "wss://talkserver.talk.hoccer.de:8443/";
+//    public static final String SERVER_URI = "wss://test1.talk.hoccer.de/";
+//    public static final String SERVER_URI = "wss://talkserver.talk.hoccer.de:8443/";
+//    public static final String SERVER_URI = "wss://server.talk.hoccer.de/";
+
+    //public static final String SERVER_URI = "wss://server.talk.hoccer.de/";
+    //public static final String SERVER_URI = "ws://10.1.9.99:8080/";
+    //public static final String SERVER_URI = "wss://test1.talk.hoccer.de/";
+    public static final String SERVER_URI = "ws://192.168.2.146:8080/";
 
     /** Transfer executor thread count */
     public static final int TRANSFER_THREADS = 2;
