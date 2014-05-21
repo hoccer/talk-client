@@ -125,6 +125,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private transient long progressRateLimit;
 
+    private Timer mTimer;
+
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
         this.state = State.INITIALIZING;
@@ -394,6 +396,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public void setTransferFailures(int transferFailures) {
         this.transferFailures = transferFailures;
+        if(transferFailures > 16) {
+            // max retries reached. stop download and reset retries
+            mTimer.cancel();
+            this.transferFailures = 0;
+        }
     }
 
     public boolean isAvatar() {
@@ -477,9 +484,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         }
 
         if (state == State.DOWNLOADING) {
-            Timer timer = new Timer();
-            TimerTask downloadTask = new DownloadTask(this, agent, downloadFilename);
-            timer.scheduleAtFixedRate(downloadTask, 0, 5 * 1000);
+            mTimer = new Timer();
+            DownloadTask downloadTask = new DownloadTask(this, agent, downloadFilename);
+            mTimer.scheduleAtFixedRate(downloadTask, 0, 5 * 1000);
             try {
                 synchronized (this) {
                     this.wait();
@@ -487,6 +494,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             } catch (InterruptedException e) {
                 LOG.error("Error while performing download attempt: ", e);
             }
+
         }
         if (state == State.DECRYPTING) {
             String decryptedFilename = computeDecryptionFile(agent);
