@@ -429,7 +429,9 @@ public class XoClientDatabase {
 
         QueryBuilder<TalkClientDownload, Integer> downloadQb = mClientDownloads.queryBuilder();
         downloadQb.where()
-                .eq("mediaType", mediaType);
+                .eq("mediaType", mediaType)
+                .and()
+                .eq("state", TalkClientDownload.State.COMPLETE);
 
         List<TalkClientDownload> downloads = downloadQb.join(messageQb).query();
 
