@@ -576,6 +576,9 @@ public class XoClientDatabase {
     }
 
     private String migrateFilecacheUrl(String url) {
+        if(url == null) {
+            return null;
+        }
         String migratedUrl = url.substring(url.indexOf("/", 8));
         migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
         LOG.debug("migrated url: " + url + " to: " + migratedUrl);
