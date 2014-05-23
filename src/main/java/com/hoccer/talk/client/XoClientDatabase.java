@@ -416,7 +416,12 @@ public class XoClientDatabase {
     }
 
     public List<TalkClientDownload> findClientDownloadByMediaType(String mediaType) throws SQLException {
-        return mClientDownloads.queryForEq("mediaType", mediaType);
+        QueryBuilder<TalkClientDownload, Integer> downloadQb = mClientDownloads.queryBuilder();
+        downloadQb.where()
+                .eq("mediaType", mediaType)
+                .and()
+                .eq("state", TalkClientDownload.State.COMPLETE);
+        return downloadQb.query();
     }
 
     public List<TalkClientDownload> findClientDownloadByMediaTypeAndConversationContactId(String mediaType, int conversationContactId) throws SQLException {
