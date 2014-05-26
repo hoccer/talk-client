@@ -655,9 +655,8 @@ public class XoClient implements JsonRpcConnection.Listener {
     public void setClientConnectionStatus(String newStatus) {
         try {
             TalkPresence presence = mSelfContact.getClientPresence();
-            if(presence != null & presence.getClientId() != null) {
-                if(newStatus != null && newStatus != presence.getClientStatus()) {
-                    //presence.setClientStatus(newStatus);
+            if (presence != null && presence.getClientId() != null) {
+                if (newStatus != null && !newStatus.equals(presence.getClientStatus())) {
                     presence.setConnectionStatus(newStatus);
                     mSelfContact.updatePresence(presence);
                     mDatabase.savePresence(presence);
