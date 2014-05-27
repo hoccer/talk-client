@@ -443,6 +443,10 @@ public class XoClientDatabase {
         return downloads;
     }
 
+    public TalkClientMessage findClientMessageByTalkClientDownloadId(int attachmentDownloadId)  throws SQLException{
+        return mClientMessages.queryForEq("attachmentDownload_id", attachmentDownloadId).get(0);
+    }
+
     public List<TalkClientDownload> findAllClientDownloads() throws SQLException {
         return mClientDownloads.queryForAll();
     }
