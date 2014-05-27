@@ -8,10 +8,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.log4j.Logger;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -25,7 +22,7 @@ public class XoTransferAgent implements IXoTransferListener {
 
     ScheduledExecutorService mExecutor;
 
-    List<IXoTransferListener> mListeners;
+    Set<IXoTransferListener> mListeners;
 
     HttpClient mHttpClient;
 
@@ -40,7 +37,7 @@ public class XoTransferAgent implements IXoTransferListener {
         tfb.setNameFormat("transfer-%d");
         tfb.setUncaughtExceptionHandler(client.getHost().getUncaughtExceptionHandler());
         mExecutor = Executors.newScheduledThreadPool(XoClientConfiguration.TRANSFER_THREADS, tfb.build());
-        mListeners = new ArrayList<IXoTransferListener>();
+        mListeners = new HashSet<IXoTransferListener>();
         mDownloadsById = new HashMap<Integer, TalkClientDownload>();
         mUploadsById = new HashMap<Integer, TalkClientUpload>();
         initializeHttpClient();
