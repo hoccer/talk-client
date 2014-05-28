@@ -250,4 +250,20 @@ public class TalkClientMessage {
         currentDelivery.setTimeUpdatedOut(newDelivery.getTimeUpdatedOut());
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TalkClientMessage)) return false;
+
+        TalkClientMessage message = (TalkClientMessage) o;
+
+        if (messageId != null ? !messageId.equals(message.messageId) : message.messageId != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return messageId != null ? messageId.hashCode() : 0;
+    }
 }
