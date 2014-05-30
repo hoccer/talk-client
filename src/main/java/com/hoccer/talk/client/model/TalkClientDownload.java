@@ -231,8 +231,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         LOG.info("[new] initializeAsAvatar(url: '" + url + "')");
         this.type = Type.AVATAR;
 
-        url = checkFilecacheUrl(url); // TODO: ToBeDeleted
-
         this.downloadUrl = url;
         this.downloadFile = id + "-" + timestamp.getTime();
     }
@@ -247,7 +245,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.aspectRatio = attachment.getAspectRatio();
 
-        String filecacheUrl = checkFilecacheUrl(attachment.getUrl()); // TODO: ToBeDeleted
+        String filecacheUrl = attachment.getUrl();
         attachment.setUrl(filecacheUrl);
 
         this.downloadUrl = attachment.getUrl();
@@ -261,12 +259,6 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.contentHmac = attachment.getHmac();
-    }
-    // TODO: DELETE THIS PIECE OF ****
-    private String checkFilecacheUrl(String url) {
-        String migratedUrl = url.substring(url.indexOf("/", 8));
-        migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
-        return migratedUrl;
     }
 
     public void provideContentUrl(XoTransferAgent agent, String url) {
