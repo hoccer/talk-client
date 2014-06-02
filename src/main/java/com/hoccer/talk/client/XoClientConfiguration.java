@@ -7,8 +7,8 @@ public class XoClientConfiguration {
     public static final String PROTOCOL_STRING_JSON = "com.hoccer.talk.v2";
     public static final String PROTOCOL_STRING_BSON = "com.hoccer.talk.v2.bson";
 
-//    public static final String SERVER_URI = "wss://talkserver-test1.talk.hoccer.de/";
-    public static final String SERVER_URI = "wss://talkserver.talk.hoccer.de:8443/";
+    public static final String SERVER_URI = "wss://talkserver-test1.talk.hoccer.de:8443/";
+    //public static final String SERVER_URI = "wss://talkserver.talk.hoccer.de:8443/";
 
     /** Transfer executor thread count */
     public static final int TRANSFER_THREADS = 2;
@@ -69,6 +69,6 @@ public class XoClientConfiguration {
     };
 
     /** The app's URL scheme for registration links */
-    public static final String HXO_URL_SCHEME = "hxo://";
+    public static final String HXO_URL_SCHEME = "hxod://";
 
 }
