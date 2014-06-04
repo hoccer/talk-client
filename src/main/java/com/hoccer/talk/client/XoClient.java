@@ -1560,6 +1560,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
 
             if (sharedKeyId.equalsIgnoreCase("renew")) {
+                LOG.info("sharedKeyId is 'renew' -> renewing group keys");
                 generateGroupKey(groupContact);
                 isRenewGroupKey = true;
             }
@@ -2733,11 +2734,6 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     public void updateGroupMember(TalkGroupMember member) {
-        updateGroupMemberHere(member);
-    }
-
-
-    public void updateGroupMemberHere(TalkGroupMember member) {
         LOG.info("updateGroupMember(groupId: '" + member.getGroupId() + "', clientId: '" + member.getClientId() + "', state: '" + member.getState() + "')");
         TalkClientContact groupContact;
         TalkClientContact clientContact;
