@@ -1487,7 +1487,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         // construct message and delivery objects
         final TalkClientMessage clientMessage = new TalkClientMessage();
         final TalkMessage message = new TalkMessage();
-        final TalkDelivery delivery = new TalkDelivery();
+        final TalkDelivery delivery = new TalkDelivery(true);
 
         final String messageTag = message.generateMessageTag();
         message.setBody(messageText);
