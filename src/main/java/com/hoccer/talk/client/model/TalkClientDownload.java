@@ -823,20 +823,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
                         File newName = new File(destinationPath);
                         if (destination.renameTo(newName)) {
-                            if (decryptedFile != null) {
-                                this.decryptedFile = destinationFileName;
-                                this.dataFile = destinationPath;
-                            } else {
-                                this.downloadFile = destinationFileName;
-                                this.dataFile = destinationPath;
-                            }
+                            this.decryptedFile = destinationFileName;
+                            this.dataFile = destinationPath;
                         } else {
                             LOG.warn("could not rename file");
                         }
                     }
                 }
             }
-            switchState(agent, State.COMPLETE);
+            synchronized (this) {
+                switchState(agent, State.COMPLETE);
+            }
         } catch (Exception e) {
             LOG.error("detection error", e);
             markFailed(agent);
