@@ -2106,16 +2106,52 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED)) {
+            final XoClient that = this;
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+                    TalkDelivery result = mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+                    that.updateOutgoingDelivery(result);
                 }
             });
         }
 
         for(IXoMessageListener listener: mMessageListeners) {
             listener.onMessageStateChanged(clientMessage);
+        }
+    }
+
+    private void updateIncomingDelivery(final TalkDelivery delivery) {
+        LOG.debug("updateIncomingDelivery (Only)(" + delivery.getMessageId() + ")");
+        TalkClientMessage clientMessage = null;
+        try {
+
+            clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
+            if(clientMessage == null) {
+                throw new RuntimeException("updateIncomingDelivery: message not find, id="+delivery.getMessageId());
+            }
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
+            return;
+        }
+
+        try {
+            clientMessage.updateIncoming(delivery);
+
+            TalkClientDownload attachmentDownload = clientMessage.getAttachmentDownload();
+
+            mDatabase.saveDelivery(clientMessage.getIncomingDelivery());
+
+            if(attachmentDownload != null) {
+                mTransferAgent.registerDownload(attachmentDownload);
+            }
+
+            for(IXoMessageListener listener: mMessageListeners) {
+
+                listener.onMessageStateChanged(clientMessage);
+            }
+        } catch (SQLException e) {
+            LOG.error("sql error", e);
         }
     }
 
@@ -2134,9 +2170,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     return;
                 }
             }
-            senderContact = mDatabase.findContactByClientId(message.getSenderId(), false);
+            senderContact = mDatabase.findContactByClientId(delivery.getSenderId(), false);
             if(senderContact == null) {
-                LOG.warn("incoming message from unknown client " + message.getSenderId());
+                LOG.warn("incoming message from unknown client " + delivery.getSenderId());
                 return;
             }
             clientMessage = mDatabase.findMessageByMessageId(delivery.getMessageId(), false);
@@ -2187,25 +2223,32 @@ public class XoClient implements JsonRpcConnection.Listener {
             notifyUnseenMessages(newMessage);
             messageFailed = false;
         } catch (GeneralSecurityException e) {
+            LOG.error("decryption problem", e);
         } catch (IOException e) {
+            LOG.error("io error", e);
         } catch (SQLException e) {
+            LOG.error("sql error", e);
         }
         if (!messageFailed) {
             if(delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
+                final XoClient that = this;
                 mExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
-                        mServerRpc.deliveryConfirm(delivery.getMessageId());
+                        TalkDelivery result = mServerRpc.deliveryConfirm(delivery.getMessageId());
+                        that.updateIncomingDelivery(result);
                     }
                 });
             }
         } else {
+            final XoClient that = this;
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     LOG.debug("aborting " + delivery.getMessageId());
-                    mServerRpc.deliveryAbort(delivery.getMessageId(),delivery.getReceiverId());
+                    TalkDelivery result = mServerRpc.deliveryAbort(delivery.getMessageId(),delivery.getReceiverId());
+                    that.updateIncomingDelivery(result);
                 }
             });
         }

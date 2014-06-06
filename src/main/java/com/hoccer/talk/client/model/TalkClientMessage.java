@@ -7,6 +7,7 @@ import com.j256.ormlite.table.DatabaseTable;
 import org.apache.log4j.Logger;
 
 import java.util.Date;
+import java.util.Set;
 
 @DatabaseTable(tableName = "clientMessage")
 public class TalkClientMessage {
@@ -218,11 +219,27 @@ public class TalkClientMessage {
         if(incomingDelivery == null) {
             incomingDelivery = delivery;
         } else {
-            updateDelivery(incomingDelivery, delivery);
+            Set<String> fields = delivery.nonNullFields();
+            incomingDelivery.updateWith(delivery, fields);
             if(message.getTimeSent() != null) {
                 this.timestamp = message.getTimeSent();
             }
         }
+    }
+
+    public void updateIncoming(TalkDelivery delivery) {
+        if(outgoingDelivery != null) {
+            LOG.error("incoming incremental update for outgoing message");
+            return;
+        }
+
+        if(incomingDelivery == null) {
+            LOG.error("incremental update for not yet received incoming delivery");
+            return;
+        }
+
+        Set<String> fields = delivery.nonNullFields();
+        incomingDelivery.updateWith(delivery, fields);
     }
 
     public void updateOutgoing(TalkDelivery delivery) {
@@ -233,10 +250,11 @@ public class TalkClientMessage {
         if(outgoingDelivery == null) {
             outgoingDelivery = delivery;
         } else {
-            updateDelivery(outgoingDelivery, delivery);
+            Set<String> fields = delivery.nonNullFields();
+            outgoingDelivery.updateWith(delivery, fields);
         }
     }
-
+ /*
     private void updateDelivery(TalkDelivery currentDelivery, TalkDelivery newDelivery) {
         currentDelivery.setState(newDelivery.getState());
         currentDelivery.setSenderId(newDelivery.getSenderId());
@@ -249,5 +267,6 @@ public class TalkClientMessage {
         currentDelivery.setTimeUpdatedIn(newDelivery.getTimeUpdatedIn());
         currentDelivery.setTimeUpdatedOut(newDelivery.getTimeUpdatedOut());
     }
+    */
 
 }
