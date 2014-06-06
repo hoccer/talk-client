@@ -7,6 +7,7 @@ import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
+import com.hoccer.talk.content.IContentObject;
 import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
@@ -594,5 +595,13 @@ public class XoClientDatabase {
         migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
         LOG.debug("migrated url: " + url + " to: " + migratedUrl);
         return migratedUrl;
+    }
+
+    public void deleteMessageByTalkClientDownloadId(int attachmentDownload_id) throws SQLException{
+
+        DeleteBuilder<TalkClientMessage, Integer> deleteBuilder = mClientMessages.deleteBuilder();
+        deleteBuilder.where()
+                .eq("attachmentDownload_id", attachmentDownload_id);
+        deleteBuilder.delete();
     }
 }
