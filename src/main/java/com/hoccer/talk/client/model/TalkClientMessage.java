@@ -257,9 +257,11 @@ public class TalkClientMessage {
 
         TalkClientMessage message = (TalkClientMessage) o;
 
-        if (messageId != null ? !messageId.equals(message.messageId) : message.messageId != null) return false;
+        if(messageId != null && message.getMessageId() != null) {
+            return messageId.equals(message.getMessageId());
+        }
 
-        return true;
+        return false;
     }
 
     @Override
