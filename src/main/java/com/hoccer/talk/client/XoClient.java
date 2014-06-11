@@ -1639,9 +1639,15 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
         }
+        @Override
+        public void incomingDeliveryUpdate(TalkDelivery d) {
+            LOG.debug("server: incomingDeliveryUpdate()");
+            throw new RuntimeException("not implemented");
+            //updateIncomingDelivery(d);
+        }
 
         @Override
-        public void outgoingDelivery(TalkDelivery d) {
+        public void outgoingDeliveryUpdate(TalkDelivery d) {
             LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(d);
         }
@@ -1889,7 +1895,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 try {
                     clientMessage.setProgressState(true);
                     mDatabase.saveClientMessage(clientMessage);
-                    resultingDeliveries = mServerRpc.deliveryRequest(message, delivery);
+                    resultingDeliveries = mServerRpc.outDeliveryRequest(message, delivery);
 
                 } catch (Exception e) {
                     LOG.error("error while performing delivery request for message " + clientMessage.getClientMessageId(), e);
@@ -2110,7 +2116,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    TalkDelivery result = mServerRpc.deliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+                    TalkDelivery result = mServerRpc.outDeliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
                     that.updateOutgoingDelivery(result);
                 }
             });
@@ -2194,6 +2200,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
 
         boolean messageFailed = true;
+        String reason = "unknown";
         try {
             decryptMessage(clientMessage, delivery, message);
 
@@ -2223,10 +2230,13 @@ public class XoClient implements JsonRpcConnection.Listener {
             notifyUnseenMessages(newMessage);
             messageFailed = false;
         } catch (GeneralSecurityException e) {
+            reason = "decryption problem" + e;
             LOG.error("decryption problem", e);
         } catch (IOException e) {
+            reason = "io error" + e;
             LOG.error("io error", e);
         } catch (SQLException e) {
+            reason = "sql error" + e;
             LOG.error("sql error", e);
         }
         if (!messageFailed) {
@@ -2236,18 +2246,19 @@ public class XoClient implements JsonRpcConnection.Listener {
                     @Override
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
-                        TalkDelivery result = mServerRpc.deliveryConfirm(delivery.getMessageId());
+                        TalkDelivery result = mServerRpc.inDeliveryConfirm(delivery.getMessageId());
                         that.updateIncomingDelivery(result);
                     }
                 });
             }
         } else {
             final XoClient that = this;
+            final String finalReason = reason;
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    LOG.debug("aborting " + delivery.getMessageId());
-                    TalkDelivery result = mServerRpc.deliveryAbort(delivery.getMessageId(),delivery.getReceiverId());
+                    LOG.debug("rejecting " + delivery.getMessageId());
+                    TalkDelivery result = mServerRpc.inDeliveryReject(delivery.getMessageId(), finalReason);
                     that.updateIncomingDelivery(result);
                 }
             });
