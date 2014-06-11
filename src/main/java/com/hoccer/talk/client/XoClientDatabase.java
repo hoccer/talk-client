@@ -448,6 +448,10 @@ public class XoClientDatabase {
         return mClientMessages.queryForEq("attachmentDownload_id", attachmentDownloadId).get(0);
     }
 
+    public TalkClientMessage findClientMessageByTalkClientUploadId(int attachmentUploadId)  throws SQLException{
+        return mClientMessages.queryForEq("attachmentUpload_id", attachmentUploadId).get(0);
+    }
+
     public List<TalkClientDownload> findAllClientDownloads() throws SQLException {
         return mClientDownloads.queryForAll();
     }
