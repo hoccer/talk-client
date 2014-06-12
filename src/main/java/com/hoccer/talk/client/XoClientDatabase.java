@@ -380,14 +380,12 @@ public class XoClientDatabase {
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
         builder.limit(count);
-        builder.orderBy("timestamp", false);
+        builder.orderBy("timestamp", true);
         builder.offset(offset);
         Where<TalkClientMessage, Integer> where = builder.where();
         where.eq("conversationContact_id", contactId);
         builder.setWhere(where);
-        builder.orderBy("clientMessageId", true);
         List<TalkClientMessage> messages = mClientMessages.query(builder.prepare());
-        Collections.reverse(messages);
         return messages;
     }
 
@@ -402,6 +400,10 @@ public class XoClientDatabase {
             ret.add(r);
         }
         return ret;
+    }
+
+    public long getMessageCountByContactId(int contactId) throws SQLException {
+        return mClientMessages.queryBuilder().where().eq("conversationContact_id", contactId).countOf();
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
