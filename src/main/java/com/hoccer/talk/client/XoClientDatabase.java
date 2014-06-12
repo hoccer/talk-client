@@ -445,7 +445,14 @@ public class XoClientDatabase {
     }
 
     public TalkClientMessage findClientMessageByTalkClientDownloadId(int attachmentDownloadId)  throws SQLException{
-        return mClientMessages.queryForEq("attachmentDownload_id", attachmentDownloadId).get(0);
+        List < TalkClientMessage > messages = mClientMessages.queryForEq("attachmentDownload_id", attachmentDownloadId);
+        int numberOfMessages = messages.size();
+
+        if ( numberOfMessages == 0) {
+            return null;
+        }else {
+            return messages.get(0);
+        }
     }
 
     public TalkClientMessage findClientMessageByTalkClientUploadId(int attachmentUploadId)  throws SQLException{
