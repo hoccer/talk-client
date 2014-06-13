@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  
+
   <parent>
     <groupId>hoccer</groupId>
     <artifactId>hoccer-talk</artifactId>
@@ -30,12 +30,6 @@
       <groupId>hoccer</groupId>
       <artifactId>hoccer-talk-srp</artifactId>
       <version>0.0.1-SNAPSHOT</version>
-    </dependency>
-    <!-- JSON-RPC stack -->
-    <dependency>
-      <groupId>hoccer</groupId>
-      <artifactId>better-jsonrpc-common</artifactId>
-      <version>${better-jsonrpc.version}</version>
     </dependency>
     <dependency>
       <groupId>hoccer</groupId>
@@ -79,7 +73,7 @@
       <version>${findbugs.version}</version>
     </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
       <plugin>
