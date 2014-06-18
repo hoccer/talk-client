@@ -2111,12 +2111,13 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
-        if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED)) {
+        //TODO: just a quick fix so it compiles
+        if (TalkDelivery.DELIVERED_STATES_SET.contains(delivery.getState())) {
             final XoClient that = this;
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    TalkDelivery result = mServerRpc.outDeliveryAcknowledge(delivery.getMessageId(), delivery.getReceiverId());
+                    TalkDelivery result = mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
                     that.updateOutgoingDelivery(result);
                 }
             });
@@ -2246,7 +2247,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     @Override
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
-                        TalkDelivery result = mServerRpc.inDeliveryConfirm(delivery.getMessageId());
+                        TalkDelivery result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
                         that.updateIncomingDelivery(result);
                     }
                 });
