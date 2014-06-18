@@ -76,10 +76,12 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     /** URL for upload */
     @DatabaseField(width = 2000)
     private String uploadUrl;
-
-
+    /** URL for download */
     @DatabaseField(width = 2000)
     private String downloadUrl;
+    /** Id for file transfer */
+    @DatabaseField
+    private String fileId;
 
     @DatabaseField(width = 128)
     private String contentType;
@@ -229,6 +231,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
     public String getDownloadUrl() {
         return downloadUrl;
+    }
+
+    public String getFileId() {
+        return fileId;
     }
 
     @Override
@@ -396,6 +402,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                     this.uploadLength = encryptedLength;
                     handles = talkClient.getServerRpc().createFileForTransfer(this.encryptedLength);
                 }
+                fileId = handles.fileId;
                 uploadUrl = handles.uploadUrl;
                 downloadUrl = handles.downloadUrl;
                 LOG.info("[uploadId: '" + clientUploadId + "'] registered as fileId: '" + handles.fileId + "'");
