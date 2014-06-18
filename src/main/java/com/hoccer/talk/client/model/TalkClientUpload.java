@@ -360,6 +360,11 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             return;
         }
 
+        if (state == State.PAUSED) {
+            LOG.info("upload currently paused.");
+            return;
+        }
+
         if(!agent.isUploadActive(this)) {
             return;
         }
@@ -596,6 +601,15 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
         agent.onUploadFailed(this);
+    }
+
+    public void pauseUpload(XoTransferAgent agent) {
+        switchState(agent, State.PAUSED);
+    }
+
+    public void resumeUpload(XoTransferAgent agent) {
+        switchState(agent, State.UPLOADING);
+        performUploadAttempt(agent);
     }
 
     private void switchState(XoTransferAgent agent, State newState) {

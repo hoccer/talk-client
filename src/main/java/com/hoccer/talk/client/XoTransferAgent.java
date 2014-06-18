@@ -178,6 +178,20 @@ public class XoTransferAgent implements IXoTransferListener {
         }
     }
 
+    public void pauseDownload(TalkClientDownload download) {
+        LOG.info("pauseDownload(" + download.getClientDownloadId() + ")");
+        download.pauseDownload(this);
+        cancelDownload(download);
+    }
+
+    public void resumeDownload(TalkClientDownload download) {
+        LOG.info("resumeUpload(" + download.getClientDownloadId() + ")");
+        download.resumeDownload(this);
+        synchronized (mUploadsById) {
+            mDownloadsById.put(download.getClientDownloadId(), download);
+        }
+    }
+
     public void cancelDownload(TalkClientDownload download) {
         LOG.info("cancelDownload(" + download.getClientDownloadId() + ")");
         synchronized (mDownloadsById) {
@@ -238,12 +252,27 @@ public class XoTransferAgent implements IXoTransferListener {
         }
     }
 
+    public void pauseUpload(TalkClientUpload upload) {
+        LOG.info("pauseUpload(" + upload.getClientUploadId() + ")");
+        upload.pauseUpload(this);
+        cancelUpload(upload);
+    }
+
+    public void resumeUpload(TalkClientUpload upload) {
+        LOG.info("resumeUpload(" + upload.getClientUploadId() + ")");
+        upload.resumeUpload(this);
+        synchronized (mUploadsById) {
+            mUploadsById.put(upload.getClientUploadId(), upload);
+        }
+    }
+
     public void cancelUpload(TalkClientUpload upload) {
         LOG.info("cancelUpload(" + upload.getClientUploadId() + ")");
         synchronized (mUploadsById) {
             mUploadsById.remove(upload.getClientUploadId());
         }
     }
+
 
     @Override
     public void onDownloadRegistered(TalkClientDownload download) {

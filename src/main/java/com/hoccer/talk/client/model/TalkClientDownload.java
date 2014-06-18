@@ -503,6 +503,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             }
         }
 
+        if (state == State.PAUSED) {
+            LOG.info("download currently paused.");
+            return;
+        }
+
         if (state == State.DOWNLOADING) {
             mTimer = new Timer();
             DownloadTask downloadTask = new DownloadTask(this, agent, downloadFilename);
@@ -850,6 +855,15 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
             return false;
         }
         return true;
+    }
+
+    public void pauseDownload(XoTransferAgent agent) {
+        switchState(agent, State.PAUSED);
+    }
+
+    public void resumeDownload(XoTransferAgent agent) {
+        switchState(agent, State.DOWNLOADING);
+        performDownloadAttempt(agent);
     }
 
     /**
