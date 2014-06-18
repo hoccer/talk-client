@@ -97,6 +97,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     @DatabaseField(width = 2000)
     private String downloadUrl;
 
+    @DatabaseField
+    private String fileId;
+
     /**
      * Name of the file the download itself will go to
      *
@@ -345,6 +348,10 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     public String getDownloadUrl() {
         return downloadUrl;
+    }
+
+    public String getFileId() {
+        return fileId;
     }
 
     /**
@@ -875,6 +882,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
+        agent.onDownloadFailed(this);
     }
 
     public void switchState(XoTransferAgent agent, State newState) {

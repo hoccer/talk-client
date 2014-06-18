@@ -275,6 +275,16 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onDownloadFinished(download);
         }
+        mClient.getServerRpc().receivedFile(download.getFileId());
+    }
+
+    @Override
+    public void onDownloadFailed(TalkClientDownload download) {
+        LOG.info("onDownloadFailed(" + download.getClientDownloadId() + ")");
+        for(IXoTransferListener listener: mListeners) {
+            listener.onDownloadFailed(download);
+        }
+        mClient.getServerRpc().failedFileDownload(download.getFileId());
     }
 
     @Override
@@ -291,6 +301,7 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStarted(upload);
         }
+        mClient.getServerRpc().startedFileUpload(upload.getFileId());
     }
 
     @Override
@@ -307,6 +318,15 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadFinished(upload);
         }
+        mClient.getServerRpc().finishedFileUpload(upload.getFileId());
+    }
+
+    public void onUploadFailed(TalkClientUpload upload) {
+        LOG.info("onUploadFailed(" + upload.getClientUploadId() + ")");
+        for(IXoTransferListener listener: mListeners) {
+            listener.onUploadFailed(upload);
+        }
+        mClient.getServerRpc().failedFileUpload(upload.getFileId());
     }
 
     @Override

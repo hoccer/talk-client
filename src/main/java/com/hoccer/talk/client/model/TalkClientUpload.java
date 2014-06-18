@@ -595,6 +595,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
     private void markFailed(XoTransferAgent agent) {
         switchState(agent, State.FAILED);
+        agent.onUploadFailed(this);
     }
 
     private void switchState(XoTransferAgent agent, State newState) {
