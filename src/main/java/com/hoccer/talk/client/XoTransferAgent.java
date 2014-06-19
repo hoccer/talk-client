@@ -304,7 +304,9 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onDownloadFinished(download);
         }
-        mClient.getServerRpc().receivedFile(download.getFileId());
+        if (download.getTransferType() == XoTransfer.Type.ATTACHMENT) {
+            mClient.getServerRpc().receivedFile(download.getFileId());
+        }
     }
 
     @Override
@@ -313,7 +315,9 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onDownloadFailed(download);
         }
-        mClient.getServerRpc().failedFileDownload(download.getFileId());
+        if (download.getTransferType() == XoTransfer.Type.ATTACHMENT) {
+            mClient.getServerRpc().failedFileDownload(download.getFileId());
+        }
     }
 
     @Override
@@ -330,7 +334,9 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStarted(upload);
         }
-        mClient.getServerRpc().startedFileUpload(upload.getFileId());
+        if (upload.getTransferType() == XoTransfer.Type.ATTACHMENT) {
+            mClient.getServerRpc().startedFileUpload(upload.getFileId());
+        }
     }
 
     @Override
@@ -347,15 +353,20 @@ public class XoTransferAgent implements IXoTransferListener {
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadFinished(upload);
         }
-        mClient.getServerRpc().finishedFileUpload(upload.getFileId());
+        if (upload.getTransferType() == XoTransfer.Type.ATTACHMENT) {
+            mClient.getServerRpc().finishedFileUpload(upload.getFileId());
+        }
     }
 
+    @Override
     public void onUploadFailed(TalkClientUpload upload) {
         LOG.info("onUploadFailed(" + upload.getClientUploadId() + ")");
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadFailed(upload);
         }
-        mClient.getServerRpc().failedFileUpload(upload.getFileId());
+        if (upload.getTransferType() == XoTransfer.Type.ATTACHMENT) {
+            mClient.getServerRpc().failedFileUpload(upload.getFileId());
+        }
     }
 
     @Override
