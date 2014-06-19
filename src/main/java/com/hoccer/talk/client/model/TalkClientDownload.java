@@ -130,6 +130,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
     private Timer mTimer;
 
+    private HttpGet mDownloadRequest = null;
+
     public TalkClientDownload() {
         super(Direction.DOWNLOAD);
         this.state = State.INITIALIZING;
@@ -358,7 +360,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
      * Only used for migrating existing filecache Uris to new host. Delete this Method once
      * the migration is done!
      *
-     * @param url
+     * @param downloadUrl
      */
     @Deprecated
     public void setDownloadUrl(String downloadUrl) {
@@ -505,6 +507,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         if (state == State.PAUSED) {
             LOG.info("download currently paused.");
+            mDownloadRequest = null;
             return;
         }
 
@@ -574,7 +577,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     private boolean performOneRequest(XoTransferAgent agent, String filename) {
-        LOG.debug("performOneRequest(downloadId: '" + clientDownloadId + "', filename: '" + filename + "')");
+        LOG.debug("performOneRequest(downloadId: '" + clientDownloadId + "', filename: '" + filename
+                + "')");
         HttpClient client = agent.getHttpClient();
         XoClientDatabase database = agent.getDatabase();
         RandomAccessFile raf = null;
@@ -582,17 +586,17 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         try {
             logGetDebug("downloading '" + downloadUrl + "'");
             // create the GET request
-            HttpGet request = new HttpGet(downloadUrl);
+            mDownloadRequest = new HttpGet(downloadUrl);
             // determine the requested range
             String range = null;
             if (contentLength != -1) {
                 long last = contentLength - 1;
                 range = "bytes=" + downloadProgress + "-" + last;
                 logGetDebug("requesting range '" + range + "'");
-                request.addHeader("Range", range);
+                mDownloadRequest.addHeader("Range", range);
             }
             // start performing the request
-            HttpResponse response = client.execute(request);
+            HttpResponse response = client.execute(mDownloadRequest);
             // process status line
             StatusLine status = response.getStatusLine();
             int sc = status.getStatusCode();
@@ -742,8 +746,9 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     private boolean performDecryption(XoTransferAgent agent, String sourceFile, String destinationFile) {
-        LOG.debug("performDecryption(downloadId: '" + clientDownloadId + "', sourceFile: '" + sourceFile + "', " +
-                  "destinationFile: '" + destinationFile + "')");
+        LOG.debug("performDecryption(downloadId: '" + clientDownloadId + "', sourceFile: '"
+                + sourceFile + "', " +
+                "destinationFile: '" + destinationFile + "')");
 
         File source = new File(sourceFile);
 
@@ -858,7 +863,11 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
     }
 
     public void pauseDownload(XoTransferAgent agent) {
+        if(mDownloadRequest != null) {
+            mDownloadRequest.abort();
+        }
         switchState(agent, State.PAUSED);
+
     }
 
     public void resumeDownload(XoTransferAgent agent) {

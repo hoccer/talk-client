@@ -342,6 +342,7 @@ public class XoTransferAgent implements IXoTransferListener {
     @Override
     public void onUploadProgress(TalkClientUpload upload) {
         LOG.trace("onUploadProgress(" + upload.getClientUploadId() + ")");
+        LOG.info("zalem: upload progress is " + upload.getProgress());
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadProgress(upload);
         }
@@ -372,6 +373,13 @@ public class XoTransferAgent implements IXoTransferListener {
     @Override
     public void onUploadStateChanged(TalkClientUpload upload) {
         LOG.info("onUploadStateChanged(id: " + upload.getClientUploadId() + ")");
+
+        if(upload.getTransferType() == XoTransfer.Type.ATTACHMENT &&
+           upload.getState() == TalkClientUpload.State.PAUSED) {
+
+            mClient.getServerRpc().pausedFileUpload(upload.getFileId());
+        }
+
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadStateChanged(upload);
         }

@@ -35,6 +35,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
     private final static Logger LOG = Logger.getLogger(TalkClientUpload.class);
 
+    private HttpPut mUploadRequest = null;
+
     public enum State {
         NEW, REGISTERING, UPLOADING, PAUSED, COMPLETE, FAILED,
         /* old states */
@@ -362,6 +364,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
 
         if (state == State.PAUSED) {
             LOG.info("upload currently paused.");
+            mUploadRequest = null;
             return;
         }
 
@@ -484,9 +487,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             String uploadRange = "bytes " + this.progress + "-" + last + "/" + uploadLength;
             LOG.trace("PUT-upload '" + uploadUrl + "' with range '" + uploadRange + "'");
 
-            final HttpPut uploadRequest = new HttpPut(uploadUrl);
+            mUploadRequest = new HttpPut(uploadUrl);
             if (this.progress > 0) {
-                uploadRequest.addHeader("Content-Range", uploadRange);
+                mUploadRequest.addHeader("Content-Range", uploadRange);
             }
 
             InputStream clearIs = agent.getClient().getHost().openInputStreamForUrl(filename);
@@ -510,7 +513,7 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                     // XXX this is the only place where we abort the request,
                     //     so we actually need to make progress to cancel. duh.
                     if(!agent.isUploadActive(TalkClientUpload.this)) {
-                        uploadRequest.abort();
+                        mUploadRequest.abort();
                     }
                     LOG.trace("onProgress " + progress);
 
@@ -519,10 +522,10 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                     agent.onUploadProgress(TalkClientUpload.this);
                 }
             };
-            uploadRequest.setEntity(new ProgressOutputHttpEntity(is, bytesToGo, progressListener));
+            mUploadRequest.setEntity(new ProgressOutputHttpEntity(is, bytesToGo, progressListener));
             LOG.trace("PUT-upload '" + uploadUrl + "' commencing");
-            logRequestHeaders(uploadRequest, "PUT-upload response header ");
-            HttpResponse uploadResponse = client.execute(uploadRequest);
+            logRequestHeaders(mUploadRequest, "PUT-upload response header ");
+            HttpResponse uploadResponse = client.execute(mUploadRequest);
             this.progress = uploadLength;
             saveProgress(agent);
             StatusLine uploadStatus = uploadResponse.getStatusLine();
@@ -604,6 +607,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
     }
 
     public void pauseUpload(XoTransferAgent agent) {
+        if(mUploadRequest != null) {
+            mUploadRequest.abort();
+        }
         switchState(agent, State.PAUSED);
     }
 
