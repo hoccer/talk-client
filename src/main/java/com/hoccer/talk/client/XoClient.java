@@ -2111,8 +2111,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
-        //TODO: just a quick fix so it compiles
-        if (TalkDelivery.DELIVERED_STATES_SET.contains(delivery.getState())) {
+        if (delivery.getState() == TalkDelivery.STATE_DELIVERING) {
             final XoClient that = this;
             mExecutor.execute(new Runnable() {
                 @Override
