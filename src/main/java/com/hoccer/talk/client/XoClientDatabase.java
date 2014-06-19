@@ -547,4 +547,9 @@ public class XoClientDatabase {
         LOG.debug("migrated url: " + url + " to: " + migratedUrl);
         return migratedUrl;
     }
+
+    public List<TalkClientContact> findAllOutstandingFriendrequests() {
+
+        return null;
+    }
 }
