@@ -1587,6 +1587,8 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
 
             // encrypt group key with each member's public key
+            // TODO: if there is no groupkey to encrypt, create one!
+            // generateGroupKey();
             byte[] rawGroupKey = Base64.decodeBase64(groupContact.getGroupKey().getBytes(Charset.forName("UTF-8")));
             List<String> encryptedGroupKeys = new ArrayList<String>();
             for (TalkClientContact clientContact : clientsInGroup) {

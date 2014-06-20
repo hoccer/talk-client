@@ -548,8 +548,33 @@ public class XoClientDatabase {
         return migratedUrl;
     }
 
-    public List<TalkClientContact> findAllOutstandingFriendrequests() {
+    public List<TalkClientContact> findAllPendingFriendRequests() {
+        try {
+            List<TalkClientContact> contacts = new ArrayList<TalkClientContact>();
+            List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
+            for(TalkRelationship relationship : invitedRelations) {
+                TalkClientContact contact = findContactByClientId(relationship.getOtherClientId(), false);
+                if(contact != null) {
+                    contacts.add(contact);
+                }
+            }
 
+            return contacts;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
+    }
+
+    public boolean hasPendingFriendRequests() {
+        try {
+            List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
+            if(invitedRelations != null && invitedRelations.size() > 0) {
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 }
