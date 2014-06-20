@@ -386,10 +386,24 @@ public class XoClientDatabase {
     }
 
     public List<TalkClientMessage> findNearbyMessages(long count, long offset) throws SQLException {
+        List<TalkClientMessage> list =  getAllNearbyGroupMessages();
+        if (offset + count > list.size()) {
+            count = list.size() - offset;
+        }
+        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
+        for (int i = (int)offset; i<offset+count; i++) {
+            res.add(list.get(i));
+        }
+        return res;
+    }
+
+    public long getMessageCountNearby() throws SQLException {
+        return getAllNearbyGroupMessages().size();
+    }
+
+    private List<TalkClientMessage> getAllNearbyGroupMessages() throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
-        builder.limit(count);
         builder.orderBy("timestamp", true);
-        builder.offset(offset);
         List<TalkClientMessage> list =  builder.query();
         ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
         for (TalkClientMessage t: list) {
@@ -425,20 +439,6 @@ public class XoClientDatabase {
             ret.add(r);
         }
         return ret;
-    }
-
-    public long getMessageCountNearby() throws SQLException {
-        QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
-        List<TalkClientMessage> list =  builder.query();
-        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
-        for (TalkClientMessage t: list) {
-            if (t.getConversationContact().getContactType().equals("group")) {
-                if (t.getConversationContact().getGroupPresence().isTypeNearby()) {
-                    res.add(t);
-                }
-            }
-        }
-        return res.size();
     }
 
     public long getMessageCountByContactId(int contactId) throws SQLException {
