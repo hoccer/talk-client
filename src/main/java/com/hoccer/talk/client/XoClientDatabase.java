@@ -1,21 +1,12 @@
 package com.hoccer.talk.client;
 
-import com.hoccer.talk.client.model.TalkClientContact;
-import com.hoccer.talk.client.model.TalkClientDownload;
-import com.hoccer.talk.client.model.TalkClientMembership;
-import com.hoccer.talk.client.model.TalkClientMessage;
-import com.hoccer.talk.client.model.TalkClientSelf;
-import com.hoccer.talk.client.model.TalkClientSmsToken;
-import com.hoccer.talk.client.model.TalkClientUpload;
+import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
-import com.j256.ormlite.dao.GenericRawResults;
-import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.UpdateBuilder;
 import com.j256.ormlite.stmt.Where;
-
 import com.j256.ormlite.support.ConnectionSource;
 import com.j256.ormlite.table.TableUtils;
 import org.apache.log4j.Logger;
@@ -24,7 +15,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 public class XoClientDatabase {
 
@@ -180,8 +170,8 @@ public class XoClientDatabase {
 
     public List<TalkClientContact> findAllContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
-                 .eq("deleted", false)
-               .query();
+                .eq("deleted", false)
+                .query();
     }
 
     public List<TalkClientContact> findAllClientContacts() throws SQLException {
@@ -199,12 +189,12 @@ public class XoClientDatabase {
                 .eq("deleted", false)
                 .query();
         ArrayList<TalkClientContact> orderedListOfDistinctSenders = new ArrayList<TalkClientContact>();
-        for (int i=0; i<orderedListOfSenders.size(); i++) {
+        for (int i = 0; i < orderedListOfSenders.size(); i++) {
             if (!orderedListOfDistinctSenders.contains(orderedListOfSenders.get(i))) {
                 orderedListOfDistinctSenders.add(orderedListOfSenders.get(i));
             }
         }
-        for (int i=0; i<allContacts.size(); i++) {
+        for (int i = 0; i < allContacts.size(); i++) {
             if (!orderedListOfDistinctSenders.contains(allContacts.get(i))) {
                 orderedListOfDistinctSenders.add(allContacts.get(i));
             }
@@ -214,10 +204,10 @@ public class XoClientDatabase {
 
     public List<TalkClientContact> findAllGroupContacts() throws SQLException {
         return mClientContacts.queryBuilder().where()
-                 .eq("contactType", TalkClientContact.TYPE_GROUP)
-                 .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .eq("deleted", false)
                 .and(2)
-               .query();
+                .query();
     }
 
     public List<TalkClientContact> findAllNearbyContacts() throws SQLException {
@@ -254,10 +244,10 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                    .where().eq("contactType", TalkClientContact.TYPE_SELF)
-                    .queryForFirst();
+                .where().eq("contactType", TalkClientContact.TYPE_SELF)
+                .queryForFirst();
 
-        if(create && contact == null) {
+        if (create && contact == null) {
             contact = new TalkClientContact(TalkClientContact.TYPE_SELF);
             mClientContacts.create(contact);
         }
@@ -269,12 +259,12 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                    .where().eq("clientId", clientId)
-                            .eq("deleted", false)
-                            .and(2)
-                    .queryForFirst();
+                .where().eq("clientId", clientId)
+                .eq("deleted", false)
+                .and(2)
+                .queryForFirst();
 
-        if(create && contact == null) {
+        if (create && contact == null) {
             contact = new TalkClientContact(TalkClientContact.TYPE_CLIENT, clientId);
             mClientContacts.create(contact);
         }
@@ -286,12 +276,12 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                    .where().eq("groupId", groupId)
-                            .eq("deleted", false)
-                            .and(2)
-                    .queryForFirst();
+                .where().eq("groupId", groupId)
+                .eq("deleted", false)
+                .and(2)
+                .queryForFirst();
 
-        if(create && contact == null) {
+        if (create && contact == null) {
             contact = new TalkClientContact(TalkClientContact.TYPE_GROUP, groupId);
             mClientContacts.create(contact);
         }
@@ -302,8 +292,8 @@ public class XoClientDatabase {
     public TalkClientContact findContactByGroupTag(String groupTag) throws SQLException {
         return mClientContacts.queryBuilder()
                 .where().eq("groupTag", groupTag)
-                        .eq("deleted", false)
-                        .and(2)
+                .eq("deleted", false)
+                .and(2)
                 .queryForFirst();
     }
 
@@ -315,7 +305,9 @@ public class XoClientDatabase {
             for (TalkDelivery newDelivery : newDeliveries) {
                 TalkClientMessage message = mClientMessages.queryBuilder()
                         .where()
+                        .eq("deleted", false)
                         .eq("outgoingDelivery" + "_id", newDelivery)
+                        .and(2)
                         .queryForFirst();
 
                 if (message != null) {
@@ -340,10 +332,13 @@ public class XoClientDatabase {
         TalkClientMessage message = null;
 
         message = mClientMessages.queryBuilder()
-                    .where().eq("messageId", messageId)
-                    .queryForFirst();
+                .where()
+                .eq("messageId", messageId)
+                .eq("deleted", false)
+                .and(2)
+                .queryForFirst();
 
-        if(create && message == null) {
+        if (create && message == null) {
             message = new TalkClientMessage();
             message.setMessageId(messageId);
             mClientMessages.create(message);
@@ -353,22 +348,21 @@ public class XoClientDatabase {
     }
 
     public synchronized TalkClientMessage findMessageByMessageTag(String messageTag, boolean create) throws SQLException {
-        TalkClientMessage message = null;
+        TalkClientMessage message;
 
         message = mClientMessages.queryBuilder()
-                .where().eq("messageTag", messageTag)
+                .where()
+                .eq("messageTag", messageTag)
+                .eq("deleted", false)
+                .and(2)
                 .queryForFirst();
 
-        if(create && message == null) {
+        if (create && message == null) {
             message = new TalkClientMessage();
             mClientMessages.create(message);
         }
 
         return message;
-    }
-
-    public List<TalkClientMessage> findMessagesByContactId(int contactId) throws SQLException {
-        return mClientMessages.queryForEq("conversationContact_id", contactId);
     }
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
@@ -377,25 +371,12 @@ public class XoClientDatabase {
         builder.orderBy("timestamp", false);
         builder.offset(offset);
         Where<TalkClientMessage, Integer> where = builder.where();
-        where.eq("conversationContact_id", contactId);
+        where.eq("conversationContact_id", contactId).eq("deleted", false).and(2);
         builder.setWhere(where);
         builder.orderBy("clientMessageId", true);
         List<TalkClientMessage> messages = mClientMessages.query(builder.prepare());
         Collections.reverse(messages);
         return messages;
-    }
-
-    public Vector<Integer> findMessageIdsByContactId(int contactId) throws SQLException {
-        GenericRawResults<Object[]> results = mClientMessages.queryRaw(
-                "select clientMessageId from clientMessage where conversationContact_id = ?",
-                new DataType[]{DataType.INTEGER}, Integer.toString(contactId));
-        List<Object[]> rows = results.getResults();
-        Vector<Integer> ret = new Vector<Integer>(rows.size());
-        for(Object[] row: rows) {
-            Integer r = (Integer)row[0];
-            ret.add(r);
-        }
-        return ret;
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
@@ -418,34 +399,40 @@ public class XoClientDatabase {
         return mClientMessages.queryBuilder().where()
                 .eq("conversationContact_id", contactId)
                 .eq("seen", false)
-                .and(2)
+                .eq("deleted", false)
+                .and(3)
                 .countOf();
     }
 
     public TalkClientMessage findLatestMessageByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder()
                 .orderBy("timestamp", false)
-                    .where()
-                        .isNotNull("text")
-                        .eq("conversationContact_id", contactId)
-                    .and(2)
+                .where()
+                .isNotNull("text")
+                .eq("conversationContact_id", contactId)
+                .eq("deleted", false)
+                .and(3)
                 .queryForFirst();
     }
 
     public List<TalkClientMessage> findUnseenMessages() throws SQLException {
-        return  mClientMessages.queryBuilder().orderBy("timestamp", false).
-                where().eq("seen", false).query();
+        return mClientMessages.queryBuilder().orderBy("timestamp", false).
+                where()
+                .eq("seen", false)
+                .eq("deleted", false)
+                .and(2)
+                .query();
     }
 
 
     public TalkClientMembership findMembershipByContacts(int groupId, int clientId, boolean create) throws SQLException {
         TalkClientMembership res = mClientMemberships.queryBuilder().where()
-                  .eq("groupContact_id", groupId)
-                  .eq("clientContact_id", clientId)
-                 .and(2)
+                .eq("groupContact_id", groupId)
+                .eq("clientContact_id", clientId)
+                .and(2)
                 .queryForFirst();
 
-        if(create && res == null) {
+        if (create && res == null) {
             TalkClientContact groupContact = findClientContactById(groupId);
             TalkClientContact clientContact = findClientContactById(clientId);
             res = new TalkClientMembership();
@@ -476,8 +463,8 @@ public class XoClientDatabase {
     public void deleteAllClientContacts() throws SQLException {
         UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
         updateBuilder.updateColumnValue("deleted", true).where()
-                    .eq("deleted", false)
-                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .and(2);
         updateBuilder.update();
     }
@@ -485,17 +472,26 @@ public class XoClientDatabase {
     public void deleteAllGroupContacts() throws SQLException {
         UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
         updateBuilder.updateColumnValue("deleted", true).where()
-                    .eq("deleted", false)
-                    .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_GROUP)
                 .and(2);
         updateBuilder.update();
     }
 
-    public void eraseAllClientContacts() throws  SQLException {
+    public void deleteAllMessagesFromContactId(int contactId) throws SQLException {
+        UpdateBuilder<TalkClientMessage, Integer> updateBuilder = mClientMessages.updateBuilder();
+        updateBuilder.updateColumnValue("deleted", true).where()
+                .eq("deleted", false)
+                .eq("conversationContact_id", contactId)
+                .and(2);
+        updateBuilder.update();
+    }
+
+    public void eraseAllClientContacts() throws SQLException {
         DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
         deleteBuilder.where()
-                    .eq("deleted", false)
-                    .eq("contactType", TalkClientContact.TYPE_CLIENT)
+                .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_CLIENT)
                 .and(2);
         deleteBuilder.delete();
     }
@@ -503,8 +499,8 @@ public class XoClientDatabase {
     public void eraseAllGroupContacts() throws SQLException {
         DeleteBuilder<TalkClientContact, Integer> deleteBuilder = mClientContacts.deleteBuilder();
         deleteBuilder.where()
-                    .eq("deleted", false)
-                    .eq("contactType", TalkClientContact.TYPE_GROUP)
+                .eq("deleted", false)
+                .eq("contactType", TalkClientContact.TYPE_GROUP)
                 .and(2);
         deleteBuilder.delete();
     }
@@ -524,14 +520,14 @@ public class XoClientDatabase {
                 .isNotNull("attachmentUpload_id")
                 .or()
                 .isNotNull("attachmentDownload_id").query();
-        for(TalkClientMessage message : messages) {
+        for (TalkClientMessage message : messages) {
             TalkClientDownload download = message.getAttachmentDownload();
             TalkClientUpload upload = message.getAttachmentUpload();
-            if(download != null) {
+            if (download != null) {
                 download.setDownloadUrl(migrateFilecacheUrl(download.getDownloadUrl()));
                 mClientDownloads.update(download);
             }
-            if(upload != null) {
+            if (upload != null) {
                 upload.setUploadUrl(migrateFilecacheUrl(upload.getUploadUrl()));
                 mClientUploads.update(upload);
             }
@@ -539,7 +535,7 @@ public class XoClientDatabase {
     }
 
     private String migrateFilecacheUrl(String url) {
-        if(url == null) {
+        if (url == null) {
             return null;
         }
         String migratedUrl = url.substring(url.indexOf("/", 8));
@@ -552,9 +548,9 @@ public class XoClientDatabase {
         try {
             List<TalkClientContact> contacts = new ArrayList<TalkClientContact>();
             List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
-            for(TalkRelationship relationship : invitedRelations) {
+            for (TalkRelationship relationship : invitedRelations) {
                 TalkClientContact contact = findContactByClientId(relationship.getOtherClientId(), false);
-                if(contact != null) {
+                if (contact != null) {
                     contacts.add(contact);
                 }
             }
@@ -569,7 +565,7 @@ public class XoClientDatabase {
     public boolean hasPendingFriendRequests() {
         try {
             List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
-            if(invitedRelations != null && invitedRelations.size() > 0) {
+            if (invitedRelations != null && invitedRelations.size() > 0) {
                 return true;
             }
         } catch (SQLException e) {
