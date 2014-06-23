@@ -460,6 +460,56 @@ public class XoClientDatabase {
         mSmsTokens.delete(token);
     }
 
+    public List<TalkClientContact> findAllPendingFriendRequests() {
+        try {
+            List<TalkClientContact> contacts = new ArrayList<TalkClientContact>();
+            List<TalkRelationship> relationshipsInvitedMe = mRelationships.queryBuilder()
+                    .where()
+                    .eq("state", TalkRelationship.STATE_INVITED_ME)
+                    .query();
+            for (TalkRelationship relationship : relationshipsInvitedMe) {
+                TalkClientContact contact = findContactByClientId(relationship.getOtherClientId(), false);
+                if (contact != null) {
+                    contacts.add(contact);
+                }
+            }
+
+            List<TalkRelationship> relationshipsInvitedByMe = mRelationships.queryBuilder()
+                    .where()
+                    .eq("state", TalkRelationship.STATE_INVITED)
+                    .query();
+            for (TalkRelationship relationship : relationshipsInvitedByMe) {
+                TalkClientContact contact = findContactByClientId(relationship.getOtherClientId(), false);
+                if (contact != null) {
+                    contacts.add(contact);
+                }
+            }
+
+            return contacts;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public boolean hasPendingFriendRequests() {
+        try {
+            List<TalkRelationship> invitedRelations = mRelationships.queryBuilder()
+                    .where()
+                    .eq("state", TalkRelationship.STATE_INVITED_ME)
+                    .or()
+                    .eq("state", TalkRelationship.STATE_INVITED)
+                    .query();
+            if (invitedRelations != null && invitedRelations.size() > 0) {
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+
     public void deleteAllClientContacts() throws SQLException {
         UpdateBuilder<TalkClientContact, Integer> updateBuilder = mClientContacts.updateBuilder();
         updateBuilder.updateColumnValue("deleted", true).where()
@@ -542,35 +592,5 @@ public class XoClientDatabase {
         migratedUrl = "https://filecache.talk.hoccer.de:8444" + migratedUrl;
         LOG.debug("migrated url: " + url + " to: " + migratedUrl);
         return migratedUrl;
-    }
-
-    public List<TalkClientContact> findAllPendingFriendRequests() {
-        try {
-            List<TalkClientContact> contacts = new ArrayList<TalkClientContact>();
-            List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
-            for (TalkRelationship relationship : invitedRelations) {
-                TalkClientContact contact = findContactByClientId(relationship.getOtherClientId(), false);
-                if (contact != null) {
-                    contacts.add(contact);
-                }
-            }
-
-            return contacts;
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public boolean hasPendingFriendRequests() {
-        try {
-            List<TalkRelationship> invitedRelations = mRelationships.queryBuilder().where().eq("state", TalkRelationship.STATE_INVITED_ME).query();
-            if (invitedRelations != null && invitedRelations.size() > 0) {
-                return true;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
     }
 }

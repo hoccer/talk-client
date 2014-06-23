@@ -910,6 +910,39 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
+    public void inviteFriend(final TalkClientContact contact) {
+        if (contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.inviteFriend(contact.getClientId());
+                }
+            });
+        }
+    }
+
+    public void disinviteFriend(final TalkClientContact contact) {
+        if (contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.disinviteFriend(contact.getClientId());
+                }
+            });
+        }
+    }
+
+    public void acceptFriend(final TalkClientContact contact) {
+        if (contact.isClient()) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mServerRpc.acceptFriend(contact.getClientId());
+                }
+            });
+        }
+    }
+
     public void createGroup(final TalkClientContact groupContact) {
         LOG.debug("createGroup()");
         resetIdle();
