@@ -3015,10 +3015,6 @@ public class XoClient implements JsonRpcConnection.Listener {
     }
 
     private void generateGroupKey(TalkClientContact group) {
-        if(!group.isGroupAdmin()) {
-            LOG.warn("we are not admin, must not generate a group key");
-            return;
-        }
         try {
             // generate the new key
             byte[] newGroupKey = AESCryptor.makeRandomBytes(AESCryptor.KEY_SIZE);
