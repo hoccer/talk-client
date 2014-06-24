@@ -381,7 +381,6 @@ public class XoTransferAgent implements IXoTransferListener {
     @Override
     public void onUploadStateChanged(TalkClientUpload upload) {
         LOG.info("onUploadStateChanged(id: " + upload.getClientUploadId() + ")");
-
         if(upload.getTransferType() == XoTransfer.Type.ATTACHMENT &&
            upload.getState() == TalkClientUpload.State.PAUSED) {
 
