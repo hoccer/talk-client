@@ -2520,6 +2520,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             attachment.setMimeType(upload.getContentType());
             attachment.setAspectRatio(upload.getAspectRatio());
             attachment.setHmac(upload.getContentHmac());
+            attachment.setFileId(upload.getFileId());
         }
 
         // encrypt body and attachment dtor
@@ -2543,13 +2544,15 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("error encrypting", e);
         }
 
+        message.setAttachmentFileId(attachment.getFileId());
+        message.setTimeSent(new Date());
+        byte[] hmac = message.computeHMAC();
+        message.setMessageTag(new String(Base64.encodeBase64(hmac)));
+
         // start the attachment upload
         if(upload != null) {
             mTransferAgent.requestUpload(upload);
         }
-        message.setTimeSent(new Date());
-        byte[] hmac = message.computeHMAC();
-        message.setMessageTag(new String(Base64.encodeBase64(hmac)));
 
     }
 

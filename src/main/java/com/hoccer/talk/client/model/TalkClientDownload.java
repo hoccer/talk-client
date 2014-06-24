@@ -266,6 +266,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.decryptionKey = new String(Hex.encodeHex(key));
         this.contentHmac = attachment.getHmac();
+
+        this.fileId = attachment.getFileId();
     }
     // TODO: DELETE THIS PIECE OF ****
     private String checkFilecacheUrl(String url) {

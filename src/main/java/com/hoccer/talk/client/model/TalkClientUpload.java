@@ -160,7 +160,8 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
                 return ContentState.UPLOAD_REGISTERING;
             case UPLOADING:
                 return ContentState.UPLOAD_UPLOADING;
-
+            case PAUSED:
+                return ContentState.UPLOAD_PAUSED;
             /* old states */
             case REGISTERED:
             case STARTED:
@@ -526,6 +527,9 @@ public class TalkClientUpload extends XoTransfer implements IContentObject {
             LOG.trace("PUT-upload '" + uploadUrl + "' commencing");
             logRequestHeaders(mUploadRequest, "PUT-upload response header ");
             HttpResponse uploadResponse = client.execute(mUploadRequest);
+
+            agent.onUploadStarted(this);
+
             this.progress = uploadLength;
             saveProgress(agent);
             StatusLine uploadStatus = uploadResponse.getStatusLine();

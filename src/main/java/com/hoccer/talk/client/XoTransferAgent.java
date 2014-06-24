@@ -234,7 +234,6 @@ public class XoTransferAgent implements IXoTransferListener {
                     @Override
                     public void run() {
                         LOG.info("performing upload with id '" + uploadId + "' in state '" + upload.getState() + "'");
-                        onUploadStarted(upload);
                         try {
                             upload.performUploadAttempt(XoTransferAgent.this);
                         } catch (Exception e) {
@@ -342,7 +341,6 @@ public class XoTransferAgent implements IXoTransferListener {
     @Override
     public void onUploadProgress(TalkClientUpload upload) {
         LOG.trace("onUploadProgress(" + upload.getClientUploadId() + ")");
-        LOG.info("zalem: upload progress is " + upload.getProgress());
         for(IXoTransferListener listener: mListeners) {
             listener.onUploadProgress(upload);
         }
