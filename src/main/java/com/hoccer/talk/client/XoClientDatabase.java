@@ -3,6 +3,8 @@ package com.hoccer.talk.client;
 import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.dao.GenericRawResults;
+import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.UpdateBuilder;
@@ -15,6 +17,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 
 public class XoClientDatabase {
 
@@ -236,6 +239,20 @@ public class XoClientDatabase {
         return allNearbyGroupContacts;
     }
 
+    public List<TalkClientContact> findAllNearbyGroups() throws SQLException {
+        List<TalkClientContact> allGroupContacts = this.findAllGroupContacts();
+        List<TalkClientContact> allNearbyGroupContacts = new ArrayList<TalkClientContact>();
+
+        // add all nearby groups
+        for (TalkClientContact groupContact : allGroupContacts) {
+            if (groupContact.isGroupInvolved() && groupContact.isGroupExisting() && groupContact.getGroupPresence().isTypeNearby()) {
+                allNearbyGroupContacts.add(groupContact);
+            }
+        }
+
+        return allNearbyGroupContacts;
+    }
+
     public List<TalkClientSmsToken> findAllSmsTokens() throws SQLException {
         return mSmsTokens.queryForAll();
     }
@@ -365,18 +382,66 @@ public class XoClientDatabase {
         return message;
     }
 
+// TODO: check if really needed ...
+    public List<TalkClientMessage> findNearbyMessages(long count, long offset) throws SQLException {
+        List<TalkClientMessage> list =  getAllNearbyGroupMessages();
+        if (offset + count > list.size()) {
+            count = list.size() - offset;
+        }
+        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
+        for (int i = (int)offset; i<offset+count; i++) {
+            res.add(list.get(i));
+        }
+        return res;
+    }
+
+    public long getMessageCountNearby() throws SQLException {
+        return getAllNearbyGroupMessages().size();
+    }
+
+    private List<TalkClientMessage> getAllNearbyGroupMessages() throws SQLException {
+        QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
+        builder.orderBy("timestamp", true);
+        List<TalkClientMessage> list =  builder.query();
+        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
+        for (TalkClientMessage t: list) {
+            if (t.getConversationContact().getContactType().equals("group")) {
+                if (t.getConversationContact().getGroupPresence().isTypeNearby()) {
+                    res.add(t);
+                }
+            }
+        }
+        return res;
+    }
+// TODO: check if really needed .
+
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
         builder.limit(count);
-        builder.orderBy("timestamp", false);
+        builder.orderBy("timestamp", true);
         builder.offset(offset);
         Where<TalkClientMessage, Integer> where = builder.where();
         where.eq("conversationContact_id", contactId).eq("deleted", false).and(2);
         builder.setWhere(where);
-        builder.orderBy("clientMessageId", true);
         List<TalkClientMessage> messages = mClientMessages.query(builder.prepare());
-        Collections.reverse(messages);
         return messages;
+    }
+
+    public Vector<Integer> findMessageIdsByContactId(int contactId) throws SQLException {
+        GenericRawResults<Object[]> results = mClientMessages.queryRaw(
+                "select clientMessageId from clientMessage where conversationContact_id = ?",
+                new DataType[]{DataType.INTEGER}, Integer.toString(contactId));
+        List<Object[]> rows = results.getResults();
+        Vector<Integer> ret = new Vector<Integer>(rows.size());
+        for(Object[] row: rows) {
+            Integer r = (Integer)row[0];
+            ret.add(r);
+        }
+        return ret;
+    }
+
+    public long getMessageCountByContactId(int contactId) throws SQLException {
+        return mClientMessages.queryBuilder().where().eq("conversationContact_id", contactId).countOf();
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
