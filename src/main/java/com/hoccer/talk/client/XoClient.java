@@ -1677,8 +1677,8 @@ public class XoClient implements JsonRpcConnection.Listener {
         @Override
         public void incomingDeliveryUpdated(TalkDelivery d) {
             LOG.debug("server: incomingDeliveryUpdate()");
-            throw new RuntimeException("not implemented");
-            //updateIncomingDelivery(d);
+//            throw new RuntimeException("not implemented");
+            updateIncomingDelivery(d);
         }
 
         @Override

@@ -252,8 +252,8 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
 
         this.aspectRatio = attachment.getAspectRatio();
 
-        String filecacheUrl = checkFilecacheUrl(attachment.getUrl()); // TODO: ToBeDeleted
-        attachment.setUrl(filecacheUrl);
+//        String filecacheUrl = checkFilecacheUrl(attachment.getUrl()); // TODO: ToBeDeleted
+//        attachment.setUrl(filecacheUrl);
 
         this.downloadUrl = attachment.getUrl();
         this.downloadFile = id;
