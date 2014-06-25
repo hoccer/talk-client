@@ -653,7 +653,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     presence.setClientStatus(newStatus);
                 }
                 mDatabase.savePresence(presence);
-                for (IXoContactListener listener : mContactListeners) {
+                Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                while(contactIterator.hasNext()) {
+                    IXoContactListener listener = contactIterator.next();
                     listener.onClientPresenceChanged(mSelfContact);
                 }
 
@@ -674,7 +676,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     presence.setConnectionStatus(newStatus);
                     mSelfContact.updatePresence(presence);
                     mDatabase.savePresence(presence);
-                    for (IXoContactListener listener : mContactListeners) {
+                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                    while(contactIterator.hasNext()) {
+                        IXoContactListener listener = contactIterator.next();
                         listener.onClientPresenceChanged(mSelfContact);
                     }
 
@@ -715,7 +719,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     mSelfContact.setAvatarUpload(upload);
                     mDatabase.savePresence(presence);
                     mDatabase.saveContact(mSelfContact);
-                    for (IXoContactListener listener : mContactListeners) {
+                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                    while(contactIterator.hasNext()) {
+                        IXoContactListener listener = contactIterator.next();
                         listener.onClientPresenceChanged(mSelfContact);
                     }
                     LOG.debug("sending new presence");
@@ -751,7 +757,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                        LOG.error("Error while sending new group presence: " , e);
                    }
                }
-               for (IXoContactListener listener : mContactListeners) {
+               Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+               while(contactIterator.hasNext()) {
+                   IXoContactListener listener = contactIterator.next();
                    listener.onGroupPresenceChanged(group);
                }
            }
@@ -796,7 +804,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                     }
                     mTransferAgent.requestUpload(upload);
                     LOG.debug("group presence update");
-                    for (IXoContactListener listener : mContactListeners) {
+                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                    while(contactIterator.hasNext()) {
+                        IXoContactListener listener = contactIterator.next();
                         listener.onGroupPresenceChanged(group);
                     }
                 } catch (Exception e) {
@@ -865,7 +875,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.error("SQL error", e);
                     }
 
-                    for (IXoContactListener listener : mContactListeners) {
+                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                    while(contactIterator.hasNext()) {
+                        IXoContactListener listener = contactIterator.next();
                         listener.onContactRemoved(contact);
                     }
 
@@ -991,7 +1003,9 @@ public class XoClient implements JsonRpcConnection.Listener {
 
                     LOG.debug("new group contact " + groupContact.getClientContactId());
 
-                    for (IXoContactListener listener : mContactListeners) {
+                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                    while(contactIterator.hasNext()) {
+                        IXoContactListener listener = contactIterator.next();
                         listener.onContactAdded(groupContact);
                     }
 
@@ -1456,7 +1470,9 @@ public class XoClient implements JsonRpcConnection.Listener {
                                             mDatabase.saveGroupMember(member);
                                         }
                                     }
-                                    for (IXoContactListener listener : mContactListeners) {
+                                    Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+                                    while(contactIterator.hasNext()) {
+                                        IXoContactListener listener = contactIterator.next();
                                         listener.onGroupMembershipChanged(groupContact);
                                         listener.onGroupPresenceChanged(groupContact);
                                     }
@@ -2619,7 +2635,9 @@ public class XoClient implements JsonRpcConnection.Listener {
         });
         }
 
-        for (IXoContactListener listener : mContactListeners) {
+        Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+        while(contactIterator.hasNext()) {
+            IXoContactListener listener = contactIterator.next();
             listener.onClientPresenceChanged(clientContact);
         }
     }
@@ -2728,7 +2746,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
-        for (IXoContactListener listener : mContactListeners) {
+        Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+        while(contactIterator.hasNext()) {
+            IXoContactListener listener = contactIterator.next();
             listener.onClientRelationshipChanged(clientContact);
         }
     }
@@ -2933,7 +2953,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             }
         }
 
-        for (IXoContactListener listener : mContactListeners) {
+        Iterator<IXoContactListener> contactIterator = mContactListeners.iterator();
+        while(contactIterator.hasNext()) {
+            IXoContactListener listener = contactIterator.next();
             listener.onGroupMembershipChanged(groupContact);
         }
 
