@@ -427,19 +427,6 @@ public class XoClientDatabase {
         return messages;
     }
 
-    public Vector<Integer> findMessageIdsByContactId(int contactId) throws SQLException {
-        GenericRawResults<Object[]> results = mClientMessages.queryRaw(
-                "select clientMessageId from clientMessage where conversationContact_id = ?",
-                new DataType[]{DataType.INTEGER}, Integer.toString(contactId));
-        List<Object[]> rows = results.getResults();
-        Vector<Integer> ret = new Vector<Integer>(rows.size());
-        for(Object[] row: rows) {
-            Integer r = (Integer)row[0];
-            ret.add(r);
-        }
-        return ret;
-    }
-
     public long getMessageCountByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder().where().eq("conversationContact_id", contactId).countOf();
     }
