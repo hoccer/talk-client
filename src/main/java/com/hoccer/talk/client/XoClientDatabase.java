@@ -443,9 +443,9 @@ public class XoClientDatabase {
         return mClientDownloads.queryForId(clientDownloadId);
     }
 
-    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
-        return mClientMessages.queryForId(clientMessageId);
-    }
+//    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
+//        return mClientMessages.queryForId(clientMessageId);
+//    }
 
     public long findUnseenMessageCountByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder().where()
