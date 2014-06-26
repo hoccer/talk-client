@@ -236,7 +236,7 @@ public class TalkClientDownload extends XoTransfer implements IContentObject {
         LOG.info("[new] initializeAsAvatar(url: '" + url + "')");
         this.type = Type.AVATAR;
 
-        url = checkFilecacheUrl(url); // TODO: ToBeDeleted
+//        url = checkFilecacheUrl(url); // TODO: ToBeDeleted
 
         this.downloadUrl = url;
         this.downloadFile = id + "-" + timestamp.getTime();
