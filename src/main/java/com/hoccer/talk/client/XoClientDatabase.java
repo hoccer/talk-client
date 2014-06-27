@@ -43,8 +43,6 @@ public class XoClientDatabase {
     Dao<TalkClientDownload, Integer> mClientDownloads;
     Dao<TalkClientUpload, Integer> mClientUploads;
 
-    Dao<TalkAttachment, Integer> mAttachments;
-
     Dao<TalkClientSmsToken, Integer> mSmsTokens;
 
 
@@ -65,7 +63,6 @@ public class XoClientDatabase {
         TableUtils.createTable(cs, TalkKey.class);
         TableUtils.createTable(cs, TalkPrivateKey.class);
 
-        TableUtils.createTable(cs, TalkAttachment.class);
         TableUtils.createTable(cs, TalkClientDownload.class);
         TableUtils.createTable(cs, TalkClientUpload.class);
 
