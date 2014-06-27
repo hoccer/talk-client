@@ -1477,7 +1477,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                                     }
                                 } else {
                                     // TODO: properly handle group deletion, the following code just marks the group and members as deleted
-                                    LOG.info("Removing members and group with name="+ groupContact.getName());
+                                    LOG.info("Removing members and group with name="+ groupContact.getNickname());
                                     TalkGroup groupPresence = groupContact.getGroupPresence();
                                     groupPresence.setState(TalkGroup.STATE_NONE);
                                     mDatabase.saveGroup(groupPresence);
