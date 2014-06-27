@@ -93,8 +93,6 @@ public class XoClientDatabase {
         mClientDownloads = mBackend.getDao(TalkClientDownload.class);
         mClientUploads = mBackend.getDao(TalkClientUpload.class);
 
-        mAttachments = mBackend.getDao(TalkAttachment.class);
-
         mSmsTokens = mBackend.getDao(TalkClientSmsToken.class);
     }
 
