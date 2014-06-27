@@ -529,13 +529,7 @@ public class XoClientDatabase {
     }
 
     public TalkClientMessage findMessageByDownloadId(int downloadId) throws SQLException {
-        LOG.error("#foo downloadId: " + downloadId);
         List<TalkClientMessage> messages = mClientMessages.queryForAll();
-        for (TalkClientMessage message : messages) {
-            if (message.getAttachmentDownload() != null) {
-                LOG.error("#foo " + message.getAttachmentDownload().getClientDownloadId());
-            }
-        }
         return mClientMessages.queryBuilder()
                 .where()
                 .eq("attachmentDownload_id", downloadId)
