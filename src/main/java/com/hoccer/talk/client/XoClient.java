@@ -1478,7 +1478,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                                     }
                                 } else {
                                     // TODO: properly handle group deletion, the following code just marks the group and members as deleted
-                                    LOG.info("Removing members and group with name="+ groupContact.getName());
+                                    LOG.info("Removing members and group with name="+ groupContact.getNickname());
                                     TalkGroup groupPresence = groupContact.getGroupPresence();
                                     groupPresence.setState(TalkGroup.STATE_NONE);
                                     mDatabase.saveGroup(groupPresence);
@@ -1708,6 +1708,7 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void incomingDelivery(TalkDelivery d, TalkMessage m) {
             LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
+            mServerRpc.inDeliveryConfirmUnseen(m.getMessageId());
         }
         @Override
         public void incomingDeliveryUpdated(TalkDelivery d) {
@@ -1720,6 +1721,17 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void outgoingDeliveryUpdated(TalkDelivery d) {
             LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(d);
+            if(d.getState().equals(TalkDelivery.STATE_DELIVERED_SEEN)) {
+                mServerRpc.outDeliveryAcknowledgeSeen(d.getMessageId(), d.getReceiverId());
+            } else if(d.getState().equals(TalkDelivery.STATE_DELIVERED_UNSEEN)) {
+                mServerRpc.outDeliveryAcknowledgeUnseen(d.getMessageId(), d.getReceiverId());
+            } else if(d.getState().equals(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgePrivate(d.getMessageId(), d.getReceiverId());
+            } else if(d.getState().equals(TalkDelivery.STATE_FAILED_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgeFailed(d.getMessageId(), d.getReceiverId());
+            } else if(d.getState().equals(TalkDelivery.STATE_REJECTED_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgeRejected(d.getMessageId(), d.getReceiverId());
+            }
         }
 
         @Override
@@ -3159,6 +3171,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             @Override
             public void run() {
                 message.markAsSeen();
+                mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
                 try {
                     mDatabase.saveClientMessage(message);
                 } catch (SQLException e) {

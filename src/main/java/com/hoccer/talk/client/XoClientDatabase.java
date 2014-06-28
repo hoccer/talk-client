@@ -261,7 +261,8 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                .where().eq("contactType", TalkClientContact.TYPE_SELF)
+                .where()
+                .eq("contactType", TalkClientContact.TYPE_SELF)
                 .queryForFirst();
 
         if (create && contact == null) {
@@ -276,7 +277,8 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                .where().eq("clientId", clientId)
+                .where()
+                .eq("clientId", clientId)
                 .eq("deleted", false)
                 .and(2)
                 .queryForFirst();
@@ -293,7 +295,8 @@ public class XoClientDatabase {
         TalkClientContact contact = null;
 
         contact = mClientContacts.queryBuilder()
-                .where().eq("groupId", groupId)
+                .where()
+                .eq("groupId", groupId)
                 .eq("deleted", false)
                 .and(2)
                 .queryForFirst();
@@ -308,7 +311,8 @@ public class XoClientDatabase {
 
     public TalkClientContact findContactByGroupTag(String groupTag) throws SQLException {
         return mClientContacts.queryBuilder()
-                .where().eq("groupTag", groupTag)
+                .where()
+                .eq("groupTag", groupTag)
                 .eq("deleted", false)
                 .and(2)
                 .queryForFirst();
@@ -420,15 +424,22 @@ public class XoClientDatabase {
         builder.limit(count);
         builder.orderBy("timestamp", true);
         builder.offset(offset);
-        Where<TalkClientMessage, Integer> where = builder.where();
-        where.eq("conversationContact_id", contactId).eq("deleted", false).and(2);
+        Where<TalkClientMessage, Integer> where = builder.where()
+                .eq("conversationContact_id", contactId)
+                .eq("deleted", false)
+                .and(2);
         builder.setWhere(where);
         List<TalkClientMessage> messages = mClientMessages.query(builder.prepare());
         return messages;
     }
 
     public long getMessageCountByContactId(int contactId) throws SQLException {
-        return mClientMessages.queryBuilder().where().eq("conversationContact_id", contactId).countOf();
+        return mClientMessages.queryBuilder()
+                .where()
+                .eq("conversationContact_id", contactId)
+                .eq("deleted", false)
+                .and(2)
+                .countOf();
     }
 
     public TalkPrivateKey findPrivateKeyByKeyId(String keyId) throws SQLException {
@@ -443,9 +454,9 @@ public class XoClientDatabase {
         return mClientDownloads.queryForId(clientDownloadId);
     }
 
-    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
-        return mClientMessages.queryForId(clientMessageId);
-    }
+//    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
+//        return mClientMessages.queryForId(clientMessageId);
+//    }
 
     public long findUnseenMessageCountByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder().where()

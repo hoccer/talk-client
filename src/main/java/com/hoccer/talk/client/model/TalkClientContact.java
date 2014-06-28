@@ -101,6 +101,9 @@ public class TalkClientContact implements Serializable {
 
     @DatabaseField
     private boolean isNearby;
+
+    @DatabaseField
+    private String nickname;
     
 
     public TalkClientContact() {
@@ -394,6 +397,17 @@ public class TalkClientContact implements Serializable {
 
     public void setPrivateKey(TalkPrivateKey privateKey) {
         this.privateKey = privateKey;
+    }
+
+    public String getNickname() {
+        if(nickname == null || nickname.isEmpty()) {
+            return getName();
+        }
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     @SelfMethodOnly
