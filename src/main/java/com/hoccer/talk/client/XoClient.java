@@ -1708,29 +1708,28 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void incomingDelivery(TalkDelivery d, TalkMessage m) {
             LOG.debug("server: incomingDelivery()");
             updateIncomingDelivery(d, m);
-            mServerRpc.inDeliveryConfirmUnseen(m.getMessageId());
         }
         @Override
         public void incomingDeliveryUpdated(TalkDelivery d) {
             LOG.debug("server: incomingDeliveryUpdate()");
-//            throw new RuntimeException("not implemented");
             updateIncomingDelivery(d);
         }
 
         @Override
-        public void outgoingDeliveryUpdated(TalkDelivery d) {
+        public void outgoingDeliveryUpdated(TalkDelivery delivery) {
             LOG.debug("server: outgoingDelivery()");
-            updateOutgoingDelivery(d);
-            if(d.getState().equals(TalkDelivery.STATE_DELIVERED_SEEN)) {
-                mServerRpc.outDeliveryAcknowledgeSeen(d.getMessageId(), d.getReceiverId());
-            } else if(d.getState().equals(TalkDelivery.STATE_DELIVERED_UNSEEN)) {
-                mServerRpc.outDeliveryAcknowledgeUnseen(d.getMessageId(), d.getReceiverId());
-            } else if(d.getState().equals(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgePrivate(d.getMessageId(), d.getReceiverId());
-            } else if(d.getState().equals(TalkDelivery.STATE_FAILED_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgeFailed(d.getMessageId(), d.getReceiverId());
-            } else if(d.getState().equals(TalkDelivery.STATE_REJECTED_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgeRejected(d.getMessageId(), d.getReceiverId());
+            updateOutgoingDelivery(delivery);
+
+            if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_SEEN)) {
+                mServerRpc.outDeliveryAcknowledgeSeen(delivery.getMessageId(), delivery.getReceiverId());
+            } else if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_UNSEEN)) {
+                mServerRpc.outDeliveryAcknowledgeUnseen(delivery.getMessageId(), delivery.getReceiverId());
+            } else if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
+            } else if(delivery.getState().equals(TalkDelivery.STATE_FAILED_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgeFailed(delivery.getMessageId(), delivery.getReceiverId());
+            } else if(delivery.getState().equals(TalkDelivery.STATE_REJECTED_ACKNOWLEDGED)) {
+                mServerRpc.outDeliveryAcknowledgeRejected(delivery.getMessageId(), delivery.getReceiverId());
             }
         }
 
@@ -2164,6 +2163,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                 groupContact = mDatabase.findContactByGroupId(groupId, false);
                 if(groupContact == null) {
                     LOG.warn("outgoing message for unknown group " + groupId);
+                    //TODO: return; ??
                 }
             }
 
@@ -2193,7 +2193,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
-        if (delivery.getState() == TalkDelivery.STATE_DELIVERING) {
+        if (delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
             final XoClient that = this;
             mExecutor.execute(new Runnable() {
                 @Override
@@ -2328,7 +2328,15 @@ public class XoClient implements JsonRpcConnection.Listener {
                     @Override
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
-                        TalkDelivery result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+
+                        TalkDelivery result = null;
+                        // TODO: send inDeliveryConfirmPrivate(...) when silent delivery update is not activated in shared preferences.
+                        boolean silentDelivery = false;
+                        if (silentDelivery) {
+                            result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+                        } else {
+                            result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
+                        }
                         that.updateIncomingDelivery(result);
                     }
                 });
@@ -3171,7 +3179,10 @@ public class XoClient implements JsonRpcConnection.Listener {
             @Override
             public void run() {
                 message.markAsSeen();
+
+                // TODO: check wether silent delivery is activated in shared preferences.
                 mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
+
                 try {
                     mDatabase.saveClientMessage(message);
                 } catch (SQLException e) {
