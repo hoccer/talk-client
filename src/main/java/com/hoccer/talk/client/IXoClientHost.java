@@ -37,6 +37,6 @@ public interface IXoClientHost {
     public String getSystemVersion();
 
     public int getRSAKeysize();
-    public boolean isSilentDeliveryEnabled();
+    public boolean isSendDeliveryConfirmationEnabled();
 
 }

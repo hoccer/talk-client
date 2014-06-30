@@ -2330,11 +2330,11 @@ public class XoClient implements JsonRpcConnection.Listener {
                         LOG.debug("confirming " + delivery.getMessageId());
 
                         TalkDelivery result;
-                        boolean silentDelivery = mClientHost.isSilentDeliveryEnabled();
-                        if (silentDelivery) {
-                            result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
-                        } else {
+                        boolean sendDeliveryConfirmation = mClientHost.isSendDeliveryConfirmationEnabled();
+                        if (sendDeliveryConfirmation) {
                             result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
+                        } else {
+                            result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
                         }
                         that.updateIncomingDelivery(result);
                     }
@@ -3179,7 +3179,7 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 message.markAsSeen();
 
-                if (!mClientHost.isSilentDeliveryEnabled()) {
+                if (mClientHost.isSendDeliveryConfirmationEnabled()) {
                     mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
                 }
 
