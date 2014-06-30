@@ -2329,9 +2329,8 @@ public class XoClient implements JsonRpcConnection.Listener {
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
 
-                        TalkDelivery result = null;
-                        // TODO: send inDeliveryConfirmPrivate(...) when silent delivery update is not activated in shared preferences.
-                        boolean silentDelivery = false;
+                        TalkDelivery result;
+                        boolean silentDelivery = mClientHost.isSilentDeliveryEnabled();
                         if (silentDelivery) {
                             result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
                         } else {
@@ -3180,8 +3179,9 @@ public class XoClient implements JsonRpcConnection.Listener {
             public void run() {
                 message.markAsSeen();
 
-                // TODO: check wether silent delivery is activated in shared preferences.
-                mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
+                if (!mClientHost.isSilentDeliveryEnabled()) {
+                    mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
+                }
 
                 try {
                     mDatabase.saveClientMessage(message);
