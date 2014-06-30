@@ -656,4 +656,24 @@ public class XoClientDatabase {
         LOG.debug("migrated url: " + url + " to: " + migratedUrl);
         return migratedUrl;
     }
+
+    /* delivered -> deliveredPrivate
+     * confirmed -> deliveredPrivateAcknowledged
+     * aborted -> abortedAcknowledged
+     * failed -> failedAcknowledged */
+    private void migrateDeliveryStates() throws SQLException {
+        List<TalkDelivery> talkDeliveries = mDeliveries.queryForAll();
+        for(TalkDelivery delivery : talkDeliveries) {
+            if (delivery.getState().equals(TalkDelivery.STATE_DELIVERED_OLD)) {
+                delivery.setState(TalkDelivery.STATE_DELIVERED_PRIVATE);
+            } else if (delivery.getState().equals(TalkDelivery.STATE_CONFIRMED_OLD)) {
+                delivery.setState(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED);
+            } else if(delivery.getState().equals(TalkDelivery.STATE_ABORTED_OLD)) {
+                delivery.setState(TalkDelivery.ATTACHMENT_STATE_DOWNLOAD_ABORTED_ACKNOWLEDGED);
+            } else if(delivery.getState().equals(TalkDelivery.STATE_FAILED_OLD)) {
+                delivery.setState(TalkDelivery.STATE_FAILED_ACKNOWLEDGED);
+            }
+            saveDelivery(delivery);
+        }
+    }
 }
