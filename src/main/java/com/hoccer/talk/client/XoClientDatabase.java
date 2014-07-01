@@ -47,6 +47,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
     Dao<TalkClientSmsToken, Integer> mSmsTokens;
 
     Dao<TalkClientMediaCollection, Integer> mMediaCollections;
+    Dao<TalkClientMediaCollectionRelation, Integer> mMediaCollectionRelations;
 
 
     public static void createTables(ConnectionSource cs) throws SQLException {
@@ -72,6 +73,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
         TableUtils.createTable(cs, TalkClientSmsToken.class);
 
         TableUtils.createTable(cs, TalkClientMediaCollection.class);
+        TableUtils.createTable(cs, TalkClientMediaCollectionRelation.class);
     }
 
     public XoClientDatabase(IXoClientDatabaseBackend backend) {
@@ -101,6 +103,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
         mSmsTokens = mBackend.getDao(TalkClientSmsToken.class);
 
         mMediaCollections = mBackend.getDao(TalkClientMediaCollection.class);
+        mMediaCollectionRelations = mBackend.getDao(TalkClientMediaCollectionRelation.class);
     }
 
     public void saveContact(TalkClientContact contact) throws SQLException {
@@ -676,24 +679,38 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
 
     @Override
     public TalkClientMediaCollection findMediaCollectionById(Integer id) throws SQLException {
-        return mMediaCollections.queryForId(id);
+        TalkClientMediaCollection collection = mMediaCollections.queryForId(id);
+        collection.setDatabase(this);
+        return collection;
     }
 
     @Override
     public List<TalkClientMediaCollection> findMediaCollectionsByName(String name) throws SQLException {
-        return mMediaCollections.queryBuilder().where()
+        List<TalkClientMediaCollection> collections = mMediaCollections.queryBuilder().where()
                 .eq("name", name)
                 .query();
+
+        for(int i = 0; i < collections.size(); i++) {
+            collections.get(i).setDatabase(this);
+        }
+        return collections;
     }
 
     @Override
-    public TalkClientDownload findMediaCollectionItemById(Integer itemId) throws SQLException {
-        return findClientDownloadById(itemId);
+    public List<TalkClientMediaCollection> findAllMediaCollections() throws SQLException {
+        List<TalkClientMediaCollection> collections = mMediaCollections.queryForAll();
+        for(int i = 0; i < collections.size(); i++) {
+            collections.get(i).setDatabase(this);
+        }
+        return collections;
     }
 
     @Override
-    public void createMediaCollection(TalkClientMediaCollection collection) throws SQLException {
-        mMediaCollections.createIfNotExists(collection);
+    public TalkClientMediaCollection createMediaCollection(String collectionName) throws SQLException {
+        TalkClientMediaCollection newCollection = new TalkClientMediaCollection(collectionName);
+        mMediaCollections.createIfNotExists(newCollection);
+        newCollection.setDatabase(this);
+        return newCollection;
     }
 
     @Override
@@ -704,6 +721,70 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
     @Override
     public void deleteMediaCollectionById(int collectionId) throws SQLException {
         mMediaCollections.deleteById(collectionId);
+    }
+
+    @Override
+    public List<TalkClientDownload> findMediaCollectionItemsOrderedByIndex(int collectionId) throws SQLException {
+        QueryBuilder<TalkClientDownload, Integer> itemQb = mClientDownloads.queryBuilder();
+        itemQb.orderBy("timestamp", false);
+
+        QueryBuilder<TalkClientMediaCollectionRelation, Integer> relationQb = mMediaCollectionRelations.queryBuilder();
+        relationQb
+                .where()
+                .eq("collection_id", collectionId);
+
+        return itemQb.join(relationQb).query();
+    }
+
+    @Override
+    public void createMediaCollectionRelation(int collectionId, int itemId, int index) throws SQLException {
+        // increment index of all items with same or higher index
+        List<TalkClientMediaCollectionRelation> relations = mMediaCollectionRelations.queryBuilder()
+                .where()
+                .eq("collection_id", collectionId)
+                .and()
+                .not()
+                .lt("index", index)
+                .query();
+
+        for(int i = 0; i < relations.size(); i++) {
+            TalkClientMediaCollectionRelation relation = relations.get(i);
+            relation.setIndex(relation.getIndex() + 1);
+            mMediaCollectionRelations.update(relation);
+        }
+
+        TalkClientMediaCollectionRelation newRelation = new TalkClientMediaCollectionRelation(collectionId, itemId, index);
+        mMediaCollectionRelations.create(newRelation);
+    }
+
+    @Override
+    public void removeMediaCollectionRelationAtIndex(int collectionId, int index) throws SQLException {
+
+        TalkClientMediaCollectionRelation relationToDelete = mMediaCollectionRelations.queryBuilder()
+                .where()
+                .eq("collection_id", collectionId)
+                .and()
+                .eq("index", index)
+                .queryForFirst();
+
+        if(relationToDelete != null) {
+            mMediaCollectionRelations.delete(relationToDelete);
+
+            // decrement index of all items with higher index
+            List<TalkClientMediaCollectionRelation> relations = mMediaCollectionRelations.queryBuilder()
+                    .where()
+                    .eq("collection_id", collectionId)
+                    .and()
+                    .not()
+                    .le("index", index)
+                    .query();
+
+            for (int i = 0; i < relations.size(); i++) {
+                TalkClientMediaCollectionRelation relation = relations.get(i);
+                relation.setIndex(relation.getIndex() - 1);
+                mMediaCollectionRelations.update(relation);
+            }
+        }
     }
 
     @Override

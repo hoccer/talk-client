@@ -15,15 +15,21 @@ public interface IXoMediaCollectionDatabase {
 
     List<TalkClientMediaCollection> findMediaCollectionsByName(String name) throws SQLException;
 
-    TalkClientDownload findMediaCollectionItemById(Integer itemId) throws SQLException;
+    List<TalkClientMediaCollection> findAllMediaCollections() throws SQLException;
 
-    void createMediaCollection(TalkClientMediaCollection collection) throws SQLException;
+    TalkClientMediaCollection createMediaCollection(String collectionName) throws SQLException;
 
     void deleteMediaCollection(TalkClientMediaCollection collection) throws SQLException;
 
     void deleteMediaCollectionById(int collectionId) throws SQLException;
 
+    List<TalkClientDownload> findMediaCollectionItemsOrderedByIndex(int collectionId) throws SQLException;
+
     void updateMediaCollection(TalkClientMediaCollection collection) throws SQLException;
+
+    void createMediaCollectionRelation(int collectionId, int itemId, int index) throws SQLException;
+
+    void removeMediaCollectionRelationAtIndex(int collectionId, int index) throws SQLException;
 
     void refreshMediaCollection(TalkClientMediaCollection collection) throws SQLException;
 
