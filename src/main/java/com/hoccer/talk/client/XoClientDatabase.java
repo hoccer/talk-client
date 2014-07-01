@@ -661,7 +661,7 @@ public class XoClientDatabase {
      * confirmed -> deliveredPrivateAcknowledged
      * aborted -> abortedAcknowledged
      * failed -> failedAcknowledged */
-    private void migrateDeliveryStates() throws SQLException {
+    public void migrateDeliveryStates() throws SQLException {
         List<TalkDelivery> talkDeliveries = mDeliveries.queryForAll();
         for(TalkDelivery delivery : talkDeliveries) {
             if (delivery.getState().equals(TalkDelivery.STATE_DELIVERED_OLD)) {
@@ -673,6 +673,8 @@ public class XoClientDatabase {
             } else if(delivery.getState().equals(TalkDelivery.STATE_FAILED_OLD)) {
                 delivery.setState(TalkDelivery.STATE_FAILED_ACKNOWLEDGED);
             }
+
+            // TODO: update Attachment States
             saveDelivery(delivery);
         }
     }
