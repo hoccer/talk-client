@@ -669,7 +669,7 @@ public class XoClientDatabase {
             } else if (delivery.getState().equals(TalkDelivery.STATE_CONFIRMED_OLD)) {
                 delivery.setState(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED);
             } else if(delivery.getState().equals(TalkDelivery.STATE_ABORTED_OLD)) {
-                delivery.setState(TalkDelivery.ATTACHMENT_STATE_DOWNLOAD_ABORTED_ACKNOWLEDGED);
+                delivery.setState(TalkDelivery.STATE_ABORTED_ACKNOWLEDGED);
             } else if(delivery.getState().equals(TalkDelivery.STATE_FAILED_OLD)) {
                 delivery.setState(TalkDelivery.STATE_FAILED_ACKNOWLEDGED);
             }
