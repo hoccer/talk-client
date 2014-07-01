@@ -1,23 +1,35 @@
 package com.hoccer.talk.client;
 
-import com.hoccer.talk.client.model.*;
-import com.hoccer.talk.model.*;
+import com.hoccer.talk.client.model.TalkClientContact;
+import com.hoccer.talk.client.model.TalkClientDownload;
+import com.hoccer.talk.client.model.TalkClientMembership;
+import com.hoccer.talk.client.model.TalkClientMessage;
+import com.hoccer.talk.client.model.TalkClientSelf;
+import com.hoccer.talk.client.model.TalkClientSmsToken;
+import com.hoccer.talk.client.model.TalkClientUpload;
+import com.hoccer.talk.model.TalkAttachment;
+import com.hoccer.talk.model.TalkClient;
+import com.hoccer.talk.model.TalkDelivery;
+import com.hoccer.talk.model.TalkGroup;
+import com.hoccer.talk.model.TalkGroupMember;
+import com.hoccer.talk.model.TalkKey;
+import com.hoccer.talk.model.TalkMessage;
+import com.hoccer.talk.model.TalkPresence;
+import com.hoccer.talk.model.TalkPrivateKey;
+import com.hoccer.talk.model.TalkRelationship;
 import com.j256.ormlite.dao.Dao;
-import com.j256.ormlite.dao.GenericRawResults;
-import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.UpdateBuilder;
 import com.j256.ormlite.stmt.Where;
 import com.j256.ormlite.support.ConnectionSource;
 import com.j256.ormlite.table.TableUtils;
+
 import org.apache.log4j.Logger;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 public class XoClientDatabase {
 
@@ -674,8 +686,45 @@ public class XoClientDatabase {
                 delivery.setState(TalkDelivery.STATE_FAILED_ACKNOWLEDGED);
             }
 
-            // TODO: update Attachment States
+            TalkClientMessage message = findMessageByMessageId(delivery.getMessageId(), false);
+            if(message != null) {
+                TalkClientUpload upload = message.getAttachmentUpload();
+                TalkClientDownload download;
+                if(upload == null) {
+                    download = message.getAttachmentDownload();
+                    if(download != null) {
+                        migrateTalkClientDownload(delivery, download);
+                    } else { // there is no Attachment in this delivery
+                        delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_NONE);
+                    }
+                } else {
+                    migrateTalkClientUpload(delivery, upload);
+                }
+            }
+
             saveDelivery(delivery);
+        }
+    }
+
+    private void migrateTalkClientUpload(TalkDelivery delivery, TalkClientUpload upload) {
+        switch(upload.getState()) {
+            case COMPLETE: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_RECEIVED_ACKNOWLEDGED);
+                break;
+            case FAILED: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_UPLOAD_FAILED_ACKNOWLEDGED);
+                break;
+            default: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_NEW);
+                break;
+        }
+    }
+
+    private void migrateTalkClientDownload(TalkDelivery delivery, TalkClientDownload download) {
+        switch(download.getState()) {
+            case COMPLETE: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_RECEIVED_ACKNOWLEDGED);
+                break;
+            case FAILED: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_DOWNLOAD_FAILED_ACKNOWLEDGED);
+                break;
+            default: delivery.setAttachmentState(TalkDelivery.ATTACHMENT_STATE_NEW);
+                break;
         }
     }
 }
