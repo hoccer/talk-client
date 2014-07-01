@@ -32,8 +32,4 @@ public interface IXoMediaCollectionDatabase {
     void removeMediaCollectionRelationAtIndex(int collectionId, int index) throws SQLException;
 
     void refreshMediaCollection(TalkClientMediaCollection collection) throws SQLException;
-
-    void registerMediaCollectionListener(IXoMediaCollectionListener listener);
-
-    void unregisterMediaCollectionListener(IXoMediaCollectionListener listener);
 }

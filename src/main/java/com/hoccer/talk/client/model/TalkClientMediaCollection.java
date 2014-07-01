@@ -1,7 +1,7 @@
 package com.hoccer.talk.client.model;
 
+import com.hoccer.talk.client.IXoDatabaseRefreshListener;
 import com.hoccer.talk.client.IXoMediaCollectionDatabase;
-import com.hoccer.talk.client.IXoMediaCollectionListener;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 import org.apache.log4j.Logger;
@@ -13,7 +13,7 @@ import java.util.*;
  * Encapsulates a collection of media items with a specific order. The data is kept in sync with the database.
  */
 @DatabaseTable(tableName = "mediaCollection")
-public class TalkClientMediaCollection implements IXoMediaCollectionListener {
+public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
 
     private static final Logger LOG = Logger.getLogger(TalkClientMediaCollection.class);
 
@@ -25,13 +25,12 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
 
     private IXoMediaCollectionDatabase mDatabase;
 
-    private List<TalkClientDownload> mItemList;
+    private List<TalkClientDownload> mItemList = new ArrayList<TalkClientDownload>();
 
     private Boolean mNeedsRefresh = true;
 
     // do not call constructor directly but create instances via IXoMediaCollectionDatabase.createMediaCollection()
     public TalkClientMediaCollection() {
-        LOG.error("TalkClientMediaCollection default constructor should never be called!");
     }
 
     // do not call constructor directly but create instances via IXoMediaCollectionDatabase.createMediaCollection()
@@ -39,10 +38,13 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
         mName = collectionName;
     }
 
+    public Integer getId() {
+        return mCollectionId;
+    }
+
     public void setDatabase(IXoMediaCollectionDatabase db) {
         mDatabase = db;
-        mDatabase.registerMediaCollectionListener(this);
-        refreshFromDatabase();
+        refresh();
     }
 
     public void setName(String name) {
@@ -56,8 +58,9 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
 
     // Appends the given item to the collection
     public void add(TalkClientDownload item) {
+        refresh();
+        mItemList.add(item);
         createRelation(item, mItemList.size());
-        refreshFromDatabase();
     }
 
     // Inserts the given item into the collection
@@ -65,8 +68,9 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
         if(index >= mItemList.size()) {
             add(item); // simply append
         } else {
+            refresh();
+            mItemList.add(index, item);
             createRelation(item, index);
-            refreshFromDatabase();
         }
     }
 
@@ -80,14 +84,20 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
 
     // Removes the item at the given index from the collection
     public void remove(int index) {
+        refresh();
         removeRelation(index);
-        refreshFromDatabase();
+        refresh();
     }
 
     // Returns the size of the collection array
     public int size() {
-        refreshFromDatabase();
+        refresh();
         return mItemList.size();
+    }
+
+    public TalkClientDownload getItem(int index) {
+        refresh();
+        return mItemList.get(index);
     }
 
     private void createRelation(TalkClientDownload item, int index) {
@@ -118,7 +128,7 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
         }
     }
 
-    private void refreshFromDatabase() {
+    public void refresh() {
         if(mNeedsRefresh) {
             // we set the flag to false first and implicitly allow that it might be set to true while refreshing again
             mNeedsRefresh = false;
@@ -147,21 +157,9 @@ public class TalkClientMediaCollection implements IXoMediaCollectionListener {
         return mCollectionId == collection.mCollectionId;
     }
 
+    // This method is called by database refresh notifier
     @Override
-    public void onMediaCollectionCreated(TalkClientMediaCollection collection) {
-    }
-
-    @Override
-    public void onMediaCollectionRemoved(TalkClientMediaCollection collection) {
-        if(collection.equals(this)) {
-            mNeedsRefresh = true;
-        }
-    }
-
-    @Override
-    public void onMediaCollectionUpdated(TalkClientMediaCollection collection) {
-        if(collection.equals(this)) {
-            mNeedsRefresh = true;
-        }
+    public void needsRefresh() {
+        mNeedsRefresh = true;
     }
 }

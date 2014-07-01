@@ -2,7 +2,7 @@ package com.hoccer.talk.client;
 
 import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.model.*;
-import com.hoccer.talk.util.WeakListenerArray;
+import com.hoccer.talk.util.ObjectRefreshNotifier;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.field.DataType;
@@ -675,12 +675,12 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
 
     //////// MediaCollection Management ////////
 
-    WeakListenerArray<IXoMediaCollectionListener> mMediaCollectionListener = new WeakListenerArray<IXoMediaCollectionListener>();
+    ObjectRefreshNotifier mMediaCollectionNotifier = new ObjectRefreshNotifier();
 
     @Override
     public TalkClientMediaCollection findMediaCollectionById(Integer id) throws SQLException {
         TalkClientMediaCollection collection = mMediaCollections.queryForId(id);
-        collection.setDatabase(this);
+        prepareMediaCollection(collection);
         return collection;
     }
 
@@ -691,7 +691,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
                 .query();
 
         for(int i = 0; i < collections.size(); i++) {
-            collections.get(i).setDatabase(this);
+            prepareMediaCollection(collections.get(i));
         }
         return collections;
     }
@@ -700,17 +700,17 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
     public List<TalkClientMediaCollection> findAllMediaCollections() throws SQLException {
         List<TalkClientMediaCollection> collections = mMediaCollections.queryForAll();
         for(int i = 0; i < collections.size(); i++) {
-            collections.get(i).setDatabase(this);
+            prepareMediaCollection(collections.get(i));
         }
         return collections;
     }
 
     @Override
     public TalkClientMediaCollection createMediaCollection(String collectionName) throws SQLException {
-        TalkClientMediaCollection newCollection = new TalkClientMediaCollection(collectionName);
-        mMediaCollections.createIfNotExists(newCollection);
-        newCollection.setDatabase(this);
-        return newCollection;
+        TalkClientMediaCollection collection = new TalkClientMediaCollection(collectionName);
+        mMediaCollections.createIfNotExists(collection);
+        prepareMediaCollection(collection);
+        return collection;
     }
 
     @Override
@@ -725,15 +725,18 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
 
     @Override
     public List<TalkClientDownload> findMediaCollectionItemsOrderedByIndex(int collectionId) throws SQLException {
-        QueryBuilder<TalkClientDownload, Integer> itemQb = mClientDownloads.queryBuilder();
-        itemQb.orderBy("timestamp", false);
-
-        QueryBuilder<TalkClientMediaCollectionRelation, Integer> relationQb = mMediaCollectionRelations.queryBuilder();
-        relationQb
+        List<TalkClientMediaCollectionRelation> relations = mMediaCollectionRelations.queryBuilder()
+                .orderBy("index", true)
                 .where()
-                .eq("collection_id", collectionId);
+                .eq("collection_id", collectionId)
+                .query();
 
-        return itemQb.join(relationQb).query();
+        List<TalkClientDownload> items = new ArrayList<TalkClientDownload>();
+        for(TalkClientMediaCollectionRelation relation : relations) {
+            TalkClientDownload item = mClientDownloads.queryForId(relation.getItemId());
+            items.add(item);
+        }
+        return items;
     }
 
     @Override
@@ -741,10 +744,10 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
         // increment index of all items with same or higher index
         List<TalkClientMediaCollectionRelation> relations = mMediaCollectionRelations.queryBuilder()
                 .where()
-                .eq("collection_id", collectionId)
-                .and()
                 .not()
                 .lt("index", index)
+                .and()
+                .eq("collection_id", collectionId)
                 .query();
 
         for(int i = 0; i < relations.size(); i++) {
@@ -755,6 +758,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
 
         TalkClientMediaCollectionRelation newRelation = new TalkClientMediaCollectionRelation(collectionId, itemId, index);
         mMediaCollectionRelations.create(newRelation);
+        mMediaCollectionNotifier.notifyRefresh(collectionId);
     }
 
     @Override
@@ -784,6 +788,7 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
                 relation.setIndex(relation.getIndex() - 1);
                 mMediaCollectionRelations.update(relation);
             }
+            mMediaCollectionNotifier.notifyRefresh(collectionId);
         }
     }
 
@@ -795,15 +800,11 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
     @Override
     public void updateMediaCollection(TalkClientMediaCollection collection) throws SQLException {
         mMediaCollections.update(collection);
+        mMediaCollectionNotifier.notifyRefresh(collection.getId());
     }
 
-    @Override
-    public void registerMediaCollectionListener(IXoMediaCollectionListener listener) {
-        mMediaCollectionListener.addListener(listener);
-    }
-
-    @Override
-    public void unregisterMediaCollectionListener(IXoMediaCollectionListener listener) {
-        mMediaCollectionListener.removeListener(listener);
+    private void prepareMediaCollection(TalkClientMediaCollection collection) {
+        collection.setDatabase(this);
+        mMediaCollectionNotifier.add(collection);
     }
 }

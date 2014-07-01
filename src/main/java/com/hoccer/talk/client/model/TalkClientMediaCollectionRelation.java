@@ -10,7 +10,7 @@ import org.apache.log4j.Logger;
 @DatabaseTable(tableName = "mediaCollectionRelation")
 public class TalkClientMediaCollectionRelation {
 
-    private static final Logger LOG = Logger.getLogger(TalkClientMediaCollection.class);
+    private static final Logger LOG = Logger.getLogger(TalkClientMediaCollectionRelation.class);
 
     @DatabaseField(generatedId = true, columnName = "relationId")
     private int mRelationId;
@@ -26,7 +26,6 @@ public class TalkClientMediaCollectionRelation {
 
     // do not call constructor directly but create instances via IXoMediaCollectionDatabase.createMediaCollectionRelation()
     public TalkClientMediaCollectionRelation() {
-        LOG.error("TalkClientMediaCollection default constructor should never be called!");
     }
 
     public TalkClientMediaCollectionRelation(int collectionId, int itemId, int index) {
@@ -44,7 +43,7 @@ public class TalkClientMediaCollectionRelation {
     }
 
     public int getItemId() {
-        return mMediaCollectionId;
+        return mItemId;
     }
 
     // This setter updates the index locally only and does not update database fields automatically.
