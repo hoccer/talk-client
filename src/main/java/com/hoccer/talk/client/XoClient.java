@@ -3214,4 +3214,17 @@ public class XoClient implements JsonRpcConnection.Listener {
         }
     }
 
+    public void markMessagesAsAborted(TalkClientMessage message) {
+        message.getOutgoingDelivery().setState(TalkDelivery.STATE_ABORTED); // TODO: ABORTED OR ABORTED_ACKNOWLEDGED?
+        try {
+            mDatabase.saveDelivery(message.getOutgoingDelivery());
+        } catch (SQLException e) {
+            LOG.error("error while saving a message which will never be sent since the receiver is blocked or the group is empty", e);
+        }
+
+        int length = mMessageListeners.size();
+        for(int i = 0; i < length; i++) {
+            mMessageListeners.get(i).onMessageStateChanged(message);
+        }
+    }
 }
