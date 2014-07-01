@@ -12,13 +12,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.hoccer.talk.client.model.TalkClientContact;
-import com.hoccer.talk.client.model.TalkClientDownload;
-import com.hoccer.talk.client.model.TalkClientMembership;
-import com.hoccer.talk.client.model.TalkClientMessage;
-import com.hoccer.talk.client.model.TalkClientSelf;
-import com.hoccer.talk.client.model.TalkClientSmsToken;
-import com.hoccer.talk.client.model.TalkClientUpload;
+import com.hoccer.talk.client.model.*;
 import com.hoccer.talk.crypto.AESCryptor;
 import com.hoccer.talk.crypto.CryptoJSON;
 import com.hoccer.talk.crypto.RSACryptor;
@@ -1719,18 +1713,6 @@ public class XoClient implements JsonRpcConnection.Listener {
         public void outgoingDeliveryUpdated(TalkDelivery delivery) {
             LOG.debug("server: outgoingDelivery()");
             updateOutgoingDelivery(delivery);
-
-            if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_SEEN)) {
-                mServerRpc.outDeliveryAcknowledgeSeen(delivery.getMessageId(), delivery.getReceiverId());
-            } else if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_UNSEEN)) {
-                mServerRpc.outDeliveryAcknowledgeUnseen(delivery.getMessageId(), delivery.getReceiverId());
-            } else if(delivery.getState().equals(TalkDelivery.STATE_DELIVERED_PRIVATE_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
-            } else if(delivery.getState().equals(TalkDelivery.STATE_FAILED_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgeFailed(delivery.getMessageId(), delivery.getReceiverId());
-            } else if(delivery.getState().equals(TalkDelivery.STATE_REJECTED_ACKNOWLEDGED)) {
-                mServerRpc.outDeliveryAcknowledgeRejected(delivery.getMessageId(), delivery.getReceiverId());
-            }
         }
 
         @Override
@@ -2193,16 +2175,36 @@ public class XoClient implements JsonRpcConnection.Listener {
             LOG.error("SQL error", e);
         }
 
-        if (delivery.getState().equals(TalkDelivery.STATE_DELIVERING)) {
-            final XoClient that = this;
-            mExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    TalkDelivery result = mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
-                    that.updateOutgoingDelivery(result);
+        final XoClient that = this;
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                try {
+
+                    TalkDelivery result = null;
+
+                    if (delivery.getState().equals(TalkDelivery.STATE_DELIVERED_SEEN)) {
+                        result = mServerRpc.outDeliveryAcknowledgeSeen(delivery.getMessageId(), delivery.getReceiverId());
+                    } else if (delivery.getState().equals(TalkDelivery.STATE_DELIVERED_UNSEEN)) {
+                        result = mServerRpc.outDeliveryAcknowledgeUnseen(delivery.getMessageId(), delivery.getReceiverId());
+                    } else if (delivery.getState().equals(TalkDelivery.STATE_DELIVERED_PRIVATE)) {
+                        result = mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
+                    } else if (delivery.getState().equals(TalkDelivery.STATE_FAILED)) {
+                        result = mServerRpc.outDeliveryAcknowledgeFailed(delivery.getMessageId(), delivery.getReceiverId());
+                    } else if (delivery.getState().equals(TalkDelivery.STATE_REJECTED)) {
+                        result = mServerRpc.outDeliveryAcknowledgeRejected(delivery.getMessageId(), delivery.getReceiverId());
+                    }
+
+                    if (result != null) {
+                        that.updateOutgoingDelivery(result);
+                    }
+
+                } catch (Exception e) {
+                    LOG.error("Error while sending delivery confirmation: ", e);
                 }
-            });
-        }
+            }
+        });
 
         for(IXoMessageListener listener: mMessageListeners) {
             listener.onMessageStateChanged(clientMessage);
@@ -2329,14 +2331,19 @@ public class XoClient implements JsonRpcConnection.Listener {
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
 
-                        TalkDelivery result;
-                        boolean sendDeliveryConfirmation = mClientHost.isSendDeliveryConfirmationEnabled();
-                        if (sendDeliveryConfirmation) {
-                            result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
-                        } else {
-                            result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+                        try {
+                            TalkDelivery result;
+                            boolean sendDeliveryConfirmation = mClientHost.isSendDeliveryConfirmationEnabled();
+                            if (sendDeliveryConfirmation) {
+                                result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
+                            } else {
+                                result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+                            }
+                            that.updateIncomingDelivery(result);
+
+                        } catch (Exception e) {
+                            LOG.error("Error while sending delivery confirmation: ", e);
                         }
-                        that.updateIncomingDelivery(result);
                     }
                 });
             }
@@ -3183,7 +3190,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     try {
                         mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
                     } catch (Exception e) {
-                        LOG.error(e);
+                        LOG.error("Error while sending delivery confirmation: ", e);
                     }
                 }
 
