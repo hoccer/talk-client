@@ -3180,7 +3180,11 @@ public class XoClient implements JsonRpcConnection.Listener {
                 message.markAsSeen();
 
                 if (mClientHost.isSendDeliveryConfirmationEnabled()) {
-                    mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
+                    try {
+                        mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
+                    } catch (Exception e) {
+                        LOG.error(e);
+                    }
                 }
 
                 try {
