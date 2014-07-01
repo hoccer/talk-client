@@ -2198,8 +2198,14 @@ public class XoClient implements JsonRpcConnection.Listener {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    TalkDelivery result = mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
-                    that.updateOutgoingDelivery(result);
+
+                    try {
+                        TalkDelivery result = mServerRpc.outDeliveryAcknowledgePrivate(delivery.getMessageId(), delivery.getReceiverId());
+                        that.updateOutgoingDelivery(result);
+
+                    } catch (Exception e) {
+                        LOG.error("Error while sending delivery confirmation: ", e);
+                    }
                 }
             });
         }
@@ -2329,14 +2335,19 @@ public class XoClient implements JsonRpcConnection.Listener {
                     public void run() {
                         LOG.debug("confirming " + delivery.getMessageId());
 
-                        TalkDelivery result;
-                        boolean sendDeliveryConfirmation = mClientHost.isSendDeliveryConfirmationEnabled();
-                        if (sendDeliveryConfirmation) {
-                            result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
-                        } else {
-                            result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+                        try {
+                            TalkDelivery result;
+                            boolean sendDeliveryConfirmation = mClientHost.isSendDeliveryConfirmationEnabled();
+                            if (sendDeliveryConfirmation) {
+                                result = mServerRpc.inDeliveryConfirmUnseen(delivery.getMessageId());
+                            } else {
+                                result = mServerRpc.inDeliveryConfirmPrivate(delivery.getMessageId());
+                            }
+                            that.updateIncomingDelivery(result);
+
+                        } catch (Exception e) {
+                            LOG.error("Error while sending delivery confirmation: ", e);
                         }
-                        that.updateIncomingDelivery(result);
                     }
                 });
             }
@@ -3183,7 +3194,7 @@ public class XoClient implements JsonRpcConnection.Listener {
                     try {
                         mServerRpc.inDeliveryConfirmSeen(message.getMessageId());
                     } catch (Exception e) {
-                        LOG.error(e);
+                        LOG.error("Error while sending delivery confirmation: ", e);
                     }
                 }
 
