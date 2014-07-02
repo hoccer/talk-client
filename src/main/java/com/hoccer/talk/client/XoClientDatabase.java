@@ -401,7 +401,7 @@ public class XoClientDatabase {
         return messages;
     }
 
-    public long getMessageCountNearby() throws SQLException {
+    public long getNearbyMessageCount() throws SQLException {
         return getAllNearbyGroupMessages().size();
     }
 
@@ -420,41 +420,6 @@ public class XoClientDatabase {
         }
         return res;
     }
-
-    // nearby message archive
-
-    private List<TalkClientMessage> getAllArchivedNearbyGroupMessages() throws SQLException {
-        QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
-        builder.where().eq("deleted", true);
-        builder.orderBy("timestamp", true);
-        List<TalkClientMessage> messages = builder.query();
-        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
-        for (TalkClientMessage message : messages) {
-            if (message.getConversationContact().getContactType().equals("group")) {
-                if (message.getConversationContact().getGroupPresence().isTypeNearby()) {
-                    res.add(message);
-                }
-            }
-        }
-        return res;
-    }
-    public List<TalkClientMessage> findArchivedNearbyMessages(long count, long offset) throws SQLException {
-        List<TalkClientMessage> result = getAllArchivedNearbyGroupMessages();
-        if (offset + count > result.size()) {
-            count = result.size() - offset;
-        }
-        ArrayList<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
-        for (int i = (int) offset; i < offset + count; i++) {
-            messages.add(result.get(i));
-        }
-        return messages;
-    }
-
-    public long getArchivedMessageCountNearby() throws SQLException {
-        return getAllArchivedNearbyGroupMessages().size();
-    }
-
-    // nearby message archive
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
