@@ -725,11 +725,13 @@ public class XoClientDatabase implements IXoMediaCollectionDatabase {
         mMediaCollections.deleteById(collectionId);
     }
 
+    // The returned Dao should not be used directly to alter the database, use TalkClientMediaCollection instead
     @Override
     public Dao<TalkClientMediaCollection, Integer> getMediaCollectionDao() {
         return mMediaCollections;
     }
 
+    // The returned Dao should not be used directly to alter the database, use TalkClientMediaCollection instead
     @Override
     public Dao<TalkClientMediaCollectionRelation, Integer> getMediaCollectionRelationDao() {
         return mMediaCollectionRelations;
