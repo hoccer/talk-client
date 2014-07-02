@@ -7,7 +7,6 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
 import com.j256.ormlite.support.ConnectionSource;
-import junit.framework.Assert;
 import org.apache.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
@@ -313,7 +312,7 @@ public class MediaCollectionTest {
 
             assertNotNull(collection);
             assertEquals(collection.getName(), collectionName);
-            
+
             // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
