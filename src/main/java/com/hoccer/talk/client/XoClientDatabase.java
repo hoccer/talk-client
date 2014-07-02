@@ -454,20 +454,6 @@ public class XoClientDatabase {
         return getAllArchivedNearbyGroupMessages().size();
     }
 
-    public TalkClientContact getNearbyArchiveGroup() throws SQLException {
-        QueryBuilder<TalkClientContact, Integer> builder = mClientContacts.queryBuilder();
-        builder.where()
-                .eq("deleted", true)
-                .and()
-                .eq("clientId", "NEARBY_ARCHIVE_GROUP");
-        List<TalkClientContact> contacts = builder.query();
-        if (contacts.isEmpty()) {
-            return null;
-        } else {
-            return contacts.get(0);
-        }
-    }
-
     // nearby message archive
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
