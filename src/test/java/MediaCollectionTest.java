@@ -219,6 +219,9 @@ public class MediaCollectionTest {
         try {
             collection = mDatabase.createMediaCollection(collectionName);
 
+            assertNotNull(collection);
+            assertEquals(collection.getName(), collectionName);
+
             // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
@@ -232,8 +235,6 @@ public class MediaCollectionTest {
             fail();
         }
 
-        assertNotNull(collection);
-        assertEquals(collection.getName(), collectionName);
         assertEquals(collection.size(), 3);
         assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
         assertEquals(collection.getItem(1).getClientDownloadId(), item1.getClientDownloadId());
@@ -261,6 +262,9 @@ public class MediaCollectionTest {
         try {
             collection = mDatabase.createMediaCollection(collectionName);
 
+            assertNotNull(collection);
+            assertEquals(collection.getName(), collectionName);
+
             // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
@@ -278,8 +282,6 @@ public class MediaCollectionTest {
             fail();
         }
 
-        assertNotNull(collection);
-        assertEquals(collection.getName(), collectionName);
         assertEquals(collection.size(), 4);
         assertEquals(collection.getItem(0).getClientDownloadId(), item2.getClientDownloadId());
         assertEquals(collection.getItem(1).getClientDownloadId(), item3.getClientDownloadId());
@@ -309,6 +311,9 @@ public class MediaCollectionTest {
         try {
             collection = mDatabase.createMediaCollection(collectionName);
 
+            assertNotNull(collection);
+            assertEquals(collection.getName(), collectionName);
+            
             // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
@@ -325,8 +330,6 @@ public class MediaCollectionTest {
             fail();
         }
 
-        assertNotNull(collection);
-        assertEquals(collection.getName(), collectionName);
         assertEquals(collection.size(), 4);
         assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
         assertEquals(collection.getItem(1).getClientDownloadId(), item1.getClientDownloadId());
