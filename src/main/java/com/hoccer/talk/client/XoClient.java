@@ -2850,7 +2850,7 @@ public class XoClient implements JsonRpcConnection.Listener {
 
         // reset group state
         TalkGroup groupPresence = groupContact.getGroupPresence();
-        groupPresence.setState(TalkGroup.STATE_NONE);
+        groupPresence.setState(TalkGroup.STATE_KEPT);
 
         try {
             // remove all group members
