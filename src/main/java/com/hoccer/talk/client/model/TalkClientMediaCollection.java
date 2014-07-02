@@ -13,7 +13,7 @@ import java.util.*;
  * Encapsulates a collection of media items with a specific order. The data is kept in sync with the database.
  */
 @DatabaseTable(tableName = "mediaCollection")
-public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
+public class TalkClientMediaCollection {
 
     private static final Logger LOG = Logger.getLogger(TalkClientMediaCollection.class);
 
@@ -44,12 +44,12 @@ public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
 
     public void setDatabase(IXoMediaCollectionDatabase db) {
         mDatabase = db;
-        refresh();
+        mItemList = findMediaCollectionItemsOrderedByIndex();
     }
 
     public void setName(String name) {
         mName = name;
-        updateCollectionInDatabase();
+        updateMediaCollection();
     }
 
     public String getName() {
@@ -58,9 +58,9 @@ public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
 
     // Appends the given item to the collection
     public void add(TalkClientDownload item) {
-        refresh();
-        mItemList.add(item);
-        createRelation(item, mItemList.size());
+        if(createRelation(item, mItemList.size())) {
+            mItemList.add(item);
+        }
     }
 
     // Inserts the given item into the collection
@@ -68,9 +68,9 @@ public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
         if(index >= mItemList.size()) {
             add(item); // simply append
         } else {
-            refresh();
-            mItemList.add(index, item);
-            createRelation(item, index);
+            if(createRelation(item, index)) {
+                mItemList.add(index, item);
+            }
         }
     }
 
@@ -84,66 +84,18 @@ public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
 
     // Removes the item at the given index from the collection
     public void remove(int index) {
-        refresh();
-        removeRelation(index);
-        refresh();
+        if(removeRelation(index)) {
+            mItemList.remove(index);
+        }
     }
 
     // Returns the size of the collection array
     public int size() {
-        refresh();
         return mItemList.size();
     }
 
     public TalkClientDownload getItem(int index) {
-        refresh();
         return mItemList.get(index);
-    }
-
-    private void createRelation(TalkClientDownload item, int index) {
-        try {
-            mDatabase.createMediaCollectionRelation(mCollectionId, item.getClientDownloadId(), index);
-        } catch(SQLException e) {
-            LOG.error(e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private void removeRelation(int index) {
-        try {
-            mDatabase.removeMediaCollectionRelationAtIndex(mCollectionId, index);
-        } catch(SQLException e) {
-            LOG.error(e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private void updateCollectionInDatabase() {
-        try {
-            mDatabase.updateMediaCollection(this);
-        } catch(SQLException e) {
-            LOG.error(e.getMessage());
-            e.printStackTrace();
-            return;
-        }
-    }
-
-    public void refresh() {
-        if(mNeedsRefresh) {
-            // we set the flag to false first and implicitly allow that it might be set to true while refreshing again
-            mNeedsRefresh = false;
-
-            try {
-                // refresh collection name
-                mDatabase.refreshMediaCollection(this);
-                mItemList = mDatabase.findMediaCollectionItemsOrderedByIndex(mCollectionId);
-            } catch(SQLException e) {
-                LOG.error(e.getMessage());
-                e.printStackTrace();
-                return;
-            }
-            LOG.debug("MediaCollection instance for collection '" + mName + "' has been refreshed.");
-        }
     }
 
     @Override
@@ -157,9 +109,93 @@ public class TalkClientMediaCollection implements IXoDatabaseRefreshListener {
         return mCollectionId == collection.mCollectionId;
     }
 
-    // This method is called by database refresh notifier
-    @Override
-    public void needsRefresh() {
-        mNeedsRefresh = true;
+    private List<TalkClientDownload> findMediaCollectionItemsOrderedByIndex() {
+        List<TalkClientDownload> items = new ArrayList<TalkClientDownload>();
+
+        try {
+            List<TalkClientMediaCollectionRelation> relations = mDatabase.getMediaCollectionRelationDao().queryBuilder()
+                    .orderBy("index", true)
+                    .where()
+                    .eq("collection_id", mCollectionId)
+                    .query();
+
+            for(TalkClientMediaCollectionRelation relation : relations) {
+                items.add(relation.getItem());
+            }
+        } catch(SQLException e) {
+            e.printStackTrace();
+        }
+
+        return items;
+    }
+
+    private boolean createRelation(TalkClientDownload item, int index) {
+        try {
+            // increment index of all items with same or higher index
+            List<TalkClientMediaCollectionRelation> relations = mDatabase.getMediaCollectionRelationDao().queryBuilder()
+                    .where()
+                    .not()
+                    .lt("index", index)
+                    .and()
+                    .eq("collection_id", mCollectionId)
+                    .query();
+
+            for(int i = 0; i < relations.size(); i++) {
+                TalkClientMediaCollectionRelation relation = relations.get(i);
+                relation.setIndex(relation.getIndex() + 1);
+                mDatabase.getMediaCollectionRelationDao().update(relation);
+            }
+
+            TalkClientMediaCollectionRelation newRelation = new TalkClientMediaCollectionRelation(mCollectionId, item, index);
+            mDatabase.getMediaCollectionRelationDao().create(newRelation);
+        } catch(SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    private boolean removeRelation(int index) {
+        try {
+            TalkClientMediaCollectionRelation relationToDelete = mDatabase.getMediaCollectionRelationDao().queryBuilder()
+                    .where()
+                    .eq("collection_id", mCollectionId)
+                    .and()
+                    .eq("index", index)
+                    .queryForFirst();
+
+            if(relationToDelete != null) {
+                mDatabase.getMediaCollectionRelationDao().delete(relationToDelete);
+
+                // decrement index of all items with higher index
+                List<TalkClientMediaCollectionRelation> relations = mDatabase.getMediaCollectionRelationDao().queryBuilder()
+                        .where()
+                        .not()
+                        .le("index", index)
+                        .and()
+                        .eq("collection_id", mCollectionId)
+                        .query();
+
+                for (int i = 0; i < relations.size(); i++) {
+                    TalkClientMediaCollectionRelation relation = relations.get(i);
+                    relation.setIndex(relation.getIndex() - 1);
+                    mDatabase.getMediaCollectionRelationDao().update(relation);
+                }
+            }
+        } catch(SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    private boolean updateMediaCollection() {
+        try {
+            mDatabase.getMediaCollectionDao().update(this);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 }

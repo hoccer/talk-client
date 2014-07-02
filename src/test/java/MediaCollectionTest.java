@@ -89,21 +89,23 @@ public class MediaCollectionTest {
     public void testAddItems() {
         LOG.info("testAddItems");
 
-        String collectionName = "testAddItems_ollection";
+        String collectionName = "testAddItems_collection";
+
         TalkClientMediaCollection collection = null;
         TalkClientDownload item0 = new TalkClientDownload();
         TalkClientDownload item1 = new TalkClientDownload();
         TalkClientDownload item2 = new TalkClientDownload();
         try {
+            collection = mDatabase.createMediaCollection(collectionName);
+
+            // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
             mDatabase.saveClientDownload(item2);
-
-            collection = mDatabase.createMediaCollection(collectionName);
             collection.add(item0);
             collection.add(item1);
             collection.add(item2);
-        } catch(SQLException e) {
+        } catch (SQLException e) {
             LOG.error(e.getMessage());
             e.printStackTrace();
             fail();
@@ -116,9 +118,14 @@ public class MediaCollectionTest {
         assertEquals(collection.getItem(1).getClientDownloadId(), item1.getClientDownloadId());
         assertEquals(collection.getItem(2).getClientDownloadId(), item2.getClientDownloadId());
 
+        int collectionId = collection.getId();
+
+        // remove reference to null the weak reference in XoClientDatabase cache
+        collection = null;
+
         TalkClientMediaCollection collectionCopy = null;
         try {
-            collectionCopy = mDatabase.findMediaCollectionById(collection.getId());
+            collectionCopy = mDatabase.findMediaCollectionById(collectionId);
         } catch(SQLException e) {
             LOG.error(e.getMessage());
             e.printStackTrace();
@@ -131,23 +138,48 @@ public class MediaCollectionTest {
         assertEquals(collectionCopy.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
         assertEquals(collectionCopy.getItem(1).getClientDownloadId(), item1.getClientDownloadId());
         assertEquals(collectionCopy.getItem(2).getClientDownloadId(), item2.getClientDownloadId());
+
+        TalkClientDownload item3 = new TalkClientDownload();
+        try {
+            // create more items and add to collection
+            mDatabase.saveClientDownload(item3);
+            collectionCopy.add(item3);
+        } catch (SQLException e) {
+            LOG.error(e.getMessage());
+            e.printStackTrace();
+            fail();
+        }
+
+        assertEquals(collectionCopy.size(), 4);
+        assertEquals(collectionCopy.getItem(3).getClientDownloadId(), item3.getClientDownloadId());
     }
 
     @Test
-    public void testDynamicAddItems() {
-        LOG.info("testDynamicAddItems");
+    public void testInsertItems() {
+        LOG.info("testInsertItems");
 
-        String collectionName = "testDynamicAddItems_collection";
+        String collectionName = "testInsertItems_collection";
+
         TalkClientMediaCollection collection = null;
         TalkClientDownload item0 = new TalkClientDownload();
         TalkClientDownload item1 = new TalkClientDownload();
+        TalkClientDownload item2 = new TalkClientDownload();
+        TalkClientDownload item3 = new TalkClientDownload();
         try {
+            collection = mDatabase.createMediaCollection(collectionName);
+
+            // create some items and add to collection
             mDatabase.saveClientDownload(item0);
             mDatabase.saveClientDownload(item1);
+            mDatabase.saveClientDownload(item2);
+            mDatabase.saveClientDownload(item3);
 
-            collection = mDatabase.createMediaCollection(collectionName);
-            collection.add(item0);
-        } catch(SQLException e) {
+            // should insert at [0]
+            collection.add(5, item0);
+            collection.add(1, item1);
+            collection.add(0, item2);
+            collection.add(1, item3);
+        } catch (SQLException e) {
             LOG.error(e.getMessage());
             e.printStackTrace();
             fail();
@@ -155,26 +187,69 @@ public class MediaCollectionTest {
 
         assertNotNull(collection);
         assertEquals(collection.getName(), collectionName);
-        assertEquals(collection.size(), 1);
-        assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.size(), 4);
+        assertEquals(collection.getItem(0).getClientDownloadId(), item2.getClientDownloadId());
+        assertEquals(collection.getItem(1).getClientDownloadId(), item3.getClientDownloadId());
+        assertEquals(collection.getItem(2).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.getItem(3).getClientDownloadId(), item1.getClientDownloadId());
+    }
 
-        TalkClientMediaCollection collectionCopy = null;
+    @Test
+    public void testRemoveItems() {
+        LOG.info("testRemoveItems");
+
+        String collectionName = "testRemoveItems_collection";
+
+        TalkClientMediaCollection collection = null;
+        TalkClientDownload item0 = new TalkClientDownload();
+        TalkClientDownload item1 = new TalkClientDownload();
+        TalkClientDownload item2 = new TalkClientDownload();
+        TalkClientDownload item3 = new TalkClientDownload();
         try {
-            collectionCopy = mDatabase.findMediaCollectionById(collection.getId());
-        } catch(SQLException e) {
+            collection = mDatabase.createMediaCollection(collectionName);
+
+            // create some items and add to collection
+            mDatabase.saveClientDownload(item0);
+            mDatabase.saveClientDownload(item1);
+            mDatabase.saveClientDownload(item2);
+            mDatabase.saveClientDownload(item3);
+
+            collection.add(item0);
+            collection.add(item1);
+            collection.add(item2);
+            collection.add(item3);
+        } catch (SQLException e) {
             LOG.error(e.getMessage());
             e.printStackTrace();
             fail();
         }
 
-        assertNotNull(collectionCopy);
-        assertEquals(collectionCopy.getName(), collectionName);
-        assertEquals(collectionCopy.size(), 1);
-        assertEquals(collectionCopy.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertNotNull(collection);
+        assertEquals(collection.getName(), collectionName);
+        assertEquals(collection.size(), 4);
+        assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.getItem(1).getClientDownloadId(), item1.getClientDownloadId());
+        assertEquals(collection.getItem(2).getClientDownloadId(), item2.getClientDownloadId());
+        assertEquals(collection.getItem(3).getClientDownloadId(), item3.getClientDownloadId());
 
-        // add additional item now
-        collection.add(item1);
+        collection.remove(1);
+
+        assertEquals(collection.size(), 3);
+        assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.getItem(1).getClientDownloadId(), item2.getClientDownloadId());
+        assertEquals(collection.getItem(2).getClientDownloadId(), item3.getClientDownloadId());
+
+        collection.remove(item3);
+
         assertEquals(collection.size(), 2);
-        assertEquals(collectionCopy.size(), 2);
+        assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.getItem(1).getClientDownloadId(), item2.getClientDownloadId());
+
+        // remove it again, nothing should change
+        collection.remove(item3);
+
+        assertEquals(collection.size(), 2);
+        assertEquals(collection.getItem(0).getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(collection.getItem(1).getClientDownloadId(), item2.getClientDownloadId());
     }
 }

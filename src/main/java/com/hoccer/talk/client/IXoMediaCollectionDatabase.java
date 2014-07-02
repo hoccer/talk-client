@@ -2,6 +2,8 @@ package com.hoccer.talk.client;
 
 import com.hoccer.talk.client.model.TalkClientDownload;
 import com.hoccer.talk.client.model.TalkClientMediaCollection;
+import com.hoccer.talk.client.model.TalkClientMediaCollectionRelation;
+import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -23,13 +25,7 @@ public interface IXoMediaCollectionDatabase {
 
     void deleteMediaCollectionById(int collectionId) throws SQLException;
 
-    List<TalkClientDownload> findMediaCollectionItemsOrderedByIndex(int collectionId) throws SQLException;
+    Dao<TalkClientMediaCollection, Integer> getMediaCollectionDao();
 
-    void updateMediaCollection(TalkClientMediaCollection collection) throws SQLException;
-
-    void createMediaCollectionRelation(int collectionId, int itemId, int index) throws SQLException;
-
-    void removeMediaCollectionRelationAtIndex(int collectionId, int index) throws SQLException;
-
-    void refreshMediaCollection(TalkClientMediaCollection collection) throws SQLException;
+    Dao<TalkClientMediaCollectionRelation, Integer> getMediaCollectionRelationDao();
 }

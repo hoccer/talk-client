@@ -18,8 +18,8 @@ public class TalkClientMediaCollectionRelation {
     @DatabaseField(columnName = "collection_id")
     private int mMediaCollectionId;
 
-    @DatabaseField(columnName = "item_id")
-    private int mItemId;
+    @DatabaseField(columnName = "item", foreign = true)
+    private TalkClientDownload mItem;
 
     @DatabaseField(columnName = "index")
     private int mIndex;
@@ -28,9 +28,9 @@ public class TalkClientMediaCollectionRelation {
     public TalkClientMediaCollectionRelation() {
     }
 
-    public TalkClientMediaCollectionRelation(int collectionId, int itemId, int index) {
+    public TalkClientMediaCollectionRelation(int collectionId, TalkClientDownload item, int index) {
         mMediaCollectionId = collectionId;
-        mItemId = itemId;
+        mItem = item;
         mIndex = index;
     }
 
@@ -42,8 +42,8 @@ public class TalkClientMediaCollectionRelation {
         return mMediaCollectionId;
     }
 
-    public int getItemId() {
-        return mItemId;
+    public TalkClientDownload getItem() {
+        return mItem;
     }
 
     // This setter updates the index locally only and does not update database fields automatically.
