@@ -30,22 +30,21 @@ public class MediaCollectionTest {
 
     @Before
     public void testSetup() throws Exception {
-        final JdbcConnectionSource connectionSource = new JdbcConnectionSource("jdbc:h2:mem:account");
-        mConnectionSource = connectionSource;
+        mConnectionSource = new JdbcConnectionSource("jdbc:h2:mem:account");
         mDatabase = new XoClientDatabase(new IXoClientDatabaseBackend() {
 
             @Override
             public ConnectionSource getConnectionSource() {
-                return connectionSource;
+                return mConnectionSource;
             }
 
             @Override
             public <D extends Dao<T, ?>, T> D getDao(Class<T> clazz) throws SQLException {
-                return DaoManager.createDao(connectionSource, clazz);
+                return DaoManager.createDao(mConnectionSource, clazz);
             }
         });
 
-        mDatabase.createTables(connectionSource);
+        mDatabase.createTables(mConnectionSource);
         mDatabase.initialize();
     }
 
