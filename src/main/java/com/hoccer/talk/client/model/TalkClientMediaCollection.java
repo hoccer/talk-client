@@ -27,8 +27,6 @@ public class TalkClientMediaCollection {
 
     private List<TalkClientDownload> mItemList = new ArrayList<TalkClientDownload>();
 
-    private Boolean mNeedsRefresh = true;
-
     // do not call constructor directly but create instances via IXoMediaCollectionDatabase.createMediaCollection()
     public TalkClientMediaCollection() {
     }
@@ -42,6 +40,7 @@ public class TalkClientMediaCollection {
         return mCollectionId;
     }
 
+    // this method should only by called by the database on instantiation
     public void setDatabase(IXoMediaCollectionDatabase db) {
         mDatabase = db;
         mItemList = findMediaCollectionItemsOrderedByIndex();
