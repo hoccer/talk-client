@@ -7,16 +7,7 @@ import com.hoccer.talk.client.model.TalkClientMessage;
 import com.hoccer.talk.client.model.TalkClientSelf;
 import com.hoccer.talk.client.model.TalkClientSmsToken;
 import com.hoccer.talk.client.model.TalkClientUpload;
-import com.hoccer.talk.model.TalkAttachment;
-import com.hoccer.talk.model.TalkClient;
-import com.hoccer.talk.model.TalkDelivery;
-import com.hoccer.talk.model.TalkGroup;
-import com.hoccer.talk.model.TalkGroupMember;
-import com.hoccer.talk.model.TalkKey;
-import com.hoccer.talk.model.TalkMessage;
-import com.hoccer.talk.model.TalkPresence;
-import com.hoccer.talk.model.TalkPrivateKey;
-import com.hoccer.talk.model.TalkRelationship;
+import com.hoccer.talk.model.*;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
@@ -415,17 +406,16 @@ public class XoClientDatabase {
         return message;
     }
 
-// TODO: check if really needed ...
     public List<TalkClientMessage> findNearbyMessages(long count, long offset) throws SQLException {
-        List<TalkClientMessage> list =  getAllNearbyGroupMessages();
-        if (offset + count > list.size()) {
-            count = list.size() - offset;
+        List<TalkClientMessage> result = getAllNearbyGroupMessages();
+        if (offset + count > result.size()) {
+            count = result.size() - offset;
         }
-        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
-        for (int i = (int)offset; i<offset+count; i++) {
-            res.add(list.get(i));
+        ArrayList<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
+        for (int i = (int) offset; i < offset + count; i++) {
+            messages.add(result.get(i));
         }
-        return res;
+        return messages;
     }
 
     public long getMessageCountNearby() throws SQLException {
@@ -434,19 +424,68 @@ public class XoClientDatabase {
 
     private List<TalkClientMessage> getAllNearbyGroupMessages() throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
+        builder.where().eq("deleted", false);
         builder.orderBy("timestamp", true);
-        List<TalkClientMessage> list =  builder.query();
+        List<TalkClientMessage> messages = builder.query();
         ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
-        for (TalkClientMessage t: list) {
-            if (t.getConversationContact().getContactType().equals("group")) {
-                if (t.getConversationContact().getGroupPresence().isTypeNearby()) {
-                    res.add(t);
+        for (TalkClientMessage message : messages) {
+            if (message.getConversationContact().getContactType().equals("group")) {
+                if (message.getConversationContact().getGroupPresence().isTypeNearby()) {
+                    res.add(message);
                 }
             }
         }
         return res;
     }
-// TODO: check if really needed .
+
+    // nearby message archive
+
+    private List<TalkClientMessage> getAllArchivedNearbyGroupMessages() throws SQLException {
+        QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
+        builder.where().eq("deleted", true);
+        builder.orderBy("timestamp", true);
+        List<TalkClientMessage> messages = builder.query();
+        ArrayList<TalkClientMessage> res = new ArrayList<TalkClientMessage>();
+        for (TalkClientMessage message : messages) {
+            if (message.getConversationContact().getContactType().equals("group")) {
+                if (message.getConversationContact().getGroupPresence().isTypeNearby()) {
+                    res.add(message);
+                }
+            }
+        }
+        return res;
+    }
+    public List<TalkClientMessage> findArchivedNearbyMessages(long count, long offset) throws SQLException {
+        List<TalkClientMessage> result = getAllArchivedNearbyGroupMessages();
+        if (offset + count > result.size()) {
+            count = result.size() - offset;
+        }
+        ArrayList<TalkClientMessage> messages = new ArrayList<TalkClientMessage>();
+        for (int i = (int) offset; i < offset + count; i++) {
+            messages.add(result.get(i));
+        }
+        return messages;
+    }
+
+    public long getArchivedMessageCountNearby() throws SQLException {
+        return getAllArchivedNearbyGroupMessages().size();
+    }
+
+    public TalkClientContact getNearbyArchiveGroup() throws SQLException {
+        QueryBuilder<TalkClientContact, Integer> builder = mClientContacts.queryBuilder();
+        builder.where()
+                .eq("deleted", true)
+                .and()
+                .eq("clientId", "NEARBY_ARCHIVE_GROUP");
+        List<TalkClientContact> contacts = builder.query();
+        if (contacts.isEmpty()) {
+            return null;
+        } else {
+            return contacts.get(0);
+        }
+    }
+
+    // nearby message archive
 
     public List<TalkClientMessage> findMessagesByContactId(int contactId, long count, long offset) throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
@@ -482,10 +521,6 @@ public class XoClientDatabase {
     public TalkClientDownload findClientDownloadById(int clientDownloadId) throws SQLException {
         return mClientDownloads.queryForId(clientDownloadId);
     }
-
-//    public TalkClientMessage findClientMessageById(int clientMessageId) throws SQLException {
-//        return mClientMessages.queryForId(clientMessageId);
-//    }
 
     public long findUnseenMessageCountByContactId(int contactId) throws SQLException {
         return mClientMessages.queryBuilder().where()
