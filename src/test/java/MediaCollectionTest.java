@@ -273,11 +273,11 @@ public class MediaCollectionTest {
             mDatabase.saveClientDownload(item2);
             mDatabase.saveClientDownload(item3);
 
-            // should insert at [0]
-            collection.add(5, item0);
-            collection.add(1, item1);
-            collection.add(0, item2);
-            collection.add(1, item3);
+            // insert items at "random" positions
+            collection.add(5, item0); // order: 0
+            collection.add(1, item1); // order: 0 1
+            collection.add(0, item2); // order: 2 0 1
+            collection.add(1, item3); // order: 2 3 0 1
         } catch (SQLException e) {
             LOG.error(e.getMessage());
             e.printStackTrace();
