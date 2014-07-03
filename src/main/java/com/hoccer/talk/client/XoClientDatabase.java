@@ -422,7 +422,7 @@ public class XoClientDatabase {
         return getAllNearbyGroupMessages().size();
     }
 
-    private List<TalkClientMessage> getAllNearbyGroupMessages() throws SQLException {
+    public List<TalkClientMessage> getAllNearbyGroupMessages() throws SQLException {
         QueryBuilder<TalkClientMessage, Integer> builder = mClientMessages.queryBuilder();
         builder.where().eq("deleted", false);
         builder.orderBy("timestamp", true);
@@ -730,4 +730,5 @@ public class XoClientDatabase {
                 break;
         }
     }
+
 }
