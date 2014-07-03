@@ -88,6 +88,11 @@ public class TalkClientMediaCollection {
         }
     }
 
+    // Moves the item at index 'from' to index 'to'.
+    // Throws an IndexOutOfBoundsException if 'from' or 'to' is out of bounds.
+    public void moveItemFromToIndex(int from, int to) {
+    }
+
     // Returns the size of the collection array
     public int size() {
         return mItemList.size();
