@@ -242,8 +242,11 @@ public class MediaCollectionTest {
         List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
         assertNotNull(relations);
         assertEquals(relations.size(), 3);
+        assertEquals(relations.get(0).getIndex(), 0);
         assertEquals(relations.get(0).getItem().getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(relations.get(1).getIndex(), 1);
         assertEquals(relations.get(1).getItem().getClientDownloadId(), item1.getClientDownloadId());
+        assertEquals(relations.get(2).getIndex(), 2);
         assertEquals(relations.get(2).getItem().getClientDownloadId(), item2.getClientDownloadId());
     }
 
@@ -291,9 +294,13 @@ public class MediaCollectionTest {
         List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
         assertNotNull(relations);
         assertEquals(relations.size(), 4);
+        assertEquals(relations.get(0).getIndex(), 0);
         assertEquals(relations.get(0).getItem().getClientDownloadId(), item2.getClientDownloadId());
+        assertEquals(relations.get(1).getIndex(), 1);
         assertEquals(relations.get(1).getItem().getClientDownloadId(), item3.getClientDownloadId());
+        assertEquals(relations.get(2).getIndex(), 2);
         assertEquals(relations.get(2).getItem().getClientDownloadId(), item0.getClientDownloadId());
+        assertEquals(relations.get(3).getIndex(), 3);
         assertEquals(relations.get(3).getItem().getClientDownloadId(), item1.getClientDownloadId());
     }
 
@@ -341,9 +348,13 @@ public class MediaCollectionTest {
             List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
             assertNotNull(relations);
             assertEquals(relations.size(), 4);
+            assertEquals(relations.get(0).getIndex(), 0);
             assertEquals(relations.get(0).getItem().getClientDownloadId(), item0.getClientDownloadId());
+            assertEquals(relations.get(1).getIndex(), 1);
             assertEquals(relations.get(1).getItem().getClientDownloadId(), item1.getClientDownloadId());
+            assertEquals(relations.get(2).getIndex(), 2);
             assertEquals(relations.get(2).getItem().getClientDownloadId(), item2.getClientDownloadId());
+            assertEquals(relations.get(3).getIndex(), 3);
             assertEquals(relations.get(3).getItem().getClientDownloadId(), item3.getClientDownloadId());
         }
 
@@ -359,8 +370,11 @@ public class MediaCollectionTest {
             List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
             assertNotNull(relations);
             assertEquals(relations.size(), 3);
+            assertEquals(relations.get(0).getIndex(), 0);
             assertEquals(relations.get(0).getItem().getClientDownloadId(), item0.getClientDownloadId());
+            assertEquals(relations.get(1).getIndex(), 1);
             assertEquals(relations.get(1).getItem().getClientDownloadId(), item2.getClientDownloadId());
+            assertEquals(relations.get(2).getIndex(), 2);
             assertEquals(relations.get(2).getItem().getClientDownloadId(), item3.getClientDownloadId());
         }
 
@@ -375,7 +389,9 @@ public class MediaCollectionTest {
             List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
             assertNotNull(relations);
             assertEquals(relations.size(), 2);
+            assertEquals(relations.get(0).getIndex(), 0);
             assertEquals(relations.get(0).getItem().getClientDownloadId(), item0.getClientDownloadId());
+            assertEquals(relations.get(1).getIndex(), 1);
             assertEquals(relations.get(1).getItem().getClientDownloadId(), item2.getClientDownloadId());
         }
 
@@ -391,7 +407,9 @@ public class MediaCollectionTest {
             List<TalkClientMediaCollectionRelation> relations = findMediaCollectionRelationsOrderedByIndex(collection.getId());
             assertNotNull(relations);
             assertEquals(relations.size(), 2);
+            assertEquals(relations.get(0).getIndex(), 0);
             assertEquals(relations.get(0).getItem().getClientDownloadId(), item0.getClientDownloadId());
+            assertEquals(relations.get(1).getIndex(), 1);
             assertEquals(relations.get(1).getItem().getClientDownloadId(), item2.getClientDownloadId());
         }
     }
