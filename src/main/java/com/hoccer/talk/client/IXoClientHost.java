@@ -5,6 +5,7 @@ import org.eclipse.jetty.websocket.WebSocketClientFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
+import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -22,6 +23,8 @@ public interface IXoClientHost {
 
     public boolean isSupportModeEnabled();
     public String getSupportTag();
+
+    public void loadClientConfigProperties();
 
     public String getClientName();
     public String getClientLanguage();
